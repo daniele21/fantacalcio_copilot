@@ -1,0 +1,37 @@
+# gitignore file for a project
+*.log
+*.tmp
+*.bak
+*.swp
+*.DS_Store
+*.class
+*.exe
+*.o
+*.obj
+*.dll
+
+# Ignore Python bytecode files
+__pycache__/
+*.pyc
+*.pyo   
+
+# Ignore virtual environments
+*venv/
+*.env
+*.env.local
+*.env.development
+*.env.test
+*.env.production
+
+# Ignore IDE specific files
+*.idea/
+*.vscode/
+*.sublime-workspace
+*.sublime-project   
+
+# Ignore build directories
+*build/
+*dist/
+*node_modules/   
+*db
+
