@@ -140,7 +140,23 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                         <div className="p-4 bg-base-100 rounded-lg flex justify-between items-center border border-base-300">
                             <div>
                                 <h3 className="text-2xl font-bold text-content-100">{playerForBidding.name}</h3>
-                                <p className="text-content-200">{playerForBidding.team} - {playerForBidding.priceTier}</p>
+                                <p className="text-content-200">{playerForBidding.team}</p>
+                                {playerForBidding.skills && (
+                                    <p className="text-content-200 text-sm mt-1">{playerForBidding.skills.join(', ')}</p>
+                                )}
+                                {typeof playerForBidding.recommendation === 'number' && (
+                                    <div className="mt-2 inline-block bg-brand-primary/10 border border-brand-primary/30 rounded-lg px-3 py-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-brand-primary text-xs">Copilot Score</span>
+                                            <span className="flex items-center">
+                                                {Array.from({ length: 5 }).map((_, i) => (
+                                                    <span key={i} className={i < Math.round(playerForBidding.recommendation) ? 'text-yellow-400' : 'text-base-300'}>★</span>
+                                                ))}
+                                            </span>
+                                            <span className="ml-1 text-xs font-bold text-brand-primary">{playerForBidding.recommendation.toFixed(1)}</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <button onClick={onClearPlayer} className="p-2 text-content-200 hover:text-red-400 rounded-full hover:bg-red-500/10 transition-colors" aria-label="Cambia giocatore">
                                 <X className="w-6 h-6" />

@@ -1,5 +1,4 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Player, MyTeamPlayer, LeagueSettings, Role, AuctionResult, TargetPlayer } from '../types';
 import { BiddingAssistant } from './BiddingAssistant';
 import { TeamStatus } from './TeamStatus';
@@ -8,10 +7,10 @@ import { ChevronDown, ChevronUp, Users, Wallet, Info } from 'lucide-react';
 import { TeamsView } from './TeamsView';
 import { InstantHeader } from './InstantHeader';
 import { InsightColumn } from './InsightColumn';
+import { fetchPlayers } from '../services/playerService';
 
 
 interface LiveAuctionViewProps {
-    players: Player[];
     myTeam: MyTeamPlayer[];
     auctionLog: Record<number, AuctionResult>;
     onPlayerAuctioned: (player: Player, purchasePrice: number, buyer: string) => void;
@@ -21,12 +20,28 @@ interface LiveAuctionViewProps {
     onUpdateAuctionResult: (playerId: number, newPrice: number) => void;
 }
 
-export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam, auctionLog, onPlayerAuctioned, leagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
+export const LiveAuctionView: React.FC<Omit<LiveAuctionViewProps, 'players'>> = ({ myTeam, auctionLog, onPlayerAuctioned, leagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
+    const [players, setPlayers] = useState<Player[]>([]);
+    const [playersLoading, setPlayersLoading] = useState(true);
+    const [playersError, setPlayersError] = useState<string | null>(null);
     const [isAuctionBoardExpanded, setIsAuctionBoardExpanded] = useState(true);
     const [isTeamsViewExpanded, setIsTeamsViewExpanded] = useState(false);
     const [playerForBidding, setPlayerForBidding] = useState<Player | null>(null);
     const [currentBid, setCurrentBid] = useState<number | ''>(1);
     const biddingAssistantRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setPlayersLoading(true);
+        setPlayersError(null);
+        fetchPlayers()
+            .then(setPlayers)
+            .catch((err: unknown) => {
+                console.error('Failed to load players:', err);
+                setPlayers([]);
+                setPlayersError('Errore nel caricamento dei giocatori. Riprova.');
+            })
+            .finally(() => setPlayersLoading(false));
+    }, []);
 
     const availablePlayers = React.useMemo(() => {
         const auctionedPlayerIds = new Set(Object.keys(auctionLog).map(Number));
@@ -119,13 +134,21 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                         </button>
                         {isAuctionBoardExpanded && (
                             <div id="auction-board-content" className="p-4 pt-0">
-                               <AuctionBoard 
-                                    players={players} 
-                                    auctionLog={auctionLog} 
-                                    leagueSettings={leagueSettings}
-                                    targetPlayers={targetPlayers}
-                                    onPlayerSelect={handlePlayerSelectForBidding}
-                               />
+                                {playersLoading ? (
+                                    <div className="text-center text-content-200 py-8">Caricamento giocatori...</div>
+                                ) : playersError ? (
+                                    <div className="text-center text-red-500 py-8">{playersError}</div>
+                                ) : players.length === 0 ? (
+                                    <div className="text-center text-content-200 py-8">Nessun giocatore disponibile.</div>
+                                ) : (
+                                    <AuctionBoard 
+                                        players={players} 
+                                        auctionLog={auctionLog} 
+                                        leagueSettings={leagueSettings}
+                                        targetPlayers={targetPlayers}
+                                        onPlayerSelect={handlePlayerSelectForBidding}
+                                    />
+                                )}
                             </div>
                         )}
                     </div>

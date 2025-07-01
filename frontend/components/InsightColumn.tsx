@@ -278,7 +278,9 @@ const RiskFactors: React.FC<{ player: Player }> = ({ player }) => {
         }
 
         // Turnover/Cup Risk
-        const analysisText = (analystCeiling + analystFloor).toLowerCase();
+        const safeCeiling = typeof analystCeiling === 'string' ? analystCeiling : '';
+        const safeFloor = typeof analystFloor === 'string' ? analystFloor : '';
+        const analysisText = (safeCeiling + safeFloor).toLowerCase();
         const turnoverKeywords = ['coppa', 'turnover', 'ballottaggio', 'panchina', 'europa', 'nazionale'];
         if (turnoverKeywords.some(kw => analysisText.includes(kw))) {
              result.push({ key: 'turnover', icon: <UsersRound size={20} />, label: 'Turnover', description: 'Soggetto a rotazioni/coppe', colorClass: 'border-yellow-500 bg-yellow-500' });
@@ -306,11 +308,10 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
         return players.filter(p => 
             p.id !== player.id &&
             p.role === player.role &&
-            !auctionedIds.has(p.id) &&
-            (p.priceTier === player.priceTier || p.baseCost > player.baseCost * 0.7)
+            !auctionedIds.has(p.id)
         )
-        .sort((a,b) => b.recommendation - a.recommendation || b.baseCost - a.baseCost)
-        .slice(0, 4);
+        .sort((a,b) => b.recommendation - a.recommendation || b.price - a.price)
+        .slice(0, 5);
     }, [player, players, auctionLog]);
 
     if (alternatives.length === 0) {
@@ -321,17 +322,30 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
         <div className="flex overflow-x-auto space-x-3 p-1 pb-2 -mx-3">
             {alternatives.map(alt => {
                  const scaleFactor = leagueSettings.budget / 500;
-                 const minSpend = Math.round((alt.baseCost * scaleFactor) * 0.9);
-                 const maxSpend = Math.round((alt.baseCost * scaleFactor) * 1.15);
-                 const badge = alt.stats.injuries === 'Alto rischio' ? { text: 'Rischio Alto', color: 'bg-red-500/20 text-red-400' } :
-                               alt.recommendation > 3 ? { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' } : null;
-
+                 const baseCost = typeof alt.price === 'number' && !isNaN(alt.price) ? alt.price : 1;
+                 const minSpend = Math.round((baseCost * scaleFactor) * 0.9);
+                 const maxSpend = Math.round((baseCost * scaleFactor) * 1.15);
+                 let badge = null;
+                 if (alt.stats && typeof alt.stats.injury_score === 'number') {
+                    if (alt.stats.injury_score >= 3) {
+                        badge = { text: 'Rischio Alto', color: 'bg-red-500/20 text-red-400' };
+                    } else if (alt.recommendation > 3) {
+                        badge = { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' };
+                    }
+                 } else if (alt.recommendation > 3) {
+                    badge = { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' };
+                 }
+                 // Defensive: FantaMedia
+                 let fantamedia = '-';
+                 if (alt.stats && typeof alt.stats.fm1y === 'number' && isFinite(alt.stats.fm1y)) {
+                    fantamedia = alt.stats.fm1y.toFixed(2);
+                 }
                 return (
                     <div key={alt.id} className="flex-shrink-0 w-40 bg-base-100 rounded-lg p-2.5 text-center border border-base-300/50">
                         <p className="font-bold text-sm truncate text-content-100">{alt.name}</p>
                         <p className="text-xs truncate text-content-200">{alt.team}</p>
                         <p className="my-1 font-bold text-brand-primary">{minSpend}-{maxSpend} Cr</p>
-                        <p className="text-xs text-content-200">FantaMedia: {alt.stats.avgFantaRating.toFixed(2)}</p>
+                        <p className="text-xs text-content-200">FantaMedia: {fantamedia}</p>
                         {badge && <span className={`mt-2 inline-block px-2 py-0.5 text-xs font-semibold rounded-full ${badge.color}`}>{badge.text}</span>}
                     </div>
                 )

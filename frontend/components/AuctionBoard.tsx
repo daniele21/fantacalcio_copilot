@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Player, Role, AuctionResult, LeagueSettings, TargetPlayer } from '../types';
+import { Player, AuctionResult, LeagueSettings, TargetPlayer } from '../types';
 import { Search, Star } from 'lucide-react';
 
 interface AuctionBoardProps {
@@ -11,55 +10,68 @@ interface AuctionBoardProps {
     onPlayerSelect: (player: Player) => void;
 }
 
-const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
-const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
-const ROLE_ICONS: Record<Role, string> = { [Role.GK]: '🧤', [Role.DEF]: '🛡️', [Role.MID]: '⚽', [Role.FWD]: '🎯' };
+// Use string keys for roles throughout
+const ROLES_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
+type RoleKey = typeof ROLES_ORDER[number];
+const ROLE_NAMES: Record<RoleKey, string> = { GK: 'Portieri', DEF: 'Difensori', MID: 'Centrocampisti', FWD: 'Attaccanti' };
+const ROLE_ICONS: Record<RoleKey, string> = { GK: '🧤', DEF: '🛡️', MID: '⚽', FWD: '🎯' };
 
 export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog, leagueSettings, targetPlayers, onPlayerSelect }) => {
+    console.log('[AuctionBoard] players prop:', players);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState<'all' | 'available' | 'taken'>('all');
-    const [selectedRole, setSelectedRole] = useState<Role>(ROLES_ORDER[0]);
+    const [selectedRole, setSelectedRole] = useState<RoleKey>('GK');
 
     const targetPlayersMap = useMemo(() => new Map(targetPlayers.map(p => [p.id, p])), [targetPlayers]);
 
     const playersByRole = useMemo(() => {
-        const grouped: Record<Role, Player[]> = {
-            [Role.GK]: [],
-            [Role.DEF]: [],
-            [Role.MID]: [],
-            [Role.FWD]: [],
-        };
-        
+        const grouped: Record<RoleKey, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
         for (const player of players) {
-            grouped[player.role].push(player);
+            let roleKey = (player && player.role) ? String(player.role).toUpperCase() : '';
+            if (["P", "POR", "PORTIERE", "PORTIERI"].includes(roleKey)) roleKey = 'GK';
+            else if (["D", "DIF", "DIFENSORE", "DIFENSORI"].includes(roleKey)) roleKey = 'DEF';
+            else if (["C", "CEN", "CENTROCAMPISTA", "CENTROCAMPISTI"].includes(roleKey)) roleKey = 'MID';
+            else if (["A", "ATT", "ATTACCANTE", "ATTACCANTI"].includes(roleKey)) roleKey = 'FWD';
+            if ((grouped as any)[roleKey]) {
+                (grouped as any)[roleKey].push(player);
+            }
         }
-
         for (const role of ROLES_ORDER) {
-            grouped[role].sort((a,b) => a.name.localeCompare(b.name));
+            grouped[role].sort((a, b) => a.name.localeCompare(b.name));
         }
-
         return grouped;
     }, [players]);
 
     const filteredPlayers = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        
         if (!playersByRole[selectedRole]) return [];
-        
-        return playersByRole[selectedRole].filter(p => {
+        return playersByRole[selectedRole].filter((p: Player) => {
             const isTaken = !!auctionLog[p.id];
-            const matchesFilter = 
-                filter === 'all' || 
-                (filter === 'available' && !isTaken) || 
+            const matchesFilter =
+                filter === 'all' ||
+                (filter === 'available' && !isTaken) ||
                 (filter === 'taken' && isTaken);
-
             const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q);
-
             return matchesFilter && matchesSearch;
         });
-
     }, [playersByRole, auctionLog, searchQuery, filter, selectedRole]);
 
+    // Only allow selecting normalized roles
+    const handleSetSelectedRole = (role: RoleKey) => {
+        if (ROLES_ORDER.includes(role)) {
+            setSelectedRole(role);
+        }
+    };
+
+    const RoleTabButton: React.FC<{role: RoleKey}> = ({role}) => (
+        <button
+            onClick={() => handleSetSelectedRole(role)}
+            className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+        >
+           <span className="hidden sm:inline-block mr-2">{ROLE_ICONS[role]}</span>{ROLE_NAMES[role]}
+        </button>
+    );
 
     const FilterButton: React.FC<{label: string, value: 'all' | 'available' | 'taken'}> = ({label, value}) => (
         <button
@@ -70,14 +82,63 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
         </button>
     );
 
-    const RoleTabButton: React.FC<{role: Role}> = ({role}) => (
-        <button
-            onClick={() => setSelectedRole(role)}
-            className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
-        >
-           <span className="hidden sm:inline-block mr-2">{ROLE_ICONS[role]}</span>{ROLE_NAMES[role]}
-        </button>
-    )
+    // Auto-select first non-empty role if current selectedRole has no players or is not a valid role
+    React.useEffect(() => {
+        if (!ROLES_ORDER.includes(selectedRole) || !playersByRole[selectedRole] || playersByRole[selectedRole].length === 0) {
+            const firstNonEmpty = ROLES_ORDER.find(role => playersByRole[role] && playersByRole[role].length > 0);
+            if (firstNonEmpty && firstNonEmpty !== selectedRole) {
+                setSelectedRole(firstNonEmpty);
+            }
+        }
+    }, [playersByRole, selectedRole]);
+
+    // Defensive effect: forcibly reset selectedRole if it is not a valid UI role
+    React.useEffect(() => {
+        if (!ROLES_ORDER.includes(selectedRole)) {
+            setSelectedRole(ROLES_ORDER[0]);
+        }
+    }, [selectedRole]);
+
+    // --- SORTING STATE ---
+    const [sortBy, setSortBy] = useState<'name'|'baseCost'|'recommendedBid'|'maxBid'|'result'>("name");
+    const [sortDir, setSortDir] = useState<'asc'|'desc'>("asc");
+
+    // --- SORT HANDLER ---
+    const handleSort = (col: typeof sortBy) => {
+        if (sortBy === col) {
+            setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(col);
+            setSortDir('asc');
+        }
+    };
+
+    // --- SORTED PLAYERS ---
+    const sortedPlayers = React.useMemo(() => {
+        const arr = [...filteredPlayers];
+        arr.sort((a, b) => {
+            let aVal: any, bVal: any;
+            if (sortBy === 'name') {
+                aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase();
+            } else if (sortBy === 'baseCost') {
+                aVal = (a.price ?? 0); bVal = (b.price ?? 0);
+            } else if (sortBy === 'recommendedBid') {
+                const scaleFactor = leagueSettings.budget / 500;
+                aVal = Math.round((a.price ?? 0) * scaleFactor * 1.15);
+                bVal = Math.round((b.price ?? 0) * scaleFactor * 1.15);
+            } else if (sortBy === 'maxBid') {
+                aVal = targetPlayersMap.get(a.id)?.maxBid ?? 0;
+                bVal = targetPlayersMap.get(b.id)?.maxBid ?? 0;
+            } else if (sortBy === 'result') {
+                aVal = auctionLog[a.id]?.purchasePrice ?? 0;
+                bVal = auctionLog[b.id]?.purchasePrice ?? 0;
+            }
+            if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return arr;
+    }, [filteredPlayers, sortBy, sortDir, targetPlayersMap, auctionLog, leagueSettings.budget]);
 
     return (
         <>
@@ -111,20 +172,33 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                     <table className="w-full min-w-[600px] text-left text-sm">
                         <thead className="border-b border-base-300 bg-base-200/80 backdrop-blur-sm sticky top-0">
                             <tr>
-                                <th className="p-2 font-semibold text-content-200 w-2/5">Giocatore</th>
-                                <th className="p-2 font-semibold text-content-200 text-center" title="Costo Base">C. Base</th>
-                                <th className="p-2 font-semibold text-content-200 text-center" title="Offerta Massima Consigliata">Cons.</th>
-                                <th className="p-2 font-semibold text-content-200 text-center" title="Mio Max Bid">Mio Bid</th>
-                                <th className="p-2 font-semibold text-content-200 text-center">Esito Asta</th>
+                                <th className="p-2 font-semibold text-content-200 w-2/5 cursor-pointer select-none" onClick={() => handleSort('name')}>
+                                    Giocatore {sortBy === 'name' && (sortDir === 'asc' ? '▲' : '▼')}
+                                </th>
+                                <th className="p-2 font-semibold text-content-200 text-center cursor-pointer select-none" title="Costo Base" onClick={() => handleSort('baseCost')}>
+                                    C. Base {sortBy === 'baseCost' && (sortDir === 'asc' ? '▲' : '▼')}
+                                </th>
+                                <th className="p-2 font-semibold text-content-200 text-center cursor-pointer select-none" title="Offerta Massima Consigliata" onClick={() => handleSort('recommendedBid')}>
+                                    Cons. {sortBy === 'recommendedBid' && (sortDir === 'asc' ? '▲' : '▼')}
+                                </th>
+                                <th className="p-2 font-semibold text-content-200 text-center cursor-pointer select-none" title="Mio Max Bid" onClick={() => handleSort('maxBid')}>
+                                    Mio Bid {sortBy === 'maxBid' && (sortDir === 'asc' ? '▲' : '▼')}
+                                </th>
+                                <th className="p-2 font-semibold text-content-200 text-center cursor-pointer select-none" title="Esito Asta" onClick={() => handleSort('result')}>
+                                    Esito Asta {sortBy === 'result' && (sortDir === 'asc' ? '▲' : '▼')}
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-base-300/50">
-                            {filteredPlayers.map(player => {
+                            {sortedPlayers.map(player => {
                                 const result = auctionLog[player.id];
                                 const isTaken = !!result;
                                 const targetInfo = targetPlayersMap.get(player.id);
                                 const scaleFactor = leagueSettings.budget / 500;
-                                const baseCost = Math.round(player.baseCost * scaleFactor);
+                                // Use player.baseCost if available, else fallback to player.base_price or player.price or 0
+                                const baseCost = Math.round((
+                                    (player as any).baseCost ?? (player as any).base_price ?? (player as any).price ?? 0
+                                ) * scaleFactor);
                                 const recommendedBid = Math.round(baseCost * 1.15);
 
                                 return (

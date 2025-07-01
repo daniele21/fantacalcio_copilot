@@ -69,7 +69,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, leagueSettings, 
         </div>
 
         <div className="mt-3 text-sm text-brand-primary font-semibold">
-          {player.priceTier}
+          {player.skills && player.skills.length > 0 ? player.skills.join(', ') : '-'}
         </div>
       </div>
 

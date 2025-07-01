@@ -12,7 +12,7 @@ const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
 const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
 const BASE_URL = "http://127.0.0.1:5000";
 
-export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({ players, leagueSettings }) => {
+export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({ players, leagueSettings }: StrategyBoardViewProps) => {
     const { idToken } = useAuth();
     // Internal state for role budget and target players
     const [roleBudget, setRoleBudget] = useState<Record<Role, number>>({
@@ -22,26 +22,26 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({ players, l
         [Role.FWD]: 35,
     });
     const [targetPlayers, setTargetPlayers] = useState<TargetPlayer[]>([]);
-    const [query, setQuery] = useState('');
-    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [query, setQuery] = useState<string>('');
+    const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
     const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'success'|'error'>('idle');
 
     // Handlers for internal state
     const handleRoleBudgetChange = (role: Role, e: ChangeEvent<HTMLInputElement>) => {
-        setRoleBudget(prev => ({ ...prev, [role]: Math.max(0, parseInt(e.target.value) || 0) }));
+        setRoleBudget((prev: Record<Role, number>) => ({ ...prev, [role]: Math.max(0, parseInt(e.target.value) || 0) }));
     };
     const handleAddTarget = (p: Player) => {
-        if (targetPlayers.some(tp => tp.id === p.id)) return;
-        setTargetPlayers(prev => [...prev, { ...p, maxBid: 0 }]);
+        if (targetPlayers.some((tp: TargetPlayer) => tp.id === p.id)) return;
+        setTargetPlayers((prev: TargetPlayer[]) => [...prev, { ...p, maxBid: 0 }]);
         setQuery('');
         setShowSuggestions(false);
     };
     const handleBidChange = (id: string, bid: number) => {
-        setTargetPlayers(prev => prev.map(tp => tp.id === id ? { ...tp, maxBid: bid } : tp));
+        setTargetPlayers((prev: TargetPlayer[]) => prev.map((tp: TargetPlayer) => tp.id === id ? { ...tp, maxBid: bid } : tp));
     };
     const handleRemoveTarget = (id?: string) => {
         if (id) {
-            setTargetPlayers(prev => prev.filter(tp => tp.id !== id));
+            setTargetPlayers((prev: TargetPlayer[]) => prev.filter((tp: TargetPlayer) => tp.id !== id));
         } else {
             setTargetPlayers([]);
         }
@@ -59,16 +59,16 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({ players, l
         setTargetPlayers([]);
     };
     // Suggestions logic
-    const targetPlayerIds = useMemo(() => new Set(targetPlayers.map(p => p.id)), [targetPlayers]);
+    const targetPlayerIds = useMemo(() => new Set(targetPlayers.map((p: TargetPlayer) => p.id)), [targetPlayers]);
     const suggestions = useMemo(() => {
         if (!query) return [];
-        return players.filter(p =>
+        return players.filter((p: Player) =>
             !targetPlayerIds.has(p.id) && p.name.toLowerCase().includes(query.toLowerCase())
         ).slice(0, 5);
     }, [query, players, targetPlayerIds]);
 
     // Budget calculations
-    const totalPercentage = useMemo(() => Object.values(roleBudget).reduce((sum, p) => sum + p, 0), [roleBudget]);
+    const totalPercentage = useMemo(() => Object.values(roleBudget).reduce((sum: number, p: number) => sum + p, 0), [roleBudget]);
     const plannedSpendingByRole = useMemo(() => {
         const spending: Record<Role, number> = { [Role.GK]: 0, [Role.DEF]: 0, [Role.MID]: 0, [Role.FWD]: 0 };
         targetPlayers.forEach((p: TargetPlayer) => {
@@ -126,7 +126,7 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({ players, l
                                 (p: Player) => p.name === player.nome && p.role === player.ruolo && p.price === player.quota_attuale
                             );
                             const syntheticId = `${player.nome}_${player.ruolo}_${player.quota_attuale}`;
-                            setTargetPlayers(prev => [...prev, {
+                            setTargetPlayers((prev: TargetPlayer[]) => [...prev, {
                                 id: syntheticId,
                                 name: player.nome,
                                 role: player.ruolo,

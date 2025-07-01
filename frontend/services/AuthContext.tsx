@@ -30,12 +30,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGoogleAuthReady, setIsGoogleAuthReady] = useState<boolean>(false);
 
+  // Move handleSignOut above loadProfile to fix closure order
+  const handleSignOut = useCallback(() => {
+    setIdToken(null);
+    setProfile(null);
+    localStorage.removeItem('idToken');
+  }, []);
+
   // Fetch user profile (including plan) from backend
   const loadProfile = useCallback(async (token: string) => {
     const resp = await fetch(`${BASE_URL}/api/me`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!resp.ok) throw new Error('Failed to fetch profile');
+    if (!resp.ok) {
+      // Try to parse error JSON
+      let errorData;
+      try {
+        errorData = await resp.json();
+      } catch {
+        errorData = {};
+      }
+      if (errorData && errorData.error === "Invalid Google ID token") {
+        alert("La sessione è scaduta o il login non è più valido. Effettua nuovamente l'accesso con Google.");
+        handleSignOut();
+        return;
+      }
+      throw new Error('Failed to fetch profile');
+    }
     const data = await resp.json();
     setProfile({
       email: data.email,
@@ -44,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       plan: data.plan,
       sub: data.sub
     });
-  }, []);
+  }, [handleSignOut]);
 
   const handleCredentialResponse = useCallback((response: any) => {
     const token = response.credential;
@@ -71,12 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     });
   }, [loadProfile]);
-
-  const handleSignOut = useCallback(() => {
-    setIdToken(null);
-    setProfile(null);
-    localStorage.removeItem('idToken');
-  }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('idToken');
@@ -145,8 +160,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     window.addEventListener('profile:refresh', refreshHandler);
-    return () => window.removeEventListener('profile:refresh', refreshHandler);
-  }, [idToken, isGoogleAuthReady, loadProfile, handleCredentialResponse]); // Removed handleCredentialResponse from dependencies
+    // ─── SILENT REFRESH ───────────────────────────────────────────────
+    // Decode exp, schedule a silent re-prompt 5 minutes before it
+    let refreshTimer: number | undefined;
+    if (idToken && window.google?.accounts?.id) {
+      try {
+        const { exp } = jwtDecode(idToken) as { exp: number };
+        // ms until 5 minutes before expiry
+        const msUntilRefresh = exp * 1000 - Date.now() - 5 * 60 * 1000;
+        if (msUntilRefresh > 0) {
+          refreshTimer = window.setTimeout(() => {
+            // silent prompt for a new ID token
+            window.google.accounts.id.prompt();
+          }, msUntilRefresh);
+        }
+      } catch (e) {
+        console.warn('[AuthContext] Could not schedule token refresh:', e);
+      }
+    }
+    return () => {
+      window.removeEventListener('profile:refresh', refreshHandler);
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [idToken, isGoogleAuthReady, loadProfile]); // Removed handleCredentialResponse from dependencies
 
   return (
     <AuthContext.Provider value={{ idToken, profile, isLoggedIn: !!idToken, isGoogleAuthReady, handleSignOut, GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID_CONST }}>

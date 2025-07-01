@@ -1,9 +1,8 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Player, Role, PriceTier, AggregatedAnalysisResult, GroundingSource, LeagueSettings, MyTeamPlayer, DetailedAnalysisResult, BiddingAdviceResult } from "../types";
+import { Player, Role, AggregatedAnalysisResult, GroundingSource, LeagueSettings, MyTeamPlayer, DetailedAnalysisResult, BiddingAdviceResult } from "../types";
 
 // L'API Key viene gestita come variabile d'ambiente, come da requisiti.
-const API_KEY = process.env.API_KEY;
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 if (!API_KEY) {
   // In un'app reale, potresti voler disabilitare le feature AI o mostrare un errore.
@@ -15,21 +14,20 @@ const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
 const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
 
-export const getAggregatedAnalysis = async (players: Player[], role: Role | null, tiers: Set<PriceTier>): Promise<AggregatedAnalysisResult> => {
+export const getAggregatedAnalysis = async (players: Player[], role: Role | null): Promise<AggregatedAnalysisResult> => {
     const errorResult = (analysis: string): AggregatedAnalysisResult => ({ analysis, sources: [] });
 
     if (!API_KEY) return errorResult("Analisi AI non disponibile (API Key mancante).");
-    if (players.length === 0) return errorResult("Nessun giocatore selezionato per l'analisi. Modifica i filtri.");
+    if (!Array.isArray(players) || players.length === 0) return errorResult("Nessun giocatore selezionato per l'analisi. Modifica i filtri.");
 
-    const roleName = role ? `del ruolo '${role}'` : 'di tutti i ruoli';
-    const tierNames = tiers.size > 0 ? `della/e fascia/e "${[...tiers].join(', ')}"` : 'di tutte le fasce';
-    const playerNames = players.map(p => p.name).slice(0, 15).join(', ');
+    const roleName = role ? `del ruolo '${ROLE_NAMES[role] || role}'` : 'di tutti i ruoli';
+    const playerList = players.map(p => p?.name || "(sconosciuto)").slice(0, 15).join(', ');
 
     const prompt = `Agisci come un esperto di Fantacalcio che analizza le tendenze del mercato per un'asta.
 Usa la ricerca Google per trovare le analisi e i consigli più recenti sui giocatori di Serie A per il Fantacalcio.
 
-Il segmento di mercato da analizzare è: ${roleName} ${tierNames}.
-I giocatori in questo segmento includono: ${playerNames}.
+Il segmento di mercato da analizzare è: ${roleName}.
+I giocatori in questo segmento includono: ${playerList}.
 
 Basandoti sui risultati della ricerca web, fornisci un'analisi strategica concisa che includa:
 - Un riassunto del trend generale per questo segmento (es. "costosi", "sottovalutati", "poche opzioni valide").
@@ -48,41 +46,42 @@ Rispondi in italiano. Formatta usando Markdown. Sii diretto e strategico.`;
             }
         });
         
-        const text = response.text;
+        // Log the full Gemini response and cost for debugging
+        const cost = (response as any).usage ? (response as any).usage.totalTokens : undefined;
+        console.log("Gemini response (AggregatedAnalysis):", response, "Cost (totalTokens):", cost);
         
-        if (typeof text === 'string' && text.trim().length > 0) {
-            const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-            let sources: GroundingSource[] = [];
-            if (groundingMetadata?.groundingChunks) {
-                sources = groundingMetadata.groundingChunks
-                    .filter(chunk => chunk.web)
-                    .map(chunk => ({
-                        uri: chunk.web!.uri,
-                        title: chunk.web!.title,
-                    }));
+        if (!response.text || typeof response.text !== 'string' || response.text.trim().length === 0) {
+            let errorMessage = "L'analisi aggregata non è disponibile: il modello non ha fornito una risposta.";
+            if (response.promptFeedback?.blockReason) {
+                errorMessage = `L'analisi è stata bloccata per motivo di '${response.promptFeedback.blockReason}'.`;
+                if (response.promptFeedback.blockReason === 'SAFETY') {
+                    errorMessage += " Prova a modificare i filtri.";
+                }
             }
-            return { analysis: text.trim(), sources };
+            console.warn("Analisi aggregata fallita. Risposta da Gemini:", response);
+            return errorResult(errorMessage);
         }
 
-        let errorMessage = "L'analisi aggregata non è disponibile: il modello non ha fornito una risposta.";
-        if (response.promptFeedback?.blockReason) {
-             errorMessage = `L'analisi è stata bloccata per motivo di '${response.promptFeedback.blockReason}'.`;
-             if (response.promptFeedback.blockReason === 'SAFETY') {
-                 errorMessage += " Prova a modificare i filtri.";
-             }
+        const text = response.text.trim();
+        const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+        let sources: GroundingSource[] = [];
+        if (groundingMetadata?.groundingChunks) {
+            sources = groundingMetadata.groundingChunks
+                .filter(chunk => chunk.web && chunk.web.uri && chunk.web.title)
+                .map(chunk => ({
+                    uri: chunk.web!.uri as string,
+                    title: chunk.web!.title as string,
+                }));
         }
-        console.warn("Analisi aggregata fallita. Risposta da Gemini:", response);
-        return errorResult(errorMessage);
-
+        return { analysis: text, sources };
     } catch (error) {
         console.error("Errore durante la chiamata API per analisi aggregata:", error);
         if (error instanceof Error && error.message.includes('RESOURCE_EXHAUSTED')) {
-             return errorResult("Impossibile generare l'analisi: Quota API superata. Controlla il tuo piano e la fatturazione sull'account Google AI.");
+            return errorResult("Impossibile generare l'analisi: Quota API superata. Controlla il tuo piano e la fatturazione sull'account Google AI.");
         }
         return errorResult("Impossibile generare l'analisi aggregata a causa di un errore di rete o del server.");
     }
 };
-
 
 export const getDetailedPlayerAnalysis = async (playerName: string, playerTeam: string, playerRole: Role): Promise<DetailedAnalysisResult> => {
   if (!API_KEY) {
@@ -108,11 +107,17 @@ Sii specifico, incisivo e vai dritto al punto. Evita frasi generiche. Rispondi i
         contents: prompt,
         config: {
           temperature: 0.5,
-          responseMimeType: "application/json",
-          tools: [{googleSearch: {}}],
+          responseMimeType: "application/json"
         }
     });
 
+    // Log the full Gemini response and cost for debugging
+    const cost = (response as any).usage ? (response as any).usage.totalTokens : undefined;
+    console.log("Gemini response (DetailedPlayerAnalysis):", response, "Cost (totalTokens):", cost);
+
+    if (!response.text || typeof response.text !== 'string') {
+      throw new Error("La risposta dell'AI non è disponibile o non è in formato testo.");
+    }
     let jsonStr = response.text.trim();
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
@@ -134,7 +139,6 @@ Sii specifico, incisivo e vai dritto al punto. Evita frasi generiche. Rispondi i
     throw new Error("Impossibile generare l'analisi AI dettagliata a causa di un errore di rete, del server o di un formato di risposta non valido.");
   }
 };
-
 
 export const getBiddingAdvice = async (player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings, currentBid: number, roleBudget: Record<Role, number>): Promise<BiddingAdviceResult> => {
     if (!API_KEY) {
@@ -174,18 +178,15 @@ interface BiddingAdviceResult {
 \`\`\`
 
 **1. GIOCATORE IN ESAME:**
-*   Nome: ${player.name} (${player.role}, ${player.team})
-*   Qualità percepita: **${player.priceTier}**
-*   Potenziale (Ceiling): ${player.analystCeiling}
-*   Rischio (Floor): ${player.analystFloor}
-*   Punteggio Copilot: ${player.recommendation}/5
+*   Nome: ${player.name || "(sconosciuto)"} (${player.role || "?"}, ${player.team || "?"})
+*   Punteggio Copilot: ${player.recommendation ?? "?"}/5
 
 **2. LA MIA SITUAZIONE DI BUDGET GLOBALE:**
 *   Budget Rimanente Totale: ${remainingBudget} crediti.
 *   Slot da riempire: ${totalSlotsLeft}.
 *   Credito Medio per Slot: ${avgCreditPerSlot} crediti.
 
-**3. IL MIO PIANO PER IL RUOLO '${ROLE_NAMES[player.role]}':**
+**3. IL MIO PIANO PER IL RUOLO '${ROLE_NAMES[player.role] || player.role}':**
 *   Budget Allocato: ${allocatedBudgetForRole} crediti (${roleBudget[player.role]}%).
 *   Spesa Attuale: ${spentOnRole} crediti.
 *   Budget Rimanente per questo Ruolo: ${remainingBudgetForRole} crediti.
@@ -208,6 +209,13 @@ Analizza tutti questi dati per formulare i 5 consigli richiesti nel JSON. Per il
             }
         });
         
+        // Log the full Gemini response and cost for debugging
+        const cost = (response as any).usage ? (response as any).usage.totalTokens : undefined;
+        console.log("Gemini response (BiddingAdvice):", response, "Cost (totalTokens):", cost);
+        
+        if (!response.text || typeof response.text !== 'string') {
+            throw new Error("La risposta dell'AI non è disponibile o non è in formato testo.");
+        }
         let jsonStr = response.text.trim();
         const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
         const match = jsonStr.match(fenceRegex);
