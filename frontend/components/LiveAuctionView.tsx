@@ -7,10 +7,9 @@ import { ChevronDown, ChevronUp, Users, Wallet, Info } from 'lucide-react';
 import { TeamsView } from './TeamsView';
 import { InstantHeader } from './InstantHeader';
 import { InsightColumn } from './InsightColumn';
-import { fetchPlayers } from '../services/playerService';
-
 
 interface LiveAuctionViewProps {
+    players: Player[];
     myTeam: MyTeamPlayer[];
     auctionLog: Record<number, AuctionResult>;
     onPlayerAuctioned: (player: Player, purchasePrice: number, buyer: string) => void;
@@ -20,28 +19,12 @@ interface LiveAuctionViewProps {
     onUpdateAuctionResult: (playerId: number, newPrice: number) => void;
 }
 
-export const LiveAuctionView: React.FC<Omit<LiveAuctionViewProps, 'players'>> = ({ myTeam, auctionLog, onPlayerAuctioned, leagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
-    const [players, setPlayers] = useState<Player[]>([]);
-    const [playersLoading, setPlayersLoading] = useState(true);
-    const [playersError, setPlayersError] = useState<string | null>(null);
+export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam, auctionLog, onPlayerAuctioned, leagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
     const [isAuctionBoardExpanded, setIsAuctionBoardExpanded] = useState(true);
     const [isTeamsViewExpanded, setIsTeamsViewExpanded] = useState(false);
     const [playerForBidding, setPlayerForBidding] = useState<Player | null>(null);
     const [currentBid, setCurrentBid] = useState<number | ''>(1);
     const biddingAssistantRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        setPlayersLoading(true);
-        setPlayersError(null);
-        fetchPlayers()
-            .then(setPlayers)
-            .catch((err: unknown) => {
-                console.error('Failed to load players:', err);
-                setPlayers([]);
-                setPlayersError('Errore nel caricamento dei giocatori. Riprova.');
-            })
-            .finally(() => setPlayersLoading(false));
-    }, []);
 
     const availablePlayers = React.useMemo(() => {
         const auctionedPlayerIds = new Set(Object.keys(auctionLog).map(Number));
@@ -85,6 +68,12 @@ export const LiveAuctionView: React.FC<Omit<LiveAuctionViewProps, 'players'>> = 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
                 {/* Left/Main Column */}
                 <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+                    <button
+                        onClick={() => window.location.href = '/setup'}
+                        className="mb-4 px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
+                    >
+                        ← Torna alle Impostazioni
+                    </button>
                     <div ref={biddingAssistantRef} className="scroll-mt-32">
                         <BiddingAssistant 
                             availablePlayers={availablePlayers}
@@ -134,11 +123,7 @@ export const LiveAuctionView: React.FC<Omit<LiveAuctionViewProps, 'players'>> = 
                         </button>
                         {isAuctionBoardExpanded && (
                             <div id="auction-board-content" className="p-4 pt-0">
-                                {playersLoading ? (
-                                    <div className="text-center text-content-200 py-8">Caricamento giocatori...</div>
-                                ) : playersError ? (
-                                    <div className="text-center text-red-500 py-8">{playersError}</div>
-                                ) : players.length === 0 ? (
+                                {players.length === 0 ? (
                                     <div className="text-center text-content-200 py-8">Nessun giocatore disponibile.</div>
                                 ) : (
                                     <AuctionBoard 

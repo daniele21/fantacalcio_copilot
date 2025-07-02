@@ -3,7 +3,7 @@ import { Player, Role, LeagueSettings, AggregatedAnalysisResult, TargetPlayer, S
 import { getAggregatedAnalysis } from '../services/geminiService';
 import { PlayerCard } from './PlayerCard';
 import { FilterChip } from './shared/FilterChip';
-import { Loader, Frown, Sparkles } from 'lucide-react';
+import { Loader, Frown, Sparkles, Star } from 'lucide-react';
 import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 
 interface PlayerExplorerViewProps {
@@ -15,7 +15,7 @@ interface PlayerExplorerViewProps {
 }
 
 export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget }: PlayerExplorerViewProps) => {
-  const [selectedRole, setSelectedRole] = useState<Role>(ROLES_ORDER[0]);
+  const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [aggregatedAnalysis, setAggregatedAnalysis] = useState<AggregatedAnalysisResult>({
     analysis: "Seleziona i filtri e clicca su 'Analizza Segmento' per ottenere una valutazione strategica da Gemini.",
@@ -23,6 +23,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   });
   const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(true);
+  const [showFavouritesOnly, setShowFavouritesOnly] = useState(false);
 
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
@@ -46,18 +47,25 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   };
 
   const filteredPlayers = useMemo(() => {
-    return players
-      .filter((player: Player) => {
-        const roleMatch = player.role === selectedRole;
-        const skillMatch = selectedSkills.size === 0 || (player.skills as string[]).some(skill => selectedSkills.has(skill));
-        return roleMatch && skillMatch;
-      })
-      .sort((a, b) => (b.recommendation ?? 0) - (a.recommendation ?? 0));
-  }, [players, selectedRole, selectedSkills]);
+    let filtered = players;
+    if (showFavouritesOnly) {
+      filtered = filtered.filter((player: Player) => targetPlayerIds.has(player.id));
+    }
+    // Filter by role unless 'ALL' is selected
+    if (selectedRole !== 'ALL') {
+      filtered = filtered.filter((player: Player) => player.role === selectedRole);
+    }
+    // Then filter by skills
+    if (selectedSkills.size > 0) {
+      filtered = filtered.filter((player: Player) => (player.skills as string[]).some(skill => selectedSkills.has(skill)));
+    }
+    return filtered.sort((a, b) => (b.recommendation ?? 0) - (a.recommendation ?? 0));
+  }, [players, selectedRole, selectedSkills, showFavouritesOnly, targetPlayerIds]);
 
   const handleAnalysisRequest = async () => {
     setIsAnalysisLoading(true);
-    const result = await getAggregatedAnalysis(filteredPlayers, selectedRole);
+    // Pass null if 'ALL' is selected, otherwise pass the selectedRole
+    const result = await getAggregatedAnalysis(filteredPlayers, selectedRole === 'ALL' ? null : selectedRole);
     setAggregatedAnalysis(result);
     setIsAnalysisLoading(false);
   };
@@ -114,7 +122,14 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
       </div>
 
       <div className="bg-base-200 rounded-lg mb-6 sticky top-[125px] z-20 backdrop-blur-sm bg-opacity-80 border border-base-300">
-        <div className="flex bg-base-100 rounded-t-lg border-b-2 border-base-300">
+        <div className="flex bg-base-100 rounded-t-lg border-b-2 border-base-300 items-center gap-2 px-2 py-1">
+            <button
+                key="ALL"
+                onClick={() => setSelectedRole('ALL')}
+                className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+            >
+                Tutti
+            </button>
             {ROLES_ORDER.map(role => (
                  <button
                     key={role}
@@ -124,6 +139,14 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                    {ROLE_NAMES[role]}
                 </button>
             ))}
+            <div className="ml-2">
+              <FilterChip
+                key="favourites"
+                label={<Star className="w-5 h-5" />}
+                isActive={showFavouritesOnly}
+                onClick={() => setShowFavouritesOnly(v => !v)}
+              />
+            </div>
         </div>
         <div className="p-4">
             <FilterSection title="Filtra per Skill">

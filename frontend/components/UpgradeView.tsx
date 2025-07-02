@@ -38,7 +38,9 @@ export const UpgradeView: React.FC<UpgradeViewProps> = ({ featureName, onNavigat
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan: planKey }),
     });
-    const { sessionUrl, error } = resp;
+    // console.log('Stripe session response:', resp);
+    const sessionUrl = resp?.data?.sessionUrl;
+    const error = resp?.data?.error;
     if (sessionUrl) {
       window.location.href = sessionUrl;
     } else if (error) {

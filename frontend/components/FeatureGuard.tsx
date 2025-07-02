@@ -10,8 +10,10 @@ interface FeatureGuardProps {
 }
 
 export const FeatureGuard: React.FC<FeatureGuardProps> = ({ feature, fallback, children }) => {
-  const { isLoggedIn, hasFeature } = useAuth();
-  if (!isLoggedIn || !hasFeature(feature)) {
+  const { isLoggedIn, hasFeature, profile } = useAuth();
+  const has = hasFeature(feature);
+  console.log('[FeatureGuard] plan:', profile?.plan, 'feature:', feature, 'hasFeature:', has);
+  if (!isLoggedIn || !has) {
     return <>{fallback}</>;
   }
   return <>{children}</>;

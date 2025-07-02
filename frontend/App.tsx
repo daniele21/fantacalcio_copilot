@@ -12,7 +12,13 @@ import { LeagueSettings, Player, MyTeamPlayer, AuctionResult, Role, TargetPlayer
 import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
 import { UpgradeView } from './components/UpgradeView';
 import { FeatureGuard } from './components/FeatureGuard';
-import { PlayerExplorerView } from './components/PreparationView';
+
+// Helper to map feature keys to user-friendly names
+const FEATURE_LABELS: Record<string, string> = {
+  liveAuction: 'Assistente Live',
+  strategyPrep: 'Strategia',
+  leagueAnalytics: 'Analisi Lega',
+};
 
 const App: React.FC = () => {
     const { isLoggedIn, idToken, profile, handleSignOut, isGoogleAuthReady } = useAuth();
@@ -57,7 +63,7 @@ const App: React.FC = () => {
             setError(null);
             try {
                 const fetchedPlayers = await fetchPlayers();
-                console.log('[App.tsx] fetchedPlayers:', fetchedPlayers);
+                // console.log('[App.tsx] fetchedPlayers:', fetchedPlayers);
                 setPlayers(fetchedPlayers);
 
                 if (idToken) {
@@ -197,6 +203,14 @@ const App: React.FC = () => {
         }
     }, [isLoggedIn, isGoogleAuthReady]);
 
+    // Keep userPlan in sync with profile.plan
+    useEffect(() => {
+        if (profile && profile.plan) {
+            setUserPlan(profile.plan);
+            console.log('[App] Sync userPlan with profile.plan:', profile.plan);
+        }
+    }, [profile]);
+
     return (
         <BrowserRouter>
             <div>
@@ -225,7 +239,6 @@ const App: React.FC = () => {
                                {/* Settings and logout only if logged in */}
                                {isLoggedIn && (
                                  <>
-                                   <button onClick={() => setView('home')} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">Impostazioni</button>
                                    <button onClick={handleSignOut} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
                                        <LogOut className="w-4 h-4"/>
                                    </button>
@@ -250,19 +263,42 @@ const App: React.FC = () => {
                         <Routes>
                             <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
                             <Route path="/setup" element={<SetupWizard onConfirm={handleSetupConfirm} initialSettings={leagueSettings} />} />
-                            {/* <Route path="/preparation" element={
-                                <FeatureGuard feature="strategyPrep" fallback={<Navigate to="/upgrade" />}> 
-                                    <PlayerExplorerView
+                            <Route path="/preparation" element={
+                                <FeatureGuard feature="strategyPrep" fallback={<UpgradeView featureName={FEATURE_LABELS['strategyPrep']} onNavigateHome={handleGoHome} />}>
+                                    <MainView
                                         leagueSettings={leagueSettings}
                                         players={players}
+                                        roleBudget={roleBudget}
+                                        onRoleBudgetChange={setRoleBudget}
                                         targetPlayers={targetPlayers}
                                         onAddTarget={handleAddTarget}
                                         onRemoveTarget={handleRemoveTarget}
+                                        onTargetBidChange={handleTargetBidChange}
+                                        onSaveChanges={handleSaveChanges}
+                                        onResetChanges={handleResetChanges}
+                                        isSaving={isSaving}
                                     />
                                 </FeatureGuard>
-                            } /> */}
+                            } />
+                            <Route path="/search" element={
+                                <FeatureGuard feature="strategyPrep" fallback={<UpgradeView featureName={FEATURE_LABELS['strategyPrep']} onNavigateHome={handleGoHome} />}>
+                                    <MainView
+                                        leagueSettings={leagueSettings}
+                                        players={players}
+                                        roleBudget={roleBudget}
+                                        onRoleBudgetChange={setRoleBudget}
+                                        targetPlayers={targetPlayers}
+                                        onAddTarget={handleAddTarget}
+                                        onRemoveTarget={handleRemoveTarget}
+                                        onTargetBidChange={handleTargetBidChange}
+                                        onSaveChanges={handleSaveChanges}
+                                        onResetChanges={handleResetChanges}
+                                        isSaving={isSaving}
+                                    />
+                                </FeatureGuard>
+                            } />
                             <Route path="/strategy" element={
-                                <FeatureGuard feature="strategyPrep" fallback={<Navigate to="/upgrade" />}> 
+                                <FeatureGuard feature="strategyPrep" fallback={<UpgradeView featureName={FEATURE_LABELS['strategyPrep']} onNavigateHome={handleGoHome} />}>
                                     <MainView
                                         leagueSettings={leagueSettings}
                                         players={players}
@@ -279,7 +315,7 @@ const App: React.FC = () => {
                                 </FeatureGuard>
                             } />
                             <Route path="/auction" element={
-                                <FeatureGuard feature="liveAuction" fallback={<Navigate to="/upgrade" />}> 
+                                <FeatureGuard feature="liveAuction" fallback={<UpgradeView featureName={FEATURE_LABELS['liveAuction']} onNavigateHome={handleGoHome} />}>
                                     <LiveAuctionView 
                                         players={players}
                                         myTeam={myTeam}
@@ -292,7 +328,7 @@ const App: React.FC = () => {
                                     />
                                 </FeatureGuard>
                             } />
-                            <Route path="/upgrade" element={<UpgradeView featureName="Upgrade" onNavigateHome={handleGoHome} />} />
+                            {/* <Route path="/upgrade" element={<UpgradeView featureName={FEATURE_LABELS['strategyPrep']} onNavigateHome={handleGoHome} />} /> */}
                             <Route path="*" element={<Navigate to="/" />} />
                         </Routes>
                     )}

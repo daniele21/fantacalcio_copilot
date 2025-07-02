@@ -11,6 +11,9 @@ const plans = [
   { key: 'enterprise', name: 'Enterprise', price: '€49.99' },
 ];
 
+// Plan order for upgrade logic
+const planOrder = ['free', 'basic', 'pro', 'enterprise'];
+
 // @ts-ignore
 // eslint-disable-next-line
 declare global {
@@ -107,6 +110,22 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
         alert('Logout functionality is not yet implemented.');
     };
 
+    console.log('[HomePage] userPlan:', userPlan);
+    console.log('[HomePage] planOrder:', planOrder);
+
+    // Filter plans to only show upgrades
+    let filteredPlans = plans;
+    if (userPlan && planOrder.includes(userPlan)) {
+        const currentIdx = planOrder.indexOf(userPlan);
+        console.log('[HomePage] currentIdx:', currentIdx);
+        filteredPlans = plans.filter(plan => {
+            const planIdx = planOrder.indexOf(plan.key);
+            console.log(`[HomePage] plan.key: ${plan.key}, planIdx: ${planIdx}, currentIdx: ${currentIdx}`);
+            return planIdx > currentIdx;
+        });
+        console.log('[HomePage] filteredPlans:', filteredPlans);
+    }
+
     return (
         <div className="min-h-screen bg-base-100 font-sans text-content-100">
             {/* Success Dialog */}
@@ -145,7 +164,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
                          <div className="mt-8 flex justify-center gap-4">
                             {!isLoggedIn ? (
                                 <button onClick={() => handleSubscribe()} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
-                                    Inizia Ora con Google
+                                    Accedi
                                 </button>
                             ) : (
                                 <button onClick={() => { onLogin(profile?.plan || undefined); navigate('/setup'); }} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
@@ -173,9 +192,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
 
                     <div id="pricing" className="mt-24">
                         <h2 className="text-3xl font-bold text-center text-content-100">Piani e Prezzi</h2>
-                        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-                            {plans.map(plan => (
-                                <div key={plan.key} className="bg-base-200 p-8 rounded-lg border border-base-300 text-center">
+                        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8 justify-center items-center place-items-center">
+                            {filteredPlans.length === 0 ? (
+                              <div className="col-span-3 text-center text-content-200">
+                                Hai già il piano più avanzato disponibile!
+                              </div>
+                            ) : (
+                              filteredPlans.map(plan => (
+                                <div key={plan.key} className="bg-base-200 p-8 rounded-lg border border-base-300 text-center w-full max-w-xs">
                                     <h3 className="text-2xl font-bold">{plan.name}</h3>
                                     <p className="mt-4 text-4xl font-extrabold text-brand-primary">{plan.price.split(' ')[0]}</p>
                                     <p className="text-content-200">{plan.price.split(' ').slice(1).join(' ')}</p>
@@ -186,7 +210,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
                                         Scegli {plan.name}
                                     </button>
                                 </div>
-                            ))}
+                              ))
+                            )}
                         </div>
                     </div>
                 </div>

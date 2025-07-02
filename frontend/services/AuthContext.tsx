@@ -92,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [profile]);
 
   const handleCredentialResponse = useCallback((response: any) => {
-    console.log('[AuthContext] Google credential response:', response);
+    // console.log('[AuthContext] Google credential response:', response);
     const token = response.credential;
     if (!token) {
       console.error('[AuthContext] No credential received from Google');
@@ -103,9 +103,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let decoded: any;
     try {
       decoded = jwtDecode(token);
-      console.log('[AuthContext] Decoded Google ID token:', decoded);
+      // console.log('[AuthContext] Decoded Google ID token:', decoded);
     } catch {
-      console.error('[AuthContext] Invalid ID token');
+      // console.error('[AuthContext] Invalid ID token');
       return;
     }
     loadProfile(token).catch(err => {

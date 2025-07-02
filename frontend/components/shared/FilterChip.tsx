@@ -1,8 +1,7 @@
-
 import React from 'react';
 
 interface FilterChipProps {
-  label: string;
+  label: React.ReactNode;
   isActive: boolean;
   onClick: () => void;
 }

@@ -57,7 +57,7 @@ export function usePlayerApi() {
         good_bet: p['buon_investimento'] ?? '-',
       }
     }));
-    console.log('[playerService] Mapped players:', mapped);
+    // console.log('[playerService] Mapped players:', mapped);
     return mapped;
   };
 
