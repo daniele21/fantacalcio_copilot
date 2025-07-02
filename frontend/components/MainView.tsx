@@ -7,8 +7,6 @@ import { StrategyBoardView } from './StrategyBoardView';
 import { Compass, Search, ClipboardList } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import { getStrategyBoard, saveStrategyBoard } from '../services/strategyBoardService';
-import { FilterChip } from './shared/FilterChip';
-import { Star } from 'lucide-react';
 
 type ActiveView = 'explorer' | 'search' | 'strategy';
 
@@ -43,6 +41,7 @@ export const MainView: React.FC<MainViewProps> = ({
   const navigate = useNavigate();
   const { idToken, isLoggedIn } = useAuth();
   const [showFavouritesOnly, setShowFavouritesOnly] = useState(false);
+  const [isSavingFavourites, setIsSavingFavourites] = useState(false);
 
   // Set initial activeView based on the current path
   const getViewFromPath = () => {
@@ -125,11 +124,21 @@ export const MainView: React.FC<MainViewProps> = ({
     // eslint-disable-next-line
   }, [isLoggedIn, idToken]);
 
-  // Save targetPlayers to backend on change (if logged in)
+  // Save targetPlayers to localStorage on change
   useEffect(() => {
+    localStorage.setItem('fantacalcio_targetPlayers', JSON.stringify(targetPlayers));
+  }, [targetPlayers]);
+
+  // Save favourites to API only when user clicks the button
+  const handleSaveFavourites = async () => {
     if (!isLoggedIn || !idToken) return;
-    saveStrategyBoard(idToken, targetPlayers).catch(() => {});
-  }, [targetPlayers, isLoggedIn, idToken]);
+    setIsSavingFavourites(true);
+    try {
+      await saveStrategyBoard(idToken, targetPlayers);
+    } finally {
+      setIsSavingFavourites(false);
+    }
+  };
 
   return (
     <div>
@@ -174,6 +183,8 @@ export const MainView: React.FC<MainViewProps> = ({
             onRemoveTarget={onRemoveTarget}
             showFavouritesOnly={showFavouritesOnly}
             setShowFavouritesOnly={setShowFavouritesOnly}
+            onSaveFavourites={handleSaveFavourites}
+            isSavingFavourites={isSavingFavourites}
         />}
         {activeView === 'search' && <TargetedSearchView players={players} />}
         {activeView === 'strategy' && <StrategyBoardView 

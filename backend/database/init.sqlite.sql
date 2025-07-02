@@ -64,19 +64,19 @@ CREATE TABLE IF NOT EXISTS plans (
 -- If you want to enforce the foreign key (optional, requires plans table to be populated first):
 -- ALTER TABLE users ADD CONSTRAINT fk_plan FOREIGN KEY (plan) REFERENCES plans(key);
 
-CREATE TABLE IF NOT EXISTS strategy_boards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    role_budget_role_gk INTEGER,
-    role_budget_role_def INTEGER,
-    role_budget_role_mid INTEGER,
-    role_budget_role_fwd INTEGER,
-    -- Target players as separate table is best, but for now, flatten a few fields for quick access
-    target_players TEXT NOT NULL, -- JSON string (for now, can be normalized later)
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-);
+-- CREATE TABLE IF NOT EXISTS strategy_boards (
+--     id INTEGER PRIMARY KEY AUTOINCREMENT,
+--     user_id INTEGER NOT NULL,
+--     role_budget_role_gk INTEGER,
+--     role_budget_role_def INTEGER,
+--     role_budget_role_mid INTEGER,
+--     role_budget_role_fwd INTEGER,
+--     -- Target players as separate table is best, but for now, flatten a few fields for quick access
+--     target_players TEXT NOT NULL, -- JSON string (for now, can be normalized later)
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     FOREIGN KEY(user_id) REFERENCES users(id)
+-- );
 
 CREATE TABLE IF NOT EXISTS league_settings (
     google_sub TEXT PRIMARY KEY,

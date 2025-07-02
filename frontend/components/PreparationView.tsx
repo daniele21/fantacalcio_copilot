@@ -14,9 +14,11 @@ interface PlayerExplorerViewProps {
     onRemoveTarget: (playerId: number) => void;
     showFavouritesOnly: boolean;
     setShowFavouritesOnly: (v: boolean) => void;
+    onSaveFavourites?: () => void;
+    isSavingFavourites?: boolean;
 }
 
-export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget, showFavouritesOnly, setShowFavouritesOnly }: PlayerExplorerViewProps) => {
+export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget, showFavouritesOnly, setShowFavouritesOnly, onSaveFavourites, isSavingFavourites }: PlayerExplorerViewProps) => {
   const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [aggregatedAnalysis, setAggregatedAnalysis] = useState<AggregatedAnalysisResult>({
@@ -147,6 +149,13 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 isActive={showFavouritesOnly}
                 onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
               />
+              <button
+                onClick={onSaveFavourites}
+                disabled={isSavingFavourites}
+                className="px-3 py-1.5 text-sm font-semibold text-brand-primary bg-base-200 rounded-md hover:bg-brand-primary/10 border border-brand-primary/30 disabled:opacity-60"
+              >
+                {isSavingFavourites ? 'Salvataggio...' : 'Salva Preferiti'}
+              </button>
               <button
                 onClick={() => {
                   if (window.confirm('Sei sicuro di voler resettare tutti i preferiti?')) {
