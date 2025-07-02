@@ -12,9 +12,11 @@ interface PlayerExplorerViewProps {
     players: Player[];
     onAddTarget: (player: Player) => void;
     onRemoveTarget: (playerId: number) => void;
+    showFavouritesOnly: boolean;
+    setShowFavouritesOnly: (v: boolean) => void;
 }
 
-export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget }: PlayerExplorerViewProps) => {
+export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget, showFavouritesOnly, setShowFavouritesOnly }: PlayerExplorerViewProps) => {
   const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [aggregatedAnalysis, setAggregatedAnalysis] = useState<AggregatedAnalysisResult>({
@@ -23,7 +25,6 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   });
   const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(true);
-  const [showFavouritesOnly, setShowFavouritesOnly] = useState(false);
 
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
@@ -139,13 +140,23 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                    {ROLE_NAMES[role]}
                 </button>
             ))}
-            <div className="ml-2">
+            <div className="flex items-center gap-2 ml-2">
               <FilterChip
                 key="favourites"
                 label={<Star className="w-5 h-5" />}
                 isActive={showFavouritesOnly}
-                onClick={() => setShowFavouritesOnly(v => !v)}
+                onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
               />
+              <button
+                onClick={() => {
+                  if (window.confirm('Sei sicuro di voler resettare tutti i preferiti?')) {
+                    targetPlayers.forEach(tp => onRemoveTarget(tp.id));
+                  }
+                }}
+                className="px-3 py-1.5 text-sm font-semibold text-red-600 bg-base-200 rounded-md hover:bg-red-100 border border-red-200"
+              >
+                Reset Preferiti
+              </button>
             </div>
         </div>
         <div className="p-4">

@@ -5,6 +5,10 @@ import { PlayerExplorerView } from './PreparationView';
 import { TargetedSearchView } from './TargetedSearchView';
 import { StrategyBoardView } from './StrategyBoardView';
 import { Compass, Search, ClipboardList } from 'lucide-react';
+import { useAuth } from '../services/AuthContext';
+import { getStrategyBoard, saveStrategyBoard } from '../services/strategyBoardService';
+import { FilterChip } from './shared/FilterChip';
+import { Star } from 'lucide-react';
 
 type ActiveView = 'explorer' | 'search' | 'strategy';
 
@@ -37,6 +41,8 @@ export const MainView: React.FC<MainViewProps> = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { idToken, isLoggedIn } = useAuth();
+  const [showFavouritesOnly, setShowFavouritesOnly] = useState(false);
 
   // Set initial activeView based on the current path
   const getViewFromPath = () => {
@@ -77,6 +83,54 @@ export const MainView: React.FC<MainViewProps> = ({
     </button>
   );
 
+  // Load targetPlayers from localStorage if available, otherwise from backend
+  useEffect(() => {
+    if (!isLoggedIn || !idToken) return;
+    const saved = localStorage.getItem('fantacalcio_targetPlayers');
+    let loadedFromLocal = false;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
+          const validPlayers = parsed.filter((p: any) => players.some(pl => pl.id === p.id));
+          validPlayers.forEach((p: any) => {
+            if (!targetPlayers.some(tp => tp.id === p.id)) {
+              onAddTarget(players.find(pl => pl.id === p.id)!);
+            }
+          });
+          loadedFromLocal = true;
+        }
+      } catch {}
+    }
+    if (!loadedFromLocal) {
+      (async () => {
+        try {
+          const board = await getStrategyBoard(idToken);
+          if (board && board.target_players) {
+            const parsed = JSON.parse(board.target_players);
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
+              const validPlayers = parsed.filter((p: any) => players.some(pl => pl.id === p.id));
+              validPlayers.forEach((p: any) => {
+                if (!targetPlayers.some(tp => tp.id === p.id)) {
+                  onAddTarget(players.find(pl => pl.id === p.id)!);
+                }
+              });
+            }
+          }
+        } catch (e) {
+          // Ignore if not found or not logged in
+        }
+      })();
+    }
+    // eslint-disable-next-line
+  }, [isLoggedIn, idToken]);
+
+  // Save targetPlayers to backend on change (if logged in)
+  useEffect(() => {
+    if (!isLoggedIn || !idToken) return;
+    saveStrategyBoard(idToken, targetPlayers).catch(() => {});
+  }, [targetPlayers, isLoggedIn, idToken]);
+
   return (
     <div>
       <div className="border-b border-base-300 mb-6 sticky top-[65px] z-20 bg-base-100/80 backdrop-blur-lg">
@@ -87,7 +141,7 @@ export const MainView: React.FC<MainViewProps> = ({
             >
               ← Torna alle Impostazioni
             </button>
-            <div className="flex flex-1">
+            <div className="flex flex-1 items-center">
               <TabButton
                 label="Esplora Giocatori"
                 icon={<Compass className="w-5 h-5 md:w-6 md:h-6" />}
@@ -118,6 +172,8 @@ export const MainView: React.FC<MainViewProps> = ({
             targetPlayers={targetPlayers}
             onAddTarget={onAddTarget}
             onRemoveTarget={onRemoveTarget}
+            showFavouritesOnly={showFavouritesOnly}
+            setShowFavouritesOnly={setShowFavouritesOnly}
         />}
         {activeView === 'search' && <TargetedSearchView players={players} />}
         {activeView === 'strategy' && <StrategyBoardView 
