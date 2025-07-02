@@ -97,7 +97,7 @@ def create_app():
         }
         try:
             session = stripe.checkout.Session.create(
-                mode='subscription',
+                mode='payment',
                 payment_method_types=['card'],
                 line_items=[{'price': price_map[plan], 'quantity': 1}],
                 success_url=f"{app.config['FRONTEND_URL']}/success?session_id={{CHECKOUT_SESSION_ID}}",

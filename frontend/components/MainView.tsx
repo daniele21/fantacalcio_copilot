@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { LeagueSettings, Player, Role, TargetPlayer } from '../types';
 import { PlayerExplorerView } from './PreparationView';
@@ -18,9 +16,24 @@ interface MainViewProps {
     onAddTarget: (player: Player) => void;
     onRemoveTarget: (playerId: number) => void;
     onTargetBidChange: (playerId: number, newBid: number) => void;
+    onSaveChanges: () => void;
+    onResetChanges: () => void;
+    isSaving: boolean;
 }
 
-export const MainView: React.FC<MainViewProps> = ({ leagueSettings, players, roleBudget, onRoleBudgetChange, targetPlayers, onAddTarget, onRemoveTarget, onTargetBidChange }) => {
+export const MainView: React.FC<MainViewProps> = ({ 
+    leagueSettings, 
+    players, 
+    roleBudget, 
+    onRoleBudgetChange, 
+    targetPlayers, 
+    onAddTarget, 
+    onRemoveTarget, 
+    onTargetBidChange,
+    onSaveChanges,
+    onResetChanges,
+    isSaving
+}) => {
   const [activeView, setActiveView] = useState<ActiveView>('explorer');
 
   const TabButton: React.FC<{
@@ -87,6 +100,9 @@ export const MainView: React.FC<MainViewProps> = ({ leagueSettings, players, rol
             onAddTarget={onAddTarget}
             onRemoveTarget={onRemoveTarget}
             onBidChange={onTargetBidChange}
+            onSaveChanges={onSaveChanges}
+            onResetChanges={onResetChanges}
+            isSaving={isSaving}
         />}
       </div>
     </div>

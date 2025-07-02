@@ -57,6 +57,7 @@ const App: React.FC = () => {
             setError(null);
             try {
                 const fetchedPlayers = await fetchPlayers();
+                console.log('[App.tsx] fetchedPlayers:', fetchedPlayers);
                 setPlayers(fetchedPlayers);
 
                 if (idToken) {
@@ -249,7 +250,7 @@ const App: React.FC = () => {
                         <Routes>
                             <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
                             <Route path="/setup" element={<SetupWizard onConfirm={handleSetupConfirm} initialSettings={leagueSettings} />} />
-                            <Route path="/preparation" element={
+                            {/* <Route path="/preparation" element={
                                 <FeatureGuard feature="strategyPrep" fallback={<Navigate to="/upgrade" />}> 
                                     <PlayerExplorerView
                                         leagueSettings={leagueSettings}
@@ -259,7 +260,7 @@ const App: React.FC = () => {
                                         onRemoveTarget={handleRemoveTarget}
                                     />
                                 </FeatureGuard>
-                            } />
+                            } /> */}
                             <Route path="/strategy" element={
                                 <FeatureGuard feature="strategyPrep" fallback={<Navigate to="/upgrade" />}> 
                                     <MainView
