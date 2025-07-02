@@ -115,6 +115,24 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
 
   const isFormValid = participants >= 2 && typeof budget === 'number' && budget > 0 && namesAreValid && totalRosterSize > 0;
 
+  // Load from localStorage if available (on mount)
+  useEffect(() => {
+    const saved = localStorage.getItem('fantacalcio_league_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.participants) setParticipants(parsed.participants);
+          if (parsed.budget) setBudget(parsed.budget);
+          if (parsed.roster) setRoster(parsed.roster);
+          if (parsed.participantNames) setParticipantNames(parsed.participantNames);
+          if (typeof parsed.useCleanSheetBonus === 'boolean') setUseCleanSheetBonus(parsed.useCleanSheetBonus);
+          if (typeof parsed.useDefensiveModifier === 'boolean') setUseDefensiveModifier(parsed.useDefensiveModifier);
+        }
+      } catch {}
+    }
+  }, []);
+
   const handleSubmit = async (mode: AppMode) => {
     if (!isFormValid) return;
     const settings = {
@@ -131,6 +149,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
+      // Save to localStorage after successful API call
+      localStorage.setItem('fantacalcio_league_settings', JSON.stringify(settings));
     } catch (e) {
       // Optionally show error to user
     }
