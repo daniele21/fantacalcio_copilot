@@ -1,7 +1,7 @@
 import React from 'react';
 import { Player, Role, LeagueSettings } from '../types';
 import { Badge } from './shared/Badge';
-import { Star, TrendingUp, TrendingDown, Shield, Crosshair, PlusCircle, User, BarChart2 } from 'lucide-react';
+import { Star, TrendingUp, TrendingDown, Crosshair, User, BarChart2, HeartPulse, ThumbsUp } from 'lucide-react';
 
 interface PlayerCardProps {
   player: Player;
@@ -51,21 +51,20 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, leagueSettings, 
 
   return (
     <div className="bg-base-200 rounded-xl shadow-lg overflow-hidden border border-base-300/50 transition-all duration-300 hover:border-brand-primary hover:scale-[1.02] relative">
-       <button 
-        onClick={handleToggleTarget}
-        className="absolute top-2 right-2 p-2 rounded-full bg-base-100/50 hover:bg-base-100 transition-colors z-10"
-        aria-label={isTarget ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
-      >
-        <Star className={`w-6 h-6 transition-all ${isTarget ? 'text-yellow-400 fill-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`} />
-      </button>
-
-      <div className="p-4">
-        <div className="flex justify-between items-start">
-            <div className="flex-grow pr-8">
-                <h3 className="text-xl font-bold text-content-100">{player.name}</h3>
-                <p className="text-sm text-content-200">{player.team}</p>
-            </div>
+       <div className="p-4">
+        <div className="flex flex-col items-start">
+          <div className="flex items-center gap-2 mb-1">
             <Badge className={getRoleColor(player.role)}>{player.role}</Badge>
+            <button 
+              onClick={handleToggleTarget}
+              className="p-2 rounded-full bg-base-100/50 hover:bg-base-100 transition-colors z-10"
+              aria-label={isTarget ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+            >
+              <Star className={`w-6 h-6 transition-all ${isTarget ? 'text-yellow-400 fill-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`} />
+            </button>
+          </div>
+          <h3 className="text-xl font-bold text-content-100">{player.name}</h3>
+          <p className="text-sm text-content-200">{player.team}</p>
         </div>
 
         <div className="mt-3 text-sm text-brand-primary font-semibold">
@@ -99,15 +98,14 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, leagueSettings, 
         <div className="pt-4 border-t border-base-300/50">
             <h4 className="font-semibold text-content-200 mb-3 flex items-center"><BarChart2 className="w-4 h-4 mr-2"/>Statistiche Chiave</h4>
             <div className="grid grid-cols-2 gap-2">
-                <StatItem icon={<User className="w-4 h-4"/>} label="FM 24/25" value={player.stats?.fm1y !== undefined && !isNaN(Number(player.stats.fm1y)) ? Number(player.stats.fm1y).toFixed(2) : '-'} />
-                <StatItem icon={<User className="w-4 h-4"/>} label="FM 23/24" value={player.stats?.fm2y !== undefined && !isNaN(Number(player.stats.fm2y)) ? Number(player.stats.fm2y).toFixed(2) : '-'} />
-                <StatItem icon={<User className="w-4 h-4"/>} label="FM 22/23" value={player.stats?.fm3y !== undefined && !isNaN(Number(player.stats.fm3y)) ? Number(player.stats.fm3y).toFixed(2) : '-'} />
-                <StatItem icon={<PlusCircle className="w-4 h-4"/>} label="Presenze 24/25" value={player.stats?.presenze1y ?? '-'} />
-                <StatItem icon={<PlusCircle className="w-4 h-4"/>} label="Infortuni" value={player.stats?.injury_score ?? '-'} />
-                <StatItem icon={<PlusCircle className="w-4 h-4"/>} label="xAssist" value={player.stats?.exp_assist ?? '-'} />
-                <StatItem icon={<PlusCircle className="w-4 h-4"/>} label="xGoal" value={player.stats?.exp_goal ?? '-'} />
-                <StatItem icon={<PlusCircle className="w-4 h-4"/>} label="xPresenze" value={player.stats?.exp_presenze ?? '-'} />
-                <StatItem icon={<PlusCircle className="w-4 h-4"/>} label="Buon Investimento" value={player.stats?.good_bet ?? '-'} />
+                <StatItem icon={<BarChart2 className="w-4 h-4"/>} label="FM 23/24" value={player.stats?.fm1y !== undefined && !isNaN(Number(player.stats.fm1y)) ? Number(player.stats.fm1y).toFixed(2) : '-'} />
+                <StatItem icon={<BarChart2 className="w-4 h-4"/>} label="FM 22/23" value={player.stats?.fm2y !== undefined && !isNaN(Number(player.stats.fm2y)) ? Number(player.stats.fm2y).toFixed(2) : '-'} />
+                <StatItem icon={<User className="w-4 h-4"/>} label="Presenze 23/24" value={player.stats?.presenze1y ?? '-'} />
+                <StatItem icon={<HeartPulse className="w-4 h-4 text-red-400"/>} label="Rischio Infortuni" value={player.stats?.injury_score ?? '-'} />
+                <StatItem icon={<Crosshair className="w-4 h-4"/>} label="xAssist" value={player.stats?.exp_assist ?? '-'} />
+                <StatItem icon={<Crosshair className="w-4 h-4"/>} label="xGoal" value={player.stats?.exp_goal ?? '-'} />
+                <StatItem icon={<Crosshair className="w-4 h-4"/>} label="xPresenze" value={player.stats?.exp_presenze ?? '-'} />
+                <StatItem icon={<ThumbsUp className="w-4 h-4 text-green-400"/>} label="Buon Investimento" value={player.stats?.good_bet ?? '-'} />
             </div>
         </div>
       </div>
