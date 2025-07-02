@@ -1,15 +1,14 @@
 import React from 'react';
 import { ShieldCheck, BarChart2, Zap, ClipboardList, ArrowRight } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
-import { loadStripe } from '@stripe/stripe-js';
 import { SuccessPage } from './SuccessPage';
+import { useApi } from '../services/useApi';
+import { useNavigate } from 'react-router-dom';
 
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
-const BASE_URL = "http://127.0.0.1:5000";
 const plans = [
-  { key: 'basic',      name: 'Basic',      price: '€9.99 / mese' },
-  { key: 'pro',        name: 'Pro',        price: '€19.99 / mese' },
-  { key: 'enterprise', name: 'Enterprise', price: '€49.99 / mese' },
+  { key: 'basic',      name: 'Basic',      price: '€9.99' },
+  { key: 'pro',        name: 'Pro',        price: '€19.99' },
+  { key: 'enterprise', name: 'Enterprise', price: '€49.99' },
 ];
 
 // @ts-ignore
@@ -27,29 +26,11 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPlan }) => {
-    const { isLoggedIn, profile, handleSignOut, isGoogleAuthReady, idToken } = useAuth();
-    const signInButtonRef = React.useRef<HTMLDivElement>(null);
+    const { isLoggedIn, profile, isGoogleAuthReady, refreshProfile } = useAuth();
+    const { call } = useApi();
+    const navigate = useNavigate();
     const [showSuccess, setShowSuccess] = React.useState<boolean>(false);
     const [showFallbackLogin, setShowFallbackLogin] = React.useState<boolean>(false);
-
-    // Add a function to refresh the profile after payment
-    const refreshProfile = React.useCallback(async () => {
-        if (!idToken) return;
-        try {
-            const resp = await fetch(`${BASE_URL}/api/me`, {
-                headers: { Authorization: `Bearer ${idToken}` }
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                // Use AuthContext's setProfile if available, otherwise reload page
-                if (typeof window !== 'undefined' && window.dispatchEvent) {
-                    window.dispatchEvent(new Event('profile:refresh'));
-                }
-            }
-        } catch (e) {
-            // ignore
-        }
-    }, [idToken]);
 
     React.useEffect(() => {
         // Listen for profile:refresh event to trigger context reload if needed
@@ -61,20 +42,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
     }, []);
 
     React.useEffect(() => {
-        if (!isLoggedIn && isGoogleAuthReady && signInButtonRef.current) {
-            // Only render if not already rendered
-            if (signInButtonRef.current.childNodes.length === 0 && window.google && window.google.accounts && window.google.accounts.id) {
-                try {
-                    window.google.accounts.id.renderButton(signInButtonRef.current, {
-                        theme: 'outline', size: 'large', type: 'standard', text: 'signin_with', width: '220px'
-                    });
-                    console.log("[HomePage] Google Sign-In button rendered.");
-                } catch (err) {
-                    console.error("[HomePage] Error rendering Google Sign-In button:", err);
-                }
-            }
-        }
-
         const params = new URLSearchParams(window.location.search);
         if (params.get('session_id')) {
             setShowSuccess(true);
@@ -103,81 +70,42 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
         </div>
     );
 
-    // Handler to trigger Google Sign-In button click programmatically
-    const handleGoogleLogin = () => {
-        if (signInButtonRef.current) {
-            const btn = signInButtonRef.current.querySelector('div[role="button"], button');
-            if (btn) {
-                (btn as HTMLElement).click();
-            } else {
-                signInButtonRef.current.style.display = 'block';
-                alert('Il pulsante di accesso Google non è ancora pronto. Riprova tra qualche secondo o clicca direttamente il pulsante qui sotto.');
-            }
-        }
-    };
+    const handleSubscribe = async (planKey?: string) => {
+      if (!isLoggedIn) {
+        alert('Devi prima effettuare il login.');
+        return;
+      }
+      if (!isGoogleAuthReady) {
+        alert('Il login Google non è ancora pronto. Attendi che il pulsante sia disponibile.');
+        return;
+      }
+      if (!planKey) {
+        alert('Per favore, scegli un piano dalla sezione Piani e Prezzi.');
+        return;
+      }
 
-    const handleSubscribe = async (planKey: string) => {
-      if (!isLoggedIn) return alert('Devi prima effettuare il login.');
-      if (!isGoogleAuthReady) return alert('Il login Google non è ancora pronto. Attendi che il pulsante sia disponibile.');
-      const stripe = await stripePromise;
-      const resp = await fetch(`${BASE_URL}/api/create-checkout-session`, {
+      const resp = await call<any>('/api/create-checkout-session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('idToken')}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan: planKey }),
       });
-      const { sessionId, error } = await resp.json();
-      if (error) {
-        if (error === 'Invalid Google ID token') {
-          alert('La sessione di login è scaduta o non valida. Effettua nuovamente il login con Google.');
-          return;
-        }
-        return alert('Errore: ' + error);
-      }
-      const { error: stripeError } = await stripe!.redirectToCheckout({ sessionId });
-      if (stripeError) {
-        console.error(stripeError);
-        alert(stripeError.message);
+      const { sessionUrl, error } = resp;
+      if (sessionUrl) {
+          // Redirect user to Stripe Checkout
+          window.location.href = sessionUrl;
+      } else if (error) {
+          if (error === 'Invalid Google ID token') {
+              alert('La sessione di login è scaduta o non valida. Effettua nuovamente il login con Google.');
+          } else {
+              alert('Errore: ' + error);
+          }
       }
     };
 
-    // Quando l'utente effettua il login, recupera il piano e aggiorna lo stato globale
-    const handleGoogleLoginSuccess = async (idToken: string) => {
-        try {
-            const resp = await fetch("http://127.0.0.1:5000/api/me", {
-                headers: { Authorization: `Bearer ${idToken}` }
-            });
-            if (resp.ok) {
-                const data = await resp.json();
-                setUserPlan(data.plan);
-                onLogin(data.plan);
-            } else {
-                onLogin();
-            }
-        } catch (e) {
-            onLogin();
-        }
+    const handleSignOut = () => {
+        // Implement sign out logic here
+        alert('Logout functionality is not yet implemented.');
     };
-
-    React.useEffect(() => {
-      if (isLoggedIn && idToken) {
-        fetch(`${BASE_URL}/api/me`, {
-          headers: { Authorization: `Bearer ${idToken}` }
-        })
-          .then(resp => resp.json())
-          .then(data => {
-            if (data.plan) {
-              setUserPlan(data.plan);
-              // Only call onLogin if userPlan is not set or has changed
-              if (!userPlan || userPlan !== data.plan) {
-                onLogin(data.plan);
-              }
-            }
-          });
-      }
-    }, [isLoggedIn, idToken, setUserPlan, onLogin]);
 
     return (
         <div className="min-h-screen bg-base-100 font-sans text-content-100">
@@ -197,46 +125,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
                             }}
                             aria-label="Chiudi"
                         >
-                            ×
+                            x
                         </button>
                         <SuccessPage />
                     </div>
                 </div>
             )}
-            {/* Header */}
-            <header className="sticky top-0 z-30 w-full bg-base-100/80 backdrop-blur-lg">
-                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex h-16 items-center justify-between border-b border-base-300">
-                        <div className="flex items-center">
-                            <ShieldCheck className="w-8 h-8 text-brand-primary" />
-                            <h1 className="ml-2 text-xl font-bold">Fantacalcio Copilot</h1>
-                        </div>
-                        <div className="flex items-center gap-4">
-                           {isLoggedIn && profile ? (
-                                <div className="flex items-center gap-3">
-                                    <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
-                                    <div className="hidden sm:block">
-                                        <p className="text-sm font-semibold">{profile.name}</p>
-                                        <p className="text-xs text-content-200 capitalize">{profile.plan || 'Free'} Plan</p>
-                                    </div>
-                                    <button onClick={handleSignOut} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">Esci</button>
-                                </div>
-                           ) : (
-                                <>
-                                 <div ref={signInButtonRef} style={{ display: !showFallbackLogin ? 'block' : 'none' }}></div>
-                                 {showFallbackLogin &&
-                                    <button onClick={handleGoogleLogin} className="px-4 py-2 text-sm font-semibold text-content-100 bg-blue-600 rounded-md hover:bg-blue-700">
-                                      Accedi con Google
-                                    </button>
-                                  }
-                               </>
-                           )}
-                        </div>
-                    </div>
-                </div>
-            </header>
             <main>
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                    {/* Remove Google Sign-In Button from here */}
+                    {/* Remove Header here */}
                     <div className="text-center max-w-3xl mx-auto">
                         <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
                             Il tuo copilota IA per l'asta del Fantacalcio
@@ -246,11 +144,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
                         </p>
                          <div className="mt-8 flex justify-center gap-4">
                             {!isLoggedIn ? (
-                                <button onClick={handleGoogleLogin} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
+                                <button onClick={() => handleSubscribe()} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
                                     Inizia Ora con Google
                                 </button>
                             ) : (
-                                <button onClick={() => onLogin(userPlan)} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
+                                <button onClick={() => { onLogin(profile?.plan || undefined); navigate('/setup'); }} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
                                     Entra nell'App
                                     <ArrowRight className="inline w-5 h-5 ml-2"/>
                                 </button>
@@ -295,4 +193,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
             </main>
         </div>
     );
-};
+}
+
+export default HomePage;

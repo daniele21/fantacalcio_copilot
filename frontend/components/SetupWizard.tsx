@@ -3,13 +3,13 @@ import { LeagueSettings, AppMode, Role } from '../types';
 import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 import { Users, Coins, ShieldCheck, Play, Zap, Edit3, Plus, Minus, ChevronDown, ListTree, ClipboardEdit } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
+import { useApi } from '../services/useApi';
+import { useNavigate } from 'react-router-dom';
 
 interface SetupWizardProps {
   onConfirm: (settings: Pick<LeagueSettings, 'participants' | 'budget' | 'participantNames' | 'roster' | 'useCleanSheetBonus' | 'useDefensiveModifier'>, mode: AppMode) => void;
   initialSettings: Pick<LeagueSettings, 'participants' | 'budget' | 'participantNames' | 'roster' | 'useCleanSheetBonus' | 'useDefensiveModifier'>;
 }
-
-const BASE_URL = "http://127.0.0.1:5000";
 
 const CollapsibleSection: React.FC<{
   title: string;
@@ -45,6 +45,8 @@ const CollapsibleSection: React.FC<{
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSettings }) => {
   const { idToken } = useAuth();
+  const { call } = useApi();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(true);
   const [participants, setParticipants] = useState<number>(initialSettings.participants);
   const [budget, setBudget] = useState<number | ''>(initialSettings.budget);
@@ -101,7 +103,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
     });
   };
 
-  const totalRosterSize = Object.values(roster).reduce((sum, count) => sum + count, 0);
+  const totalRosterSize = Object.values(roster).reduce((sum: number, count: number) => sum + count, 0);
 
   useEffect(() => {
     const lowerCaseNames = participantNames.map(name => name.toLowerCase().trim());
@@ -124,18 +126,20 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
       useDefensiveModifier,
     };
     try {
-      await fetch(`${BASE_URL}/api/save-league-settings`, {
+      await call('/api/save-league-settings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
     } catch (e) {
       // Optionally show error to user
     }
     onConfirm(settings, mode);
+    if (mode === 'preparation') {
+      navigate('/strategy');
+    } else if (mode === 'live_auction') {
+      navigate('/auction');
+    }
   };
 
   const ToggleSwitch: React.FC<{
@@ -167,10 +171,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
     async function fetchSettings() {
       setLoading(true);
       try {
-        const res = await fetch(`${BASE_URL}/api/league-settings`, {
+        const data = await call<any>('/api/league-settings', {
           headers: { Authorization: `Bearer ${idToken}` }
         });
-        const data = await res.json();
         if (data.settings) {
           setParticipants(data.settings.participants);
           setBudget(data.settings.budget);
@@ -180,13 +183,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
           setUseDefensiveModifier(data.settings.useDefensiveModifier);
         }
       } catch (e) {
-        // ignore, fallback to initialSettings
-      } finally {
-        setLoading(false);
+        // Optionally handle error
       }
+      setLoading(false);
     }
-    if (idToken) fetchSettings();
-    else setLoading(false);
+    fetchSettings();
   }, [idToken]);
 
   if (loading) return <div className="flex items-center justify-center h-96 text-lg">Caricamento impostazioni...</div>;
@@ -198,6 +199,13 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
           <ShieldCheck className="w-16 h-16 text-brand-primary mb-4" />
           <h2 className="text-3xl font-bold text-content-100">Benvenuto in Fantacalcio Copilot</h2>
           <p className="text-content-200 mt-2 max-w-md">Imposta i parametri base della tua lega per iniziare.</p>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="mt-4 mb-2 px-4 py-2 bg-base-300 hover:bg-base-100 border border-base-300 rounded-lg text-content-200 text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <span>←</span> Torna alla Home
+          </button>
         </div>
         <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-8 space-y-4 flex-grow overflow-y-auto pr-2">
           <div>
@@ -287,7 +295,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
             icon={<ListTree className="w-5 h-5 text-brand-primary" />}
             isExpanded={isRosterExpanded}
             onToggle={() => setIsRosterExpanded((p: boolean) => !p)}
-            summary={`${totalRosterSize} Giocatori (${roster.P}-${roster.D}-${roster.C}-${roster.A})`}
+            summary={`${totalRosterSize} Giocatori (${roster[Role.GK]}-${roster[Role.DEF]}-${roster[Role.MID]}-${roster[Role.FWD]})`}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {ROLES_ORDER.map(role => (

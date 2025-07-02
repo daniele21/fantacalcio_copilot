@@ -62,8 +62,17 @@ def require_auth(f):
 
 
 def verify_google_token(id_token: str):
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(f'[Backend] Verifying Google ID token: {id_token[:20]}...')
     resp = requests.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}")
     if resp.status_code != 200:
         return None
-    return resp.json()
+    payload = resp.json()
+    try:
+        # logging.info(f'[Backend] Google token verified. Payload: {payload}')
+        return payload
+    except Exception as e:
+        logging.error(f'[Backend] Google token verification failed: {e}')
+        raise
 

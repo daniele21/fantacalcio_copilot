@@ -15,15 +15,24 @@ interface AuthContextType {
   idToken: string | null;
   profile: UserProfile | null;
   isLoggedIn: boolean;
-  isGoogleAuthReady: boolean; // New state to indicate GSI library readiness
+  isGoogleAuthReady: boolean;
   handleSignOut: () => void;
   GOOGLE_CLIENT_ID: string;
+  hasFeature: (featureKey: string) => boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const GOOGLE_CLIENT_ID_CONST = '294925298549-35bq5mf2inki7nsuqiljrkv7g6ajfsbq.apps.googleusercontent.com';
 const BASE_URL = "http://127.0.0.1:5000";
+
+const featureMap: Record<UserProfile['plan'], string[]> = {
+  free: [],
+  basic: ['liveAuction'],
+  pro: ['liveAuction', 'strategyPrep'],
+  enterprise: ['liveAuction', 'strategyPrep', 'leagueAnalytics'],
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -39,48 +48,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch user profile (including plan) from backend
   const loadProfile = useCallback(async (token: string) => {
-    const resp = await fetch(`${BASE_URL}/api/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!resp.ok) {
-      // Try to parse error JSON
-      let errorData;
-      try {
-        errorData = await resp.json();
-      } catch {
-        errorData = {};
+    try {
+      const resp = await fetch(`${BASE_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) {
+        let errorData;
+        try {
+          errorData = await resp.json();
+        } catch {
+          errorData = {};
+        }
+        if (errorData && errorData.error === "Invalid Google ID token") {
+          alert("La sessione è scaduta o il login non è più valido. Effettua nuovamente l'accesso con Google.");
+          handleSignOut();
+          return;
+        }
+        throw new Error('Failed to fetch profile');
       }
-      if (errorData && errorData.error === "Invalid Google ID token") {
-        alert("La sessione è scaduta o il login non è più valido. Effettua nuovamente l'accesso con Google.");
-        handleSignOut();
-        return;
-      }
-      throw new Error('Failed to fetch profile');
+      const data = await resp.json();
+      const user = data.data || {};
+      setProfile({
+        email: user.email,
+        name: user.name || user.email,
+        picture: user.picture,
+        plan: user.plan,
+        sub: user.sub
+      });
+    } catch (err) {
+      throw err;
     }
-    const data = await resp.json();
-    setProfile({
-      email: data.email,
-      name: data.name || data.email,
-      picture: data.picture,
-      plan: data.plan,
-      sub: data.sub
-    });
   }, [handleSignOut]);
 
+  // Expose refreshProfile for components to trigger a profile reload
+  const refreshProfile = useCallback(async () => {
+    if (!idToken) return;
+    await loadProfile(idToken);
+  }, [idToken, loadProfile]);
+
+  // Feature check based on plan
+  const hasFeature = useCallback((feature: string) => {
+    return profile != null && featureMap[profile.plan]?.includes(feature);
+  }, [profile]);
+
   const handleCredentialResponse = useCallback((response: any) => {
+    console.log('[AuthContext] Google credential response:', response);
     const token = response.credential;
-    if (!token) return console.error('No credential');
+    if (!token) {
+      console.error('[AuthContext] No credential received from Google');
+      return;
+    }
     localStorage.setItem('idToken', token);
     setIdToken(token);
     let decoded: any;
     try {
       decoded = jwtDecode(token);
+      console.log('[AuthContext] Decoded Google ID token:', decoded);
     } catch {
-      console.error('Invalid ID token');
+      console.error('[AuthContext] Invalid ID token');
       return;
     }
     loadProfile(token).catch(err => {
-      console.error('Could not load user profile:', err);
+      console.error('[AuthContext] Could not load user profile:', err);
       setProfile({
         email: decoded.email,
         name: decoded.name,
@@ -185,7 +214,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [idToken, isGoogleAuthReady, loadProfile]); // Removed handleCredentialResponse from dependencies
 
   return (
-    <AuthContext.Provider value={{ idToken, profile, isLoggedIn: !!idToken, isGoogleAuthReady, handleSignOut, GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID_CONST }}>
+    <AuthContext.Provider
+      value={{
+        idToken,
+        profile,
+        isLoggedIn: !!idToken && !!profile,
+        isGoogleAuthReady,
+        handleSignOut,
+        GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID_CONST,
+        hasFeature,
+        refreshProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

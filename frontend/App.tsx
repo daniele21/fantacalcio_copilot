@@ -1,308 +1,304 @@
-import React, { useState, useEffect } from 'react';
-import { LeagueSettings, Player, AppMode, MyTeamPlayer, Role, AuctionResult, TargetPlayer } from './types';
-import { ShieldCheck, Users, Settings, Loader, Frown, LogOut, Coins } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HomePage } from './components/HomePage';
 import { SetupWizard } from './components/SetupWizard';
 import { MainView } from './components/MainView';
 import { LiveAuctionView } from './components/LiveAuctionView';
-import { ModeSwitcher } from './components/ModeSwitcher';
-import { fetchPlayers } from './services/playerService';
+import { usePlayerApi } from './services/playerService';
+import { loadStrategy, saveStrategy, clearStrategy } from './services/strategyService';
+import { useAuth } from './services/AuthContext';
 import { DEFAULT_LEAGUE_SETTINGS } from './defaults';
-import { HomePage } from './components/HomePage';
+import { LeagueSettings, Player, MyTeamPlayer, AuctionResult, Role, TargetPlayer } from './types';
+import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
+import { UpgradeView } from './components/UpgradeView';
+import { FeatureGuard } from './components/FeatureGuard';
+import { PlayerExplorerView } from './components/PreparationView';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'landing' | 'app'>('landing');
+    const { isLoggedIn, idToken, profile, handleSignOut, isGoogleAuthReady } = useAuth();
+    const { fetchPlayers } = usePlayerApi();
+    const [view, setView] = useState<'home' | 'app'>('home');
 
-  const [leagueSettings, setLeagueSettings] = useState<LeagueSettings>(DEFAULT_LEAGUE_SETTINGS);
-  const [isWizardOpen, setIsWizardOpen] = useState(true);
-  const [appMode, setAppMode] = useState<AppMode>('preparation');
-  const [myTeam, setMyTeam] = useState<MyTeamPlayer[]>([]);
-  const [auctionLog, setAuctionLog] = useState<Record<number, AuctionResult>>({});
-  const [targetPlayers, setTargetPlayers] = useState<TargetPlayer[]>([]);
-  const [roleBudget, setRoleBudget] = useState<Record<Role, number>>({
-    [Role.GK]: 8,
-    [Role.DEF]: 22,
-    [Role.MID]: 35,
-    [Role.FWD]: 35,
-  });
+    const [leagueSettings, setLeagueSettings] = useState<LeagueSettings>(DEFAULT_LEAGUE_SETTINGS);
+    const [players, setPlayers] = useState<Player[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [isLoadingPlayers, setIsLoadingPlayers] = useState<boolean>(true);
-  const [playerError, setPlayerError] = useState<string | null>(null);
-  const [userPlan, setUserPlan] = useState<string | null>(null);
+    const [targetPlayers, setTargetPlayers] = useState<TargetPlayer[]>([]);
+    const [roleBudget, setRoleBudget] = useState<Record<Role, number>>({ [Role.GK]: 10, [Role.DEF]: 20, [Role.MID]: 35, [Role.FWD]: 35 });
+    
+    // Live Auction State
+    const [myTeam, setMyTeam] = useState<MyTeamPlayer[]>([]);
+    const [auctionLog, setAuctionLog] = useState<Record<number, AuctionResult>>({});
+    
+    const [isSaving, setIsSaving] = useState(false);
+    const [userPlan, setUserPlan] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadPlayers = async () => {
-      try {
-        setIsLoadingPlayers(true);
-        setPlayerError(null);
-        const fetchedPlayers = await fetchPlayers();
-        setPlayers(fetchedPlayers);
-      } catch (e: any) {
-        setPlayerError(e.message || 'Impossibile caricare la lista di giocatori.');
-        console.error(e);
-      } finally {
-        setIsLoadingPlayers(false);
-      }
+    const googleSignInRef = useRef<HTMLDivElement>(null);
+
+    // Effect to set view based on login state
+    useEffect(() => {
+        if (isLoggedIn) {
+            setView('app');
+        } else {
+            setView('home');
+        }
+    }, [isLoggedIn]);
+
+    // Initial data loading (players and saved strategy)
+    useEffect(() => {
+        if (!isLoggedIn || view !== 'app') {
+            setIsLoading(false);
+            return;
+        }
+
+        const loadInitialData = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const fetchedPlayers = await fetchPlayers();
+                setPlayers(fetchedPlayers);
+
+                if (idToken) {
+                    const savedStrategy = await loadStrategy(idToken);
+                    if (savedStrategy) {
+                        setRoleBudget(savedStrategy.roleBudget);
+                        const savedTargets: TargetPlayer[] = savedStrategy.targetPlayerIds
+                            .map(savedTarget => {
+                                const player = fetchedPlayers.find((p: Player) => p.id === savedTarget.id);
+                                return player ? { ...player, maxBid: savedTarget.maxBid } : null;
+                            })
+                            .filter((p): p is TargetPlayer => p !== null);
+                        setTargetPlayers(savedTargets);
+                    }
+                }
+            } catch (err: any) {
+                setError('Failed to load initial application data.');
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadInitialData();
+    }, [isLoggedIn, idToken, view]);
+    
+    const handleLogin = (plan?: string) => {
+        setView('app');
+        if (plan) setUserPlan(plan);
+    };
+    
+    const handleGoHome = () => {
+        const homeUrl = new URL(window.location.href);
+        homeUrl.hash = '#pricing';
+        window.location.href = homeUrl.toString();
+        setView('home');
+    }
+
+    const handleSetupConfirm = (settings: Pick<LeagueSettings, 'participants' | 'budget' | 'participantNames' | 'roster' | 'useCleanSheetBonus' | 'useDefensiveModifier'>) => {
+        setLeagueSettings(prev => ({ ...prev, ...settings }));
+        setView('app');
+    };
+    
+    // Target Player Handlers
+    const handleAddTarget = useCallback((player: Player) => {
+        setTargetPlayers(prev => [...prev, { ...player, maxBid: 1 }]);
+    }, []);
+
+    const handleRemoveTarget = useCallback((playerId: number) => {
+        setTargetPlayers(prev => prev.filter(p => p.id !== playerId));
+    }, []);
+
+    const handleTargetBidChange = useCallback((playerId: number, newBid: number) => {
+        setTargetPlayers(prev => prev.map(p => p.id === playerId ? { ...p, maxBid: newBid } : p));
+    }, []);
+
+    // Live Auction Handlers
+    const handlePlayerAuctioned = (player: Player, purchasePrice: number, buyer: string) => {
+        const newAuctionResult = { playerId: player.id, purchasePrice, buyer };
+        setAuctionLog(prev => ({ ...prev, [player.id]: newAuctionResult }));
+        if (buyer.toLowerCase() === 'io') {
+            setMyTeam(prev => [...prev, { ...player, purchasePrice }]);
+        }
+    };
+    
+    const handleUpdateAuctionResult = (playerId: number, newPrice: number) => {
+        setAuctionLog(prev => {
+            const updatedLog = { ...prev };
+            if(updatedLog[playerId]) {
+                updatedLog[playerId].purchasePrice = newPrice;
+            }
+            return updatedLog;
+        });
+
+        setMyTeam(prev => {
+            return prev.map(p => {
+                if(p.id === playerId) {
+                    return { ...p, purchasePrice: newPrice };
+                }
+                return p;
+            });
+        });
     };
 
-    if (view === 'app' && !isWizardOpen) {
-        loadPlayers();
-    }
-  }, [isWizardOpen, view]);
-
-  const handleLogin = (plan?: string) => {
-    setView('app');
-    if (plan) setUserPlan(plan);
-  };
-
-  const handleLogout = () => {
-    setView('landing');
-    // Reset state for a clean login next time
-    setIsWizardOpen(true);
-    setLeagueSettings(DEFAULT_LEAGUE_SETTINGS);
-    setAppMode('preparation');
-    setMyTeam([]);
-    setAuctionLog({});
-    setTargetPlayers([]);
-    setRoleBudget({
-      [Role.GK]: 8,
-      [Role.DEF]: 22,
-      [Role.MID]: 35,
-      [Role.FWD]: 35,
-    });
-    setPlayers([]);
-    setPlayerError(null);
-  };
-
-  const handlePlayerAuctioned = (player: Player, purchasePrice: number, buyer: string) => {
-    setAuctionLog(prev => ({
-        ...prev,
-        [player.id]: { purchasePrice, buyer }
-    }));
-
-    if (buyer.trim().toLowerCase() === 'io') {
-        const newPlayer: MyTeamPlayer = { ...player, purchasePrice };
-        if (!myTeam.some(p => p.id === newPlayer.id)) {
-            setMyTeam(prev => [...prev, newPlayer]);
+    // Strategy Save/Reset Handlers
+    const handleSaveChanges = async () => {
+        if (!idToken) {
+            alert("Devi essere loggato per salvare la strategia.");
+            return;
         }
-    }
-  };
-
-  const handleUpdateAuctionResult = (playerId: number, newPrice: number) => {
-    // Update auctionLog
-    setAuctionLog(prev => {
-        if (prev[playerId]) {
-            return {
-                ...prev,
-                [playerId]: { ...prev[playerId], purchasePrice: newPrice }
-            };
+        setIsSaving(true);
+        try {
+            await saveStrategy(roleBudget, targetPlayers, idToken);
+            alert("Strategia salvata con successo!");
+        } catch (error) {
+            alert("Errore nel salvataggio della strategia. Riprova più tardi.");
+            console.error(error);
+        } finally {
+            setIsSaving(false);
         }
-        return prev;
-    });
+    };
 
-    // If player is in myTeam, update myTeam as well
-    setMyTeam(prev => {
-        const playerIndex = prev.findIndex(p => p.id === playerId);
-        if (playerIndex > -1) {
-            const updatedTeam = [...prev];
-            updatedTeam[playerIndex].purchasePrice = newPrice;
-            return updatedTeam;
+    const handleResetChanges = async () => {
+        if (confirm('Sei sicuro di voler resettare la strategia? Tutti gli obiettivi e i budget personalizzati saranno persi.')) {
+            // Reset state
+            setRoleBudget({ [Role.GK]: 10, [Role.DEF]: 20, [Role.MID]: 35, [Role.FWD]: 35 });
+            setTargetPlayers([]);
+            
+            // Clear from backend
+            if(idToken) {
+                try {
+                    await clearStrategy(idToken);
+                    alert('Strategia resettata e rimossa dal server.');
+                } catch(error) {
+                    alert('Errore nella rimozione della strategia salvata.');
+                    console.error(error);
+                }
+            } else {
+                 alert('Strategia resettata.');
+            }
         }
-        return prev;
-    });
-  };
+    };
 
-  const handleWizardConfirm = (settings: Pick<LeagueSettings, 'participants' | 'budget' | 'participantNames' | 'roster' | 'useCleanSheetBonus' | 'useDefensiveModifier'>, mode: AppMode) => {
-    setLeagueSettings(prev => ({
-      ...prev,
-      ...settings,
-    }));
-    setAppMode(mode);
-    setIsWizardOpen(false);
-  };
-
-  const handleAddTarget = (player: Player) => {
-    const scaleFactor = leagueSettings.budget / 500;
-    const maxSpend = Math.round((player.baseCost * scaleFactor) * 1.15);
-    const newTarget: TargetPlayer = { ...player, maxBid: maxSpend };
-
-    setTargetPlayers(prev => {
-        if (prev.some(p => p.id === newTarget.id)) return prev;
-        return [...prev, newTarget].sort((a, b) => b.maxBid - a.maxBid)
-    });
-  };
-
-  const handleRemoveTarget = (playerId: number) => {
-    setTargetPlayers(prev => prev.filter(p => p.id !== playerId));
-  };
-
-  const handleTargetBidChange = (playerId: number, newBid: number) => {
-    setTargetPlayers(prev => prev.map(p => p.id === playerId ? { ...p, maxBid: newBid } : p));
-  };
-  
-  // Only allow 'preparation' mode for basic; pro/enterprise can use both modes
-  const isBasic = userPlan === 'basic';
-  const isProOrEnterprise = userPlan === 'pro' || userPlan === 'enterprise';
-
-  // If user is basic and appMode is 'live_auction', force to 'preparation'
-  useEffect(() => {
-    if (isBasic && appMode === 'live_auction') {
-      setAppMode('preparation');
-    }
-  }, [userPlan, appMode]);
-
-  // If user is pro/enterprise and appMode is not allowed, default to 'live_auction'
-  useEffect(() => {
-    if (isProOrEnterprise && appMode === 'preparation') {
-      // pro/enterprise can use both, so do nothing
-      // (if you want to default to live_auction on login, you can set here)
-    }
-  }, [userPlan, appMode]);
-
-  if (view === 'landing') {
-    return <HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan} />;
-  }
-
-  if (isWizardOpen) {
-      return <SetupWizard 
-        onConfirm={handleWizardConfirm} 
-        initialSettings={{ 
-            participants: leagueSettings.participants,
-            budget: leagueSettings.budget,
-            participantNames: leagueSettings.participantNames,
-            roster: leagueSettings.roster,
-            useCleanSheetBonus: leagueSettings.useCleanSheetBonus,
-            useDefensiveModifier: leagueSettings.useDefensiveModifier,
-        }} 
-      />;
-  }
-
-  const renderContent = () => {
-    console.debug('userPlan:', userPlan, 'isBasic:', isBasic, 'appMode:', appMode);
-    // For basic users, only show preparation mode
-    if (isBasic) {
-      if (appMode !== 'preparation') {
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            alert('La modalità Asta Live è disponibile solo per utenti Pro o Enterprise.');
-          }, 0);
+    // Google Sign-In button effect
+    useEffect(() => {
+        if (!isLoggedIn && isGoogleAuthReady && googleSignInRef.current) {
+            if (googleSignInRef.current.childNodes.length === 0 && window.google && window.google.accounts && window.google.accounts.id) {
+                try {
+                    window.google.accounts.id.renderButton(googleSignInRef.current, {
+                        theme: 'outline', size: 'large', type: 'standard', text: 'signin_with', width: '220px'
+                    });
+                    googleSignInRef.current.setAttribute('data-gsi-button', 'true');
+                } catch (err) {
+                    console.error('[App] Error rendering Google Sign-In button:', err);
+                }
+            }
         }
-        setAppMode('preparation');
-        return null;
-      }
-      return (
-        <MainView 
-          leagueSettings={leagueSettings} 
-          players={players} 
-          roleBudget={roleBudget}
-          onRoleBudgetChange={setRoleBudget}
-          targetPlayers={targetPlayers}
-          onAddTarget={handleAddTarget}
-          onRemoveTarget={handleRemoveTarget}
-          onTargetBidChange={handleTargetBidChange}
-        />
-      );
-    }
-    // For pro/enterprise, allow both modes
-    switch (appMode) {
-      case 'preparation':
-        return (
-          <MainView 
-            leagueSettings={leagueSettings} 
-            players={players} 
-            roleBudget={roleBudget}
-            onRoleBudgetChange={setRoleBudget}
-            targetPlayers={targetPlayers}
-            onAddTarget={handleAddTarget}
-            onRemoveTarget={handleRemoveTarget}
-            onTargetBidChange={handleTargetBidChange}
-          />
-        );
-      case 'live_auction':
-        return (
-          <LiveAuctionView
-            players={players}
-            myTeam={myTeam}
-            auctionLog={auctionLog}
-            onPlayerAuctioned={handlePlayerAuctioned}
-            leagueSettings={leagueSettings}
-            roleBudget={roleBudget}
-            targetPlayers={targetPlayers}
-            onUpdateAuctionResult={handleUpdateAuctionResult}
-          />
-        );
-      default:
-        return null;
-    }
-  }
+    }, [isLoggedIn, isGoogleAuthReady]);
 
-  return (
-    <div className="min-h-screen bg-base-100 font-sans">
-      <header className="bg-base-200/50 backdrop-blur-lg sticky top-0 z-30 border-b border-base-300">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <ShieldCheck className="w-8 h-8 text-brand-primary" />
-              <h1 className="text-2xl font-bold text-content-100 tracking-tight">
-                Fantacalcio <span className="text-brand-primary">Copilot</span>
-              </h1>
+    return (
+        <BrowserRouter>
+            <div>
+                {/* Header - always visible */}
+                <header className="sticky top-0 z-30 w-full bg-base-100/80 backdrop-blur-lg">
+                    <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex h-16 items-center justify-between border-b border-base-300">
+                            <div className="flex items-center">
+                                <ShieldCheck className="w-8 h-8 text-brand-primary" />
+                                <h1 className="ml-2 text-xl font-bold">Fantacalcio Copilot</h1>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               {profile && (
+                                    <div className="flex items-center gap-3">
+                                        <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
+                                        <div className="hidden sm:block">
+                                            <p className="text-sm font-semibold">{profile.name}</p>
+                                            <p className="text-xs text-content-200 capitalize">{profile.plan || 'Free'} Plan</p>
+                                        </div>
+                                    </div>
+                               )}
+                               {/* Show Google Sign-In badge if not logged in */}
+                               {!isLoggedIn && (
+                                   <div ref={googleSignInRef}></div>
+                               )}
+                               {/* Settings and logout only if logged in */}
+                               {isLoggedIn && (
+                                 <>
+                                   <button onClick={() => setView('home')} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">Impostazioni</button>
+                                   <button onClick={handleSignOut} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
+                                       <LogOut className="w-4 h-4"/>
+                                   </button>
+                                 </>
+                               )}
+                            </div>
+                        </div>
+                    </div>
+                </header>
+                <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    {/* Loading and error states */}
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-screen bg-base-100 text-content-100">
+                            <Loader2 className="w-12 h-12 animate-spin text-brand-primary mb-4" />
+                            <p className="text-lg">Caricamento dati e strategia...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center text-red-500 py-20">{error}</div>
+                    ) : !isLoggedIn || !profile ? (
+                        <HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>
+                    ) : (
+                        <Routes>
+                            <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
+                            <Route path="/setup" element={<SetupWizard onConfirm={handleSetupConfirm} initialSettings={leagueSettings} />} />
+                            <Route path="/preparation" element={
+                                <FeatureGuard feature="strategyPrep" fallback={<Navigate to="/upgrade" />}> 
+                                    <PlayerExplorerView
+                                        leagueSettings={leagueSettings}
+                                        players={players}
+                                        targetPlayers={targetPlayers}
+                                        onAddTarget={handleAddTarget}
+                                        onRemoveTarget={handleRemoveTarget}
+                                    />
+                                </FeatureGuard>
+                            } />
+                            <Route path="/strategy" element={
+                                <FeatureGuard feature="strategyPrep" fallback={<Navigate to="/upgrade" />}> 
+                                    <MainView
+                                        leagueSettings={leagueSettings}
+                                        players={players}
+                                        roleBudget={roleBudget}
+                                        onRoleBudgetChange={setRoleBudget}
+                                        targetPlayers={targetPlayers}
+                                        onAddTarget={handleAddTarget}
+                                        onRemoveTarget={handleRemoveTarget}
+                                        onTargetBidChange={handleTargetBidChange}
+                                        onSaveChanges={handleSaveChanges}
+                                        onResetChanges={handleResetChanges}
+                                        isSaving={isSaving}
+                                    />
+                                </FeatureGuard>
+                            } />
+                            <Route path="/auction" element={
+                                <FeatureGuard feature="liveAuction" fallback={<Navigate to="/upgrade" />}> 
+                                    <LiveAuctionView 
+                                        players={players}
+                                        myTeam={myTeam}
+                                        auctionLog={auctionLog}
+                                        onPlayerAuctioned={handlePlayerAuctioned}
+                                        leagueSettings={leagueSettings}
+                                        roleBudget={roleBudget}
+                                        targetPlayers={targetPlayers}
+                                        onUpdateAuctionResult={handleUpdateAuctionResult}
+                                    />
+                                </FeatureGuard>
+                            } />
+                            <Route path="/upgrade" element={<UpgradeView featureName="Upgrade" onNavigateHome={handleGoHome} />} />
+                            <Route path="*" element={<Navigate to="/" />} />
+                        </Routes>
+                    )}
+                </main>
             </div>
-            <div className="flex items-center space-x-2 sm:space-x-4">
-                <div className="hidden sm:flex items-center space-x-2 text-sm text-content-200">
-                    <Users className="w-4 h-4 text-brand-primary"/>
-                    <span>{leagueSettings.participants} Partecipanti</span>
-                </div>
-                <div className="hidden lg:flex items-center space-x-2 text-sm text-content-200">
-                    <Coins className="w-4 h-4 text-brand-primary"/>
-                    <span className="font-semibold">
-                        {leagueSettings.budget} Cr
-                    </span>
-                </div>
-                 <button 
-                    onClick={() => setIsWizardOpen(true)}
-                    className="p-2 rounded-full text-content-200 hover:text-content-100 hover:bg-base-300 transition-colors"
-                    aria-label="Modifica impostazioni lega"
-                 >
-                    <Settings className="w-5 h-5" />
-                </button>
-                <button 
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1.5 text-sm font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-2 rounded-lg transition-colors"
-                    aria-label="Esci"
-                >
-                    <LogOut className="w-4 h-4" />
-                    <span>Esci</span>
-                </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto p-4 md:p-6">
-        {isLoadingPlayers ? (
-            <div className="flex flex-col justify-center items-center h-96">
-                <Loader className="w-12 h-12 animate-spin text-brand-primary" />
-                <p className="ml-4 text-xl mt-4">Caricamento lista giocatori...</p>
-            </div>
-        ) : playerError ? (
-            <div className="flex flex-col justify-center items-center h-96 text-red-400">
-                <Frown className="w-16 h-16 mb-4" />
-                <p className="text-2xl">Errore nel caricamento dei giocatori</p>
-                <p className="text-content-200 text-center max-w-md">{playerError}</p>
-            </div>
-        ) : (
-            <>
-              <ModeSwitcher currentMode={appMode} onModeChange={setAppMode} />
-              {renderContent()}
-            </>
-        )}
-      </main>
-      
-      <footer className="text-center py-6 mt-8 border-t border-base-300 text-sm text-content-200/50">
-        <p>Fantacalcio Copilot AI &copy; {new Date().getFullYear()}. Realizzato con passione per i fantallenatori.</p>
-      </footer>
-    </div>
-  );
+        </BrowserRouter>
+    );
 };
 
 export default App;
