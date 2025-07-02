@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LeagueSettings, AppMode, Role } from '../types';
+import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 import { Users, Coins, ShieldCheck, Play, Zap, Edit3, Plus, Minus, ChevronDown, ListTree, ClipboardEdit } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 
@@ -9,8 +10,6 @@ interface SetupWizardProps {
 }
 
 const BASE_URL = "http://127.0.0.1:5000";
-const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
-const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
 
 const CollapsibleSection: React.FC<{
   title: string;

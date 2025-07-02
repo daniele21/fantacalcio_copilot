@@ -108,7 +108,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
         if (signInButtonRef.current) {
             const btn = signInButtonRef.current.querySelector('div[role="button"], button');
             if (btn) {
-                btn.click();
+                (btn as HTMLElement).click();
             } else {
                 signInButtonRef.current.style.display = 'block';
                 alert('Il pulsante di accesso Google non è ancora pronto. Riprova tra qualche secondo o clicca direttamente il pulsante qui sotto.');
@@ -206,125 +206,93 @@ export const HomePage: React.FC<HomePageProps> = ({ onLogin, userPlan, setUserPl
             {/* Header */}
             <header className="sticky top-0 z-30 w-full bg-base-100/80 backdrop-blur-lg">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16 border-b border-base-300">
-                        <div className="flex items-center space-x-3">
+                    <div className="flex h-16 items-center justify-between border-b border-base-300">
+                        <div className="flex items-center">
                             <ShieldCheck className="w-8 h-8 text-brand-primary" />
-                            <h1 className="text-2xl font-bold tracking-tight">
-                                Fantacalcio <span className="text-brand-primary">Copilot</span>
-                            </h1>
+                            <h1 className="ml-2 text-xl font-bold">Fantacalcio Copilot</h1>
                         </div>
-                        {isLoggedIn ? (
-                            <div className="flex items-center space-x-3">
-                                {profile && profile.picture ? (
-                                    <img src={profile.picture} alt="User" className="w-8 h-8 rounded-full border-2 border-brand-primary" />
-                                ) : profile ? (
-                                    <span className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center text-brand-primary font-bold">{profile.name?.[0] || '?'}</span>
-                                ) : null}
-                                {profile && <span className="font-semibold text-content-100">{profile.name || profile.email}</span>}
-                                {profile && profile.plan && (
-                                    <span className="ml-2 px-2 py-1 rounded bg-brand-primary/10 text-brand-primary text-xs font-bold uppercase">
-                                        {profile.plan}
-                                    </span>
-                                )}
-                                <button onClick={handleSignOut} className="ml-2 bg-red-600 text-white font-semibold px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-sm">Logout</button>
-                            </div>
-                        ) : (
-                            <div
-                              ref={signInButtonRef}
-                              className="flex flex-col items-center justify-center py-2 min-h-[50px]"
-                              id="signInDivRef"
-                            >
-                              {/* Google Sign-In button will be rendered here by GSI */}
-                              {!isGoogleAuthReady && !showFallbackLogin && (
-                                <p className="text-xs text-content-200 mt-2">Caricamento login Google...</p>
-                              )}
-                              {showFallbackLogin && (
-                                <button
-                                  onClick={() => {
-                                    if (window.google && window.google.accounts && window.google.accounts.id && typeof window.google.accounts.id.prompt === 'function') {
-                                      window.google.accounts.id.prompt();
-                                    } else {
-                                      alert('Impossibile avviare il login Google. Ricarica la pagina o disabilita eventuali ad blocker.');
-                                      onLogin();
-                                    }
-                                  }}
-                                  className="mt-2 px-4 py-2 bg-brand-primary text-white rounded hover:bg-brand-secondary transition"
-                                >
-                                  Accedi con Google (fallback)
-                                </button>
-                              )}
-                            </div>
-                        )}
+                        <div className="flex items-center gap-4">
+                           {isLoggedIn && profile ? (
+                                <div className="flex items-center gap-3">
+                                    <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
+                                    <div className="hidden sm:block">
+                                        <p className="text-sm font-semibold">{profile.name}</p>
+                                        <p className="text-xs text-content-200 capitalize">{profile.plan || 'Free'} Plan</p>
+                                    </div>
+                                    <button onClick={handleSignOut} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">Esci</button>
+                                </div>
+                           ) : (
+                                <>
+                                 <div ref={signInButtonRef} style={{ display: !showFallbackLogin ? 'block' : 'none' }}></div>
+                                 {showFallbackLogin &&
+                                    <button onClick={handleGoogleLogin} className="px-4 py-2 text-sm font-semibold text-content-100 bg-blue-600 rounded-md hover:bg-blue-700">
+                                      Accedi con Google
+                                    </button>
+                                  }
+                               </>
+                           )}
+                        </div>
                     </div>
                 </div>
             </header>
-
-            {/* Main Content */}
-            <main className="container mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Hero Section */}
-                <section className="text-center py-20 sm:py-24 lg:py-32">
-                    <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tighter text-content-100">
-                        Il tuo <span className="text-brand-primary">vantaggio strategico</span> per l'asta del Fantacalcio.
-                    </h2>
-                    <p className="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-content-200">
-                        Sfrutta la potenza dell'AI di Gemini per dominare la tua lega. Analisi pre-asta, suggerimenti live e strategie personalizzate.
-                    </p>
-                    <div className="mt-8 flex justify-center">
-                        <button 
-                            onClick={() => onLogin()} 
-                            className="group flex items-center bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300 shadow-lg hover:shadow-brand-primary/40 transform hover:scale-105"
-                        >
-                            Inizia Ora
-                            <ArrowRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
-                        </button>
+            <main>
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+                    <div className="text-center max-w-3xl mx-auto">
+                        <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
+                            Il tuo copilota IA per l'asta del Fantacalcio
+                        </h2>
+                        <p className="mt-6 text-lg md:text-xl text-content-200">
+                            Prepara la tua strategia, analizza i giocatori e domina la tua lega con suggerimenti intelligenti basati su dati aggiornati e analisi di Gemini.
+                        </p>
+                         <div className="mt-8 flex justify-center gap-4">
+                            {!isLoggedIn ? (
+                                <button onClick={handleGoogleLogin} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
+                                    Inizia Ora con Google
+                                </button>
+                            ) : (
+                                <button onClick={() => onLogin(userPlan)} className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300">
+                                    Entra nell'App
+                                    <ArrowRight className="inline w-5 h-5 ml-2"/>
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </section>
 
-                {/* Pricing Section */}
-                <section className="py-16 text-center">
-                  <h3 className="text-3xl font-bold mb-6">Scegli il tuo piano</h3>
-                  <div className="flex flex-wrap justify-center gap-8">
-                    {plans.map(p => (
-                      <div key={p.key} className="p-6 border rounded-lg w-64">
-                        <h4 className="text-2xl font-semibold mb-2">{p.name}</h4>
-                        <p className="text-lg mb-4">{p.price}</p>
-                        <button
-                          onClick={() => handleSubscribe(p.key)}
-                          disabled={!isGoogleAuthReady}
-                          className="flex items-center justify-center bg-brand-primary text-white px-4 py-2 rounded-lg hover:bg-brand-secondary transition disabled:opacity-50"
-                        >
-                          Sottoscrivi {p.name}
-                          <ArrowRight className="w-5 h-5 ml-2" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                {/* Features Section */}
-                <section id="features" className="py-16">
-                     <div className="text-center mb-12">
-                        <h3 className="text-3xl font-bold">Tutto ciò di cui hai bisogno per vincere</h3>
-                        <p className="text-content-200 mt-2">Funzionalità intelligenti per ogni fase della tua preparazione.</p>
-                    </div>
-                    <div className="grid md:grid-cols-3 gap-8">
-                        <FeatureCard icon={<BarChart2 className="w-6 h-6 text-brand-primary" />} title="Analisi Approfondita">
-                            Esplora i giocatori con filtri avanzati e ottieni analisi strategiche sui segmenti di mercato, potenziate da dati web recenti.
+                    <div className="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <FeatureCard icon={<Zap className="w-6 h-6 text-brand-primary"/>} title="Assistente Asta Live">
+                            Ottieni consigli in tempo reale su chi comprare e a quale prezzo, basandoti sul budget rimanente e la composizione della tua rosa.
                         </FeatureCard>
-                        <FeatureCard icon={<ClipboardList className="w-6 h-6 text-brand-primary" />} title="Strategia Personalizzata">
-                            Crea la tua lista di obiettivi, alloca il budget per ruolo e pianifica ogni mossa per costruire una squadra imbattibile.
+                        <FeatureCard icon={<BarChart2 className="w-6 h-6 text-brand-primary"/>} title="Analisi Dettagliata">
+                            Analisi on-demand per ogni giocatore, con punti di forza, debolezze e un verdetto strategico per l'asta.
                         </FeatureCard>
-                        <FeatureCard icon={<Zap className="w-6 h-6 text-brand-primary" />} title="Assistente Asta Live">
-                            Ricevi consigli in tempo reale durante l'asta. Il Copilota analizza la tua squadra e il budget per suggerirti l'offerta perfetta.
+                        <FeatureCard icon={<ClipboardList className="w-6 h-6 text-brand-primary"/>} title="Preparazione Strategica">
+                            Esplora i giocatori, filtra per skill e ruolo, e ottieni analisi aggregate per costruire la tua strategia vincente.
+                        </FeatureCard>
+                         <FeatureCard icon={<ShieldCheck className="w-6 h-6 text-brand-primary"/>} title="Dati Aggiornati">
+                            Le analisi sono potenziate da Google Search per darti informazioni sempre fresche su infortuni, stato di forma e news.
                         </FeatureCard>
                     </div>
-                </section>
+
+                    <div id="pricing" className="mt-24">
+                        <h2 className="text-3xl font-bold text-center text-content-100">Piani e Prezzi</h2>
+                        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {plans.map(plan => (
+                                <div key={plan.key} className="bg-base-200 p-8 rounded-lg border border-base-300 text-center">
+                                    <h3 className="text-2xl font-bold">{plan.name}</h3>
+                                    <p className="mt-4 text-4xl font-extrabold text-brand-primary">{plan.price.split(' ')[0]}</p>
+                                    <p className="text-content-200">{plan.price.split(' ').slice(1).join(' ')}</p>
+                                    <button
+                                        onClick={() => handleSubscribe(plan.key)}
+                                        className="mt-6 w-full bg-brand-primary text-white font-bold py-3 rounded-lg hover:bg-brand-secondary transition-colors"
+                                    >
+                                        Scegli {plan.name}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </main>
-            
-            {/* Footer */}
-            <footer className="text-center py-6 mt-8 border-t border-base-300 text-sm text-content-200/50">
-                <p>Fantacalcio Copilot AI &copy; {new Date().getFullYear()}. Realizzato con passione per i fantallenatori.</p>
-            </footer>
         </div>
     );
 };

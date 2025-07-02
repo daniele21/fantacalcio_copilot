@@ -32,7 +32,7 @@ export const fetchPlayers = async (): Promise<Player[]> => {
       fm2y: parseFloat(p['fantamedia_2023_2024']),
       fm3y: parseFloat(p['fantamedia_2022_2023']),
       presenze1y: parseInt(p['presenze 2024_2025']),
-      injury_score: parseInt(p['eesistenza_infortuni']),
+      injury_score: parseInt(p['resistenza_infortuni']),
       exp_assist: p['assist_previsti'],
       exp_goal: p['gol_previsti'],
       exp_presenze: p['presenze_previste'],

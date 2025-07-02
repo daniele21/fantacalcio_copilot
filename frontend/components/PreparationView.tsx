@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Player, Role, LeagueSettings, AggregatedAnalysisResult, TargetPlayer } from '../types';
+import { Player, Role, LeagueSettings, AggregatedAnalysisResult, TargetPlayer, Skill } from '../types';
 import { getAggregatedAnalysis } from '../services/geminiService';
 import { PlayerCard } from './PlayerCard';
 import { FilterChip } from './shared/FilterChip';
 import { Loader, Frown, Sparkles } from 'lucide-react';
-
-const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
-const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
+import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 
 interface PlayerExplorerViewProps {
     leagueSettings: LeagueSettings;
@@ -28,7 +26,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
     const skillSet = new Set<string>();
-    players.forEach((player: Player) => player.skills.forEach((skill: string) => skillSet.add(skill)));
+    players.forEach((player: Player) => (player.skills as string[]).forEach((skill: string) => skillSet.add(skill)));
     return Array.from(skillSet).sort();
   }, [players]);
 
@@ -50,7 +48,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
     return players
       .filter((player: Player) => {
         const roleMatch = player.role === selectedRole;
-        const skillMatch = selectedSkills.size === 0 || player.skills.some(skill => selectedSkills.has(skill));
+        const skillMatch = selectedSkills.size === 0 || (player.skills as string[]).some(skill => selectedSkills.has(skill));
         return roleMatch && skillMatch;
       })
       .sort((a, b) => (b.recommendation ?? 0) - (a.recommendation ?? 0));
@@ -58,7 +56,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
 
   const handleAnalysisRequest = async () => {
     setIsAnalysisLoading(true);
-    const result = await getAggregatedAnalysis(filteredPlayers, selectedRole, selectedSkills);
+    const result = await getAggregatedAnalysis(filteredPlayers, selectedRole);
     setAggregatedAnalysis(result);
     setIsAnalysisLoading(false);
   };
