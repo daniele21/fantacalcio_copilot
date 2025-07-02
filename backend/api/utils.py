@@ -2,33 +2,66 @@ import os
 import re
 import json
 import sqlite3
+import psycopg2
+import psycopg2.extras
 from flask import request, jsonify, g
 from functools import wraps
 import requests
+from google.cloud import firestore
 
 
 def get_db():
     if 'db' not in g:
-        conn = sqlite3.connect(
-            os.getenv('SQLITE_PATH', 'backend/database/fantacalcio.db'),
-            detect_types=sqlite3.PARSE_DECLTYPES,
-        )
-        conn.row_factory = sqlite3.Row
-        g.db = conn
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        if db_type == 'firestore':
+            g.db = firestore.Client(project="fantacalcio-project", database='fantacalcio-db')
+        elif db_type == 'postgres':
+            g.db = psycopg2.connect(
+                dbname=os.getenv('POSTGRES_DB'),
+                user=os.getenv('POSTGRES_USER'),
+                password=os.getenv('POSTGRES_PASSWORD'),
+                host=os.getenv('POSTGRES_HOST'),
+                port=os.getenv('POSTGRES_PORT', 5432),
+                cursor_factory=psycopg2.extras.RealDictCursor
+            )
+        else:
+            conn = sqlite3.connect(
+                os.getenv('SQLITE_PATH', 'backend/database/fantacalcio.db'),
+                detect_types=sqlite3.PARSE_DECLTYPES,
+            )
+            conn.row_factory = sqlite3.Row
+            g.db = conn
     return g.db
 
 
 def close_db(e=None):
     db = g.pop('db', None)
     if db is not None:
-        db.close()
+        if os.getenv('DB_TYPE', 'sqlite') in ['sqlite', 'postgres']:
+            db.close()
+        # Firestore client does not need explicit close
 
 
-def init_db(db_path):
-    sql_path = os.path.join(os.path.dirname(__file__), '../database/init.sqlite.sql')
-    with sqlite3.connect(db_path) as conn:
-        with open(sql_path, 'r') as f:
-            conn.executescript(f.read())
+def init_db(db_path=None):
+    db_type = os.getenv('DB_TYPE', 'sqlite')
+    if db_type == 'postgres':
+        sql_path = os.path.join(os.path.dirname(__file__), '../database/init.postgres.sql')
+        with psycopg2.connect(
+            dbname=os.getenv('POSTGRES_DB'),
+            user=os.getenv('POSTGRES_USER'),
+            password=os.getenv('POSTGRES_PASSWORD'),
+            host=os.getenv('POSTGRES_HOST'),
+            port=os.getenv('POSTGRES_PORT', 5432)
+        ) as conn:
+            with open(sql_path, 'r') as f:
+                with conn.cursor() as cur:
+                    cur.execute(f.read())
+            conn.commit()
+    else:
+        sql_path = os.path.join(os.path.dirname(__file__), '../database/init.sqlite.sql')
+        with sqlite3.connect(db_path or os.getenv('SQLITE_PATH', 'backend/database/fantacalcio.db')) as conn:
+            with open(sql_path, 'r') as f:
+                conn.executescript(f.read())
 
 
 def jsonify_success(data=None):

@@ -1,5 +1,7 @@
 import json
+import os
 from flask import Blueprint, request, make_response, g
+from google.cloud import firestore
 from backend.api.utils import get_db, require_auth, jsonify_success, jsonify_error
 
 strategy_api = Blueprint('strategy_api', __name__)
@@ -54,76 +56,117 @@ strategy_api = Blueprint('strategy_api', __name__)
 @strategy_api.route('/strategy-board', methods=['GET', 'POST'])
 @require_auth
 def strategy_board():
+    db_type = os.getenv('DB_TYPE', 'sqlite')
     db = get_db()
     google_sub = g.user_id
 
     if request.method == 'GET':
-        rows = db.execute(
-            "SELECT player_id, max_bid FROM strategy_board_targets WHERE google_sub = ?",
-            (google_sub,)
-        ).fetchall()
-        target_players = [dict(row) for row in rows]
-        return jsonify_success({'strategy_board': {'target_players': target_players}})
+        if db_type == 'firestore':
+            targets_ref = db.collection('strategy_board_targets').where('google_sub', '==', google_sub)
+            docs = targets_ref.stream()
+            target_players = [doc.to_dict() for doc in docs]
+            return jsonify_success({'strategy_board': {'target_players': target_players}})
+        else:
+            rows = db.execute(
+                "SELECT player_id, max_bid FROM strategy_board_targets WHERE google_sub = ?",
+                (google_sub,)
+            ).fetchall()
+            target_players = [dict(row) for row in rows]
+            return jsonify_success({'strategy_board': {'target_players': target_players}})
 
     if request.method == 'POST':
         data = request.get_json() or {}
         target_players = data.get('target_players', [])
-        # Upsert each target player (no delete, just update or insert)
-        for player in target_players:
-            db.execute(
-                """
-                INSERT INTO strategy_board_targets (google_sub, player_id, max_bid)
-                VALUES (?, ?, ?)
-                ON CONFLICT(google_sub, player_id) DO UPDATE SET
-                    max_bid=excluded.max_bid
-                """,
-                (google_sub, player.get('id'), player.get('maxBid', 0))
-            )
-        db.commit()
-        return jsonify_success({'message': 'Saved'})
+        if db_type == 'firestore':
+            batch = db.batch()
+            for player in target_players:
+                doc_id = f"{google_sub}_{player.get('id')}"
+                doc_ref = db.collection('strategy_board_targets').document(doc_id)
+                batch.set(doc_ref, {
+                    'google_sub': google_sub,
+                    'player_id': player.get('id'),
+                    'max_bid': player.get('maxBid', 0)
+                }, merge=True)
+            batch.commit()
+            return jsonify_success({'message': 'Saved'})
+        else:
+            for player in target_players:
+                db.execute(
+                    """
+                    INSERT INTO strategy_board_targets (google_sub, player_id, max_bid)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(google_sub, player_id) DO UPDATE SET
+                        max_bid=excluded.max_bid
+                    """,
+                    (google_sub, player.get('id'), player.get('maxBid', 0))
+                )
+            db.commit()
+            return jsonify_success({'message': 'Saved'})
 
 @strategy_api.route('/strategy-board-budget', methods=['GET', 'POST'])
 @require_auth
 def strategy_board_budget():
+    db_type = os.getenv('DB_TYPE', 'sqlite')
     db = get_db()
     google_sub = g.user_id
 
     if request.method == 'GET':
-        row = db.execute(
-            "SELECT role_budget_gk, role_budget_def, role_budget_mid, role_budget_fwd FROM strategy_board WHERE google_sub = ?",
-            (google_sub,)
-        ).fetchone()
-        if row:
-            role_budget = dict(row)
+        if db_type == 'firestore':
+            doc_ref = db.collection('strategy_board').document(google_sub)
+            doc = doc_ref.get()
+            if doc.exists:
+                role_budget = doc.to_dict()
+            else:
+                role_budget = {
+                    'role_budget_gk': 10,
+                    'role_budget_def': 20,
+                    'role_budget_mid': 35,
+                    'role_budget_fwd': 35
+                }
+            return jsonify_success({'strategy_board': {'role_budget': role_budget}})
         else:
-            # Default to zeros if not set
-            role_budget = {
-                'role_budget_gk': 10,
-                'role_budget_def': 20,
-                'role_budget_mid': 35,
-                'role_budget_fwd': 35
-            }
-        return jsonify_success({'strategy_board': {'role_budget': role_budget}})
+            row = db.execute(
+                "SELECT role_budget_gk, role_budget_def, role_budget_mid, role_budget_fwd FROM strategy_board WHERE google_sub = ?",
+                (google_sub,)
+            ).fetchone()
+            if row:
+                role_budget = dict(row)
+            else:
+                role_budget = {
+                    'role_budget_gk': 10,
+                    'role_budget_def': 20,
+                    'role_budget_mid': 35,
+                    'role_budget_fwd': 35
+                }
+            return jsonify_success({'strategy_board': {'role_budget': role_budget}})
 
     if request.method == 'POST':
         data = request.get_json() or {}
-        # Accept flat keys directly from frontend
         gk = data.get('role_budget_gk', 10)
         d = data.get('role_budget_def', 20)
         m = data.get('role_budget_mid', 35)
         f = data.get('role_budget_fwd', 35)
-        # Upsert logic
-        db.execute(
-            """
-            INSERT INTO strategy_board (google_sub, role_budget_gk, role_budget_def, role_budget_mid, role_budget_fwd)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(google_sub) DO UPDATE SET
-                role_budget_gk=excluded.role_budget_gk,
-                role_budget_def=excluded.role_budget_def,
-                role_budget_mid=excluded.role_budget_mid,
-                role_budget_fwd=excluded.role_budget_fwd
-            """,
-            (google_sub, gk, d, m, f)
-        )
-        db.commit()
-        return jsonify_success({'message': 'Saved'})
+        if db_type == 'firestore':
+            doc_ref = db.collection('strategy_board').document(google_sub)
+            doc_ref.set({
+                'role_budget_gk': gk,
+                'role_budget_def': d,
+                'role_budget_mid': m,
+                'role_budget_fwd': f
+            }, merge=True)
+            return jsonify_success({'message': 'Saved'})
+        else:
+            db.execute(
+                """
+                INSERT INTO strategy_board (google_sub, role_budget_gk, role_budget_def, role_budget_mid, role_budget_fwd)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(google_sub) DO UPDATE SET
+                    role_budget_gk=excluded.role_budget_gk,
+                    role_budget_def=excluded.role_budget_def,
+                    role_budget_mid=excluded.role_budget_mid,
+                    role_budget_fwd=excluded.role_budget_fwd
+                """,
+                (google_sub, gk, d, m, f)
+            )
+            db.commit()
+            return jsonify_success({'message': 'Saved'})

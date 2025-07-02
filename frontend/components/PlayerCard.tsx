@@ -90,10 +90,10 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({ player, leagueSettings, 
           </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-4 border-t border-base-300/50">
+        {/* <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-4 border-t border-base-300/50">
            <StatItem icon={<TrendingUp className="w-4 h-4 text-green-400"/>} label="Ceiling" value={player.analystCeiling}/>
            <StatItem icon={<TrendingDown className="w-4 h-4 text-red-400"/>} label="Floor" value={player.analystFloor}/>
-        </div>
+        </div> */}
 
         <div className="pt-4 border-t border-base-300/50">
             <h4 className="font-semibold text-content-200 mb-3 flex items-center"><BarChart2 className="w-4 h-4 mr-2"/>Statistiche Chiave</h4>

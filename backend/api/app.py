@@ -7,6 +7,7 @@ import json
 from functools import wraps
 from flask import Flask, request, jsonify, g, make_response
 import stripe
+from google.cloud import firestore
 
 # Utility and blueprint imports
 from backend.api.utils import (
@@ -64,23 +65,40 @@ def create_app():
     @require_auth
     def get_me():
         sub = g.user_id
+        db_type = os.getenv('DB_TYPE', 'sqlite')
         db = get_db()
-        db.execute(
-            "INSERT INTO users (google_sub) VALUES (?) ON CONFLICT(google_sub) DO NOTHING",
-            (sub,)
-        )
-        db.commit()
-        row = db.execute(
-            "SELECT plan FROM users WHERE google_sub = ?", (sub,)
-        ).fetchone()
-        if not row:
-            return jsonify_error('user_not_found', 'User not found', 404)
-        return jsonify_success({
-            'plan': row['plan'],
-            'email': g.user_email,
-            'picture': g.user_picture,
-            'sub': sub
-        })
+        if db_type == 'firestore':
+            user_ref = db.collection('users').document(sub)
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                # Create user if not exists
+                user_ref.set({'plan': 'free', 'email': g.user_email, 'created_at': firestore.SERVER_TIMESTAMP})
+                plan = 'free'
+            else:
+                plan = user_doc.to_dict().get('plan', 'free')
+            return jsonify_success({
+                'plan': plan,
+                'email': g.user_email,
+                'picture': g.user_picture,
+                'sub': sub
+            })
+        else:
+            db.execute(
+                "INSERT INTO users (google_sub) VALUES (?) ON CONFLICT(google_sub) DO NOTHING",
+                (sub,)
+            )
+            db.commit()
+            row = db.execute(
+                "SELECT plan FROM users WHERE google_sub = ?", (sub,)
+            ).fetchone()
+            if not row:
+                return jsonify_error('user_not_found', 'User not found', 404)
+            return jsonify_success({
+                'plan': row['plan'],
+                'email': g.user_email,
+                'picture': g.user_picture,
+                'sub': sub
+            })
 
     # --- /api/create-checkout-session ---
     @app.route('/api/create-checkout-session', methods=['POST'])
@@ -119,13 +137,18 @@ def create_app():
             return jsonify_error('missing_session', 'Missing sessionId')
         try:
             session = stripe.checkout.Session.retrieve(session_id, expand=['payment_intent'])
+            db_type = os.getenv('DB_TYPE', 'sqlite')
+            db = get_db()
             if session.payment_status in ('paid', 'complete') and session.metadata:
-                db = get_db()
-                db.execute(
-                    "UPDATE users SET plan = ? WHERE google_sub = ?",
-                    (session.metadata.get('plan'), session.client_reference_id)
-                )
-                db.commit()
+                if db_type == 'firestore':
+                    user_ref = db.collection('users').document(session.client_reference_id)
+                    user_ref.set({'plan': session.metadata.get('plan')}, merge=True)
+                else:
+                    db.execute(
+                        "UPDATE users SET plan = ? WHERE google_sub = ?",
+                        (session.metadata.get('plan'), session.client_reference_id)
+                    )
+                    db.commit()
             return jsonify_success({
                 'id': session.id,
                 'payment_status': session.payment_status,
@@ -139,84 +162,138 @@ def create_app():
     @app.route('/api/save-league-settings', methods=['POST'])
     @require_auth
     def save_league_settings():
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
         data = request.get_json() or {}
         roster = data.get('roster', {})
-        vals = (
-            g.user_id,
-            data.get('participants'),
-            data.get('budget'),
-            json.dumps(data.get('participantNames', [])),
-            roster.get('P', 3),
-            roster.get('D', 8),
-            roster.get('C', 8),
-            roster.get('A', 6),
-            int(bool(data.get('useCleanSheetBonus'))),
-            int(bool(data.get('useDefensiveModifier'))),
-        )
-        try:
-            db = get_db()
-            db.execute(
-                '''
-                INSERT INTO league_settings (
-                    google_sub, participants, budget, participant_names,
-                    n_gk_players, n_def_players, n_mid_players, n_fwd_players,
-                    use_clean_sheet_bonus, use_defensive_modifier
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(google_sub) DO UPDATE SET
-                participants=excluded.participants,
-                budget=excluded.budget,
-                participant_names=excluded.participant_names,
-                n_gk_players=excluded.n_gk_players,
-                n_def_players=excluded.n_def_players,
-                n_mid_players=excluded.n_mid_players,
-                n_fwd_players=excluded.n_fwd_players,
-                use_clean_sheet_bonus=excluded.use_clean_sheet_bonus,
-                use_defensive_modifier=excluded.use_defensive_modifier
-                ''' , vals
-            )
-            db.commit()
+        if db_type == 'firestore':
+            doc_ref = db.collection('league_settings').document(g.user_id)
+            doc_ref.set({
+                'participants': data.get('participants'),
+                'budget': data.get('budget'),
+                'participantNames': data.get('participantNames', []),
+                'n_gk_players': roster.get('P', 3),
+                'n_def_players': roster.get('D', 8),
+                'n_mid_players': roster.get('C', 8),
+                'n_fwd_players': roster.get('A', 6),
+                'use_clean_sheet_bonus': int(bool(data.get('useCleanSheetBonus'))),
+                'use_defensive_modifier': int(bool(data.get('useDefensiveModifier'))),
+            }, merge=True)
             return jsonify_success()
-        except Exception:
-            app.logger.exception('Error saving league settings')
-            return jsonify_error('db_error', 'Could not save settings', 500)
+        else:
+            vals = (
+                g.user_id,
+                data.get('participants'),
+                data.get('budget'),
+                json.dumps(data.get('participantNames', [])),
+                roster.get('P', 3),
+                roster.get('D', 8),
+                roster.get('C', 8),
+                roster.get('A', 6),
+                int(bool(data.get('useCleanSheetBonus'))),
+                int(bool(data.get('useDefensiveModifier'))),
+            )
+            try:
+                db.execute(
+                    '''
+                    INSERT INTO league_settings (
+                        google_sub, participants, budget, participant_names,
+                        n_gk_players, n_def_players, n_mid_players, n_fwd_players,
+                        use_clean_sheet_bonus, use_defensive_modifier
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(google_sub) DO UPDATE SET
+                    participants=excluded.participants,
+                    budget=excluded.budget,
+                    participant_names=excluded.participant_names,
+                    n_gk_players=excluded.n_gk_players,
+                    n_def_players=excluded.n_def_players,
+                    n_mid_players=excluded.n_mid_players,
+                    n_fwd_players=excluded.n_fwd_players,
+                    use_clean_sheet_bonus=excluded.use_clean_sheet_bonus,
+                    use_defensive_modifier=excluded.use_defensive_modifier
+                    ''' , vals
+                )
+                db.commit()
+                return jsonify_success()
+            except Exception:
+                app.logger.exception('Error saving league settings')
+                return jsonify_error('db_error', 'Could not save settings', 500)
 
     # --- /api/league-settings ---
     @app.route('/api/league-settings', methods=['GET'])
     @require_auth
     def get_league_settings():
-        row = get_db().execute(
-            "SELECT * FROM league_settings WHERE google_sub = ?", (g.user_id,)
-        ).fetchone()
-        if not row:
-            return jsonify_success({'settings': None})
-        try:
-            settings = {
-                'participants': row['participants'],
-                'budget': row['budget'],
-                'participantNames': json.loads(row['participant_names']),
-                'roster': {
-                    'P': row['n_gk_players'],
-                    'D': row['n_def_players'],
-                    'C': row['n_mid_players'],
-                    'A': row['n_fwd_players'],
-                },
-                'useCleanSheetBonus': bool(row['use_clean_sheet_bonus']),
-                'useDefensiveModifier': bool(row['use_defensive_modifier']),
-            }
-            return jsonify_success({'settings': settings})
-        except Exception:
-            app.logger.exception('Error loading league settings')
-            return jsonify_error('corrupted', 'Corrupted data')
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
+        if db_type == 'firestore':
+            doc_ref = db.collection('league_settings').document(g.user_id)
+            doc = doc_ref.get()
+            if not doc.exists:
+                return jsonify_success({'settings': None})
+            row = doc.to_dict()
+            try:
+                settings = {
+                    'participants': row.get('participants'),
+                    'budget': row.get('budget'),
+                    'participantNames': row.get('participantNames', []),
+                    'roster': {
+                        'P': row.get('n_gk_players', 3),
+                        'D': row.get('n_def_players', 8),
+                        'C': row.get('n_mid_players', 8),
+                        'A': row.get('n_fwd_players', 6),
+                    },
+                    'useCleanSheetBonus': bool(row.get('use_clean_sheet_bonus', 0)),
+                    'useDefensiveModifier': bool(row.get('use_defensive_modifier', 0)),
+                }
+                return jsonify_success({'settings': settings})
+            except Exception:
+                app.logger.exception('Error loading league settings')
+                return jsonify_error('corrupted', 'Corrupted data')
+        else:
+            row = db.execute(
+                "SELECT * FROM league_settings WHERE google_sub = ?", (g.user_id,)
+            ).fetchone()
+            if not row:
+                return jsonify_success({'settings': None})
+            try:
+                settings = {
+                    'participants': row['participants'],
+                    'budget': row['budget'],
+                    'participantNames': json.loads(row['participant_names']),
+                    'roster': {
+                        'P': row['n_gk_players'],
+                        'D': row['n_def_players'],
+                        'C': row['n_mid_players'],
+                        'A': row['n_fwd_players'],
+                    },
+                    'useCleanSheetBonus': bool(row['use_clean_sheet_bonus']),
+                    'useDefensiveModifier': bool(row['use_defensive_modifier']),
+                }
+                return jsonify_success({'settings': settings})
+            except Exception:
+                app.logger.exception('Error loading league settings')
+                return jsonify_error('corrupted', 'Corrupted data')
 
     # --- /api/giocatori ---
     @app.route('/api/giocatori', methods=['GET'])
     def get_giocatori():
+        db_type = os.getenv('DB_TYPE', 'sqlite')
         db = get_db()
-        rows = db.execute('SELECT * FROM giocatori').fetchall()
-        if not rows:
-            merge_and_update_players()
+        if db_type == 'firestore':
+            giocatori_ref = db.collection('giocatori')
+            docs = giocatori_ref.stream()
+            giocatori = [doc.to_dict() | {'id': doc.id} for doc in docs if doc.id != 'init']
+            if not giocatori:
+                merge_and_update_players()
+                docs = giocatori_ref.stream()
+                giocatori = [doc.to_dict() | {'id': doc.id} for doc in docs if doc.id != 'init']
+            return jsonify_success({'giocatori': giocatori})
+        else:
             rows = db.execute('SELECT * FROM giocatori').fetchall()
-        return jsonify_success({'giocatori': [dict(r) for r in rows]})
+            if not rows:
+                merge_and_update_players()
+                rows = db.execute('SELECT * FROM giocatori').fetchall()
+            return jsonify_success({'giocatori': [dict(r) for r in rows]})
 
     # Register strategy blueprint
     app.register_blueprint(strategy_api, url_prefix='/api')

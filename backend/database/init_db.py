@@ -2,12 +2,24 @@ import os
 
 def init_db():
     """
-    Initialize the database by executing the correct SQL script based on db type.
-    Creates the database if it does not exist (for MySQL), then creates tables if not present.
-    Uses local MySQL, Cloud SQL, or SQLite depending on env vars.
+    Initialize the database or Firestore collections based on db type.
+    For SQL: executes the correct SQL script.
+    For Firestore: creates collections with a dummy doc (Firestore is schemaless).
     """
-    db_type = os.environ.get('DB_TYPE', 'mysql')  # 'mysql' or 'sqlite'
+    db_type = os.environ.get('DB_TYPE', 'sqlite')  # 'mysql', 'sqlite', or 'firestore'
     db_name = os.environ.get('CLOUDSQL_DATABASE', 'fantacalcio')
+    if db_type == 'firestore':
+        from google.cloud import firestore
+        db = firestore.Client(project="fantacalcio-project", database='fantacalcio-db')
+        # Optionally create collections with a dummy doc (Firestore is schemaless)
+        collections = [
+            'giocatori', 'users', 'league_settings', 'strategy_board', 'strategy_board_targets'
+        ]
+        for col in collections:
+            doc_ref = db.collection(col).document('init')
+            doc_ref.set({'init': True}, merge=True)
+        print("Firestore collections initialized (dummy docs created).")
+        return
     # Choose the right SQL file
     if db_type == 'sqlite':
         sql_path = os.path.join(os.path.dirname(__file__), 'init.sqlite.sql')
