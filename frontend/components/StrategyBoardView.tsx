@@ -1,8 +1,10 @@
-
-import React, { useState, useMemo, ChangeEvent } from 'react';
+import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { Player, TargetPlayer, LeagueSettings, Role } from '../types';
 import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 import { Search, Trash2, AlertTriangle, PieChart, Info, Save, RotateCcw, Loader2 } from 'lucide-react';
+import { saveStrategyBoardBudget, getStrategyBoardBudget } from '../services/strategyBoardBudgetService';
+import { saveStrategyBoard } from '../services/strategyBoardService';
+import { useAuth } from '../services/AuthContext';
 
 interface StrategyBoardViewProps {
     players: Player[];
@@ -31,8 +33,24 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
     onResetChanges,
     isSaving,
 }) => {
+    const { idToken, isLoggedIn } = useAuth();
     const [query, setQuery] = useState<string>('');
     const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (!isLoggedIn || !idToken) return;
+        getStrategyBoardBudget(idToken).then(budget => {
+            if (budget) {
+                onRoleBudgetChange({
+                    [Role.GK]: budget.role_budget_gk,
+                    [Role.DEF]: budget.role_budget_def,
+                    [Role.MID]: budget.role_budget_mid,
+                    [Role.FWD]: budget.role_budget_fwd,
+                });
+            }
+        });
+        // eslint-disable-next-line
+    }, [isLoggedIn, idToken]);
 
     const handleRoleBudgetChange = (role: Role, e: ChangeEvent<HTMLInputElement>) => {
         const newRoleBudget = { ...roleBudget, [role]: Math.max(0, parseInt(e.target.value) || 0) };
@@ -71,6 +89,21 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
 
     const remainingBudget = leagueSettings.budget - totalPlannedSpending;
 
+    const handleSaveBudget = async () => {
+        if (!isLoggedIn || !idToken) return;
+        const budget = {
+            role_budget_gk: roleBudget[Role.GK],
+            role_budget_def: roleBudget[Role.DEF],
+            role_budget_mid: roleBudget[Role.MID],
+            role_budget_fwd: roleBudget[Role.FWD],
+        };
+        // Save both budget and targetPlayers (maxBid)
+        await Promise.all([
+            saveStrategyBoardBudget(idToken, budget),
+            saveStrategyBoard(idToken, targetPlayers)
+        ]);
+    };
+
     return (
         <div className="bg-base-200 p-4 md:p-6 rounded-lg shadow-lg">
             <div className="flex justify-between items-center mb-2">
@@ -97,21 +130,12 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
                         Reset
                     </button>
                     <button
-                        onClick={onSaveChanges}
+                        onClick={handleSaveBudget}
                         disabled={isSaving}
-                        className="flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md bg-brand-primary text-white hover:bg-brand-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center px-4 py-2 bg-brand-primary text-white rounded-lg font-semibold hover:bg-brand-secondary transition-colors disabled:opacity-60"
                     >
-                        {isSaving ? (
-                            <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Salvataggio...
-                            </>
-                        ) : (
-                            <>
-                                <Save className="w-4 h-4 mr-2" />
-                                Salva Strategia
-                            </>
-                        )}
+                        <Save className="w-4 h-4 mr-2" />
+                        {isSaving ? 'Salvataggio...' : 'Salva Budget'}
                     </button>
                 </div>
             </div>

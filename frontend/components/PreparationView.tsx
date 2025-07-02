@@ -7,19 +7,19 @@ import { Loader, Frown, Sparkles, Star } from 'lucide-react';
 import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 
 interface PlayerExplorerViewProps {
-    leagueSettings: LeagueSettings;
-    targetPlayers: TargetPlayer[];
-    players: Player[];
-    onAddTarget: (player: Player) => void;
-    onRemoveTarget: (playerId: number) => void;
-    showFavouritesOnly: boolean;
-    setShowFavouritesOnly: (v: boolean) => void;
-    onSaveFavourites?: () => void;
-    isSavingFavourites?: boolean;
+  leagueSettings: LeagueSettings;
+  targetPlayers: TargetPlayer[];
+  players: Player[];
+  onAddTarget: (player: Player) => void;
+  onRemoveTarget: (playerId: number) => void;
+  showFavouritesOnly: boolean;
+  setShowFavouritesOnly: (v: boolean) => void;
+  onSaveFavourites?: () => void;
+  isSavingFavourites?: boolean;
 }
 
 export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget, showFavouritesOnly, setShowFavouritesOnly, onSaveFavourites, isSavingFavourites }: PlayerExplorerViewProps) => {
-  const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
+  const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('P');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [aggregatedAnalysis, setAggregatedAnalysis] = useState<AggregatedAnalysisResult>({
     analysis: "Seleziona i filtri e clicca su 'Analizza Segmento' per ottenere una valutazione strategica da Gemini.",
@@ -27,6 +27,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   });
   const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
@@ -62,8 +63,15 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
     if (selectedSkills.size > 0) {
       filtered = filtered.filter((player: Player) => (player.skills as string[]).some(skill => selectedSkills.has(skill)));
     }
+    if (searchTerm.trim() !== '') {
+      const lower = searchTerm.toLowerCase();
+      filtered = filtered.filter((player: Player) =>
+        player.name.toLowerCase().includes(lower) ||
+        (player.team && player.team.toLowerCase().includes(lower))
+      );
+    }
     return filtered.sort((a, b) => (b.recommendation ?? 0) - (a.recommendation ?? 0));
-  }, [players, selectedRole, selectedSkills, showFavouritesOnly, targetPlayerIds]);
+  }, [players, selectedRole, selectedSkills, showFavouritesOnly, targetPlayerIds, searchTerm]);
 
   const handleAnalysisRequest = async () => {
     setIsAnalysisLoading(true);
@@ -103,7 +111,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
               </div>
             ) : (
               <>
-                <div className="text-content-200 whitespace-pre-wrap prose" dangerouslySetInnerHTML={{ __html: aggregatedAnalysis.analysis.replace(/\*\*(.*?)\*\*/g, '<strong class=\"text-content-100\">$1</strong>').replace(/\n/g, '<br />') }}/>
+                <div className="text-content-200 whitespace-pre-wrap prose" dangerouslySetInnerHTML={{ __html: aggregatedAnalysis.analysis.replace(/\*\*(.*?)\*\*/g, '<strong class=\"text-content-100\">$1</strong>').replace(/\n/g, '<br />') }} />
                 {aggregatedAnalysis.sources.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-base-300/50">
                     <h4 className="font-semibold text-sm text-content-200 mb-2">Fonti utilizzate:</h4>
@@ -125,87 +133,110 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
       </div>
 
       <div className="bg-base-200 rounded-lg mb-6 sticky top-[125px] z-20 backdrop-blur-sm bg-opacity-80 border border-base-300">
+        {/* <div className="flex flex-col gap-2 p-2">
+          <input
+            type="text"
+            placeholder="Cerca giocatore..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            // className="w-full px-3 py-2 rounded border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            // className="w-full px-3 py-2 rounded border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            className="w-full px-3 py-2 rounded border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+
+          />
+        </div> */}
         <div className="flex bg-base-100 rounded-t-lg border-b-2 border-base-300 items-center gap-2 px-2 py-1">
+          {ROLES_ORDER.map(role => (
             <button
-                key="ALL"
-                onClick={() => setSelectedRole('ALL')}
-                className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+              key={role}
+              onClick={() => setSelectedRole(role)}
+              className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
             >
-                Tutti
+              {ROLE_NAMES[role]}
             </button>
-            {ROLES_ORDER.map(role => (
-                 <button
-                    key={role}
-                    onClick={() => setSelectedRole(role)}
-                    className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
-                >
-                   {ROLE_NAMES[role]}
-                </button>
-            ))}
-            <div className="flex items-center gap-2 ml-2">
-              <FilterChip
-                key="favourites"
-                label={<Star className="w-5 h-5" />}
-                isActive={showFavouritesOnly}
-                onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
-              />
-              <button
-                onClick={onSaveFavourites}
-                disabled={isSavingFavourites}
-                className="px-3 py-1.5 text-sm font-semibold text-brand-primary bg-base-200 rounded-md hover:bg-brand-primary/10 border border-brand-primary/30 disabled:opacity-60"
-              >
-                {isSavingFavourites ? 'Salvataggio...' : 'Salva Preferiti'}
-              </button>
-              <button
-                onClick={() => {
-                  if (window.confirm('Sei sicuro di voler resettare tutti i preferiti?')) {
-                    targetPlayers.forEach(tp => onRemoveTarget(tp.id));
-                  }
-                }}
-                className="px-3 py-1.5 text-sm font-semibold text-red-600 bg-base-200 rounded-md hover:bg-red-100 border border-red-200"
-              >
-                Reset Preferiti
-              </button>
-            </div>
+          ))}
+          <button
+            key="ALL"
+            onClick={() => setSelectedRole('ALL')}
+            className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+          >
+            Tutti
+          </button>
+          <div className="flex items-center gap-2 ml-2">
+            <FilterChip
+              key="favourites"
+              label={<Star className="w-5 h-5" />}
+              isActive={showFavouritesOnly}
+              onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
+            />
+            <button
+              onClick={onSaveFavourites}
+              disabled={isSavingFavourites}
+              className="px-3 py-1.5 text-sm font-semibold text-brand-primary bg-base-200 rounded-md hover:bg-brand-primary/10 border border-brand-primary/30 disabled:opacity-60"
+            >
+              {isSavingFavourites ? 'Salvataggio...' : 'Salva Preferiti'}
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm('Sei sicuro di voler resettare tutti i preferiti?')) {
+                  targetPlayers.forEach(tp => onRemoveTarget(tp.id));
+                }
+              }}
+              className="px-3 py-1.5 text-sm font-semibold text-red-600 bg-base-200 rounded-md hover:bg-red-100 border border-red-200"
+            >
+              Reset Preferiti
+            </button>
+          </div>
         </div>
         <div className="p-4">
-            <FilterSection title="Filtra per Skill">
-              {allSkills.map((skill: string) => (
-                <FilterChip
-                  key={skill}
-                  label={skill}
-                  isActive={selectedSkills.has(skill)}
-                  onClick={() => handleSkillToggle(skill)}
-                />
-              ))}
-            </FilterSection>
-            <div className="mt-2 pt-4 border-t border-base-300">
-                <button
-                  onClick={handleAnalysisRequest}
-                  disabled={isAnalysisLoading || filteredPlayers.length === 0}
-                  className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                >
-                  {isAnalysisLoading ? (
-                    <>
-                      <Loader className="w-5 h-5 mr-2 animate-spin" />
-                      Analisi in corso...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5 mr-2" />
-                      Analizza Segmento ({filteredPlayers.length} giocatori)
-                    </>
-                  )}
-                </button>
+          <FilterSection title="Filtra per Skill">
+            {allSkills.map((skill: string) => (
+              <FilterChip
+                key={skill}
+                label={skill}
+                isActive={selectedSkills.has(skill)}
+                onClick={() => handleSkillToggle(skill)}
+              />
+            ))}
+          </FilterSection>
+          <div className="flex items-center gap-4 my-4">
+            <div className="w-1/4">
+              <input
+                type="text"
+                placeholder="Digita nome giocatore…"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out"
+              />
             </div>
+            <div className="w-3/4">
+              <button
+                onClick={handleAnalysisRequest}
+                disabled={isAnalysisLoading || filteredPlayers.length === 0}
+                className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
+              >
+                {isAnalysisLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 mr-2 animate-spin" />
+                    Analisi in corso...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    Analizza Segmento ({filteredPlayers.length} giocatori)
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredPlayers.map((player: Player) => (
-          <PlayerCard 
-            key={player.id} 
-            player={player} 
+          <PlayerCard
+            key={player.id}
+            player={player}
             leagueSettings={leagueSettings}
             isTarget={targetPlayerIds.has(player.id)}
             onAddTarget={onAddTarget}
@@ -213,7 +244,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
           />
         ))}
       </div>
-       {filteredPlayers.length === 0 && (
+      {filteredPlayers.length === 0 && (
         <div className="col-span-full flex flex-col justify-center items-center h-64 text-content-200">
           <Frown className="w-12 h-12 mb-4" />
           <p className="text-xl">Nessun giocatore trovato.</p>

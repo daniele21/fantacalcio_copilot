@@ -7,6 +7,7 @@ import { StrategyBoardView } from './StrategyBoardView';
 import { Compass, Search, ClipboardList } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import { getStrategyBoard, saveStrategyBoard } from '../services/strategyBoardService';
+import { getStrategyBoardBudget } from '../services/strategyBoardBudgetService';
 
 type ActiveView = 'explorer' | 'search' | 'strategy';
 
@@ -106,15 +107,21 @@ export const MainView: React.FC<MainViewProps> = ({
         try {
           const board = await getStrategyBoard(idToken);
           if (board && board.target_players) {
-            const parsed = JSON.parse(board.target_players);
-            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
-              const validPlayers = parsed.filter((p: any) => players.some(pl => pl.id === p.id));
-              validPlayers.forEach((p: any) => {
-                if (!targetPlayers.some(tp => tp.id === p.id)) {
-                  onAddTarget(players.find(pl => pl.id === p.id)!);
+            // board.target_players is an array of { player_id, max_bid }
+            const validPlayers = board.target_players
+              .map((p: any) => {
+                const player = players.find(pl => pl.id === p.player_id);
+                if (player) {
+                  return { ...player, maxBid: p.max_bid };
                 }
-              });
-            }
+                return null;
+              })
+              .filter(Boolean);
+            validPlayers.forEach((p: any) => {
+              if (!targetPlayers.some(tp => tp.id === p.id)) {
+                onAddTarget(p);
+              }
+            });
           }
         } catch (e) {
           // Ignore if not found or not logged in
@@ -139,6 +146,65 @@ export const MainView: React.FC<MainViewProps> = ({
       setIsSavingFavourites(false);
     }
   };
+
+  // --- NEW: Load role budget and target players from backend on mount ---
+  useEffect(() => {
+    if (!isLoggedIn || !idToken) return;
+    (async () => {
+      // Load role budget
+      try {
+        const budgetResp = await getStrategyBoardBudget(idToken);
+        if (budgetResp && budgetResp.role_budget_gk !== undefined) {
+          onRoleBudgetChange({
+            [Role.GK]: budgetResp.role_budget_gk,
+            [Role.DEF]: budgetResp.role_budget_def,
+            [Role.MID]: budgetResp.role_budget_mid,
+            [Role.FWD]: budgetResp.role_budget_fwd,
+          });
+        }
+      } catch {}
+      // Load target players
+      try {
+        const board = await getStrategyBoard(idToken);
+        if (board && board.target_players) {
+          const validPlayers = board.target_players
+            .map((p: any) => {
+              const player = players.find(pl => pl.id === p.player_id);
+              if (player) {
+                return { ...player, maxBid: p.max_bid };
+              }
+              return null;
+            })
+            .filter(Boolean);
+          // Remove all current targets first
+          targetPlayers.forEach(tp => onRemoveTarget(tp.id));
+          // Deduplicate loaded players by id
+          const uniquePlayers = [];
+          const seenIds = new Set();
+          for (const p of validPlayers) {
+            if (!seenIds.has(p.id)) {
+              uniquePlayers.push(p);
+              seenIds.add(p.id);
+            }
+          }
+          uniquePlayers.forEach((p: any) => {
+            onAddTarget(p);
+          });
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line
+  }, [isLoggedIn, idToken]);
+
+  // Deduplicate targetPlayers by id before rendering
+  const dedupedTargetPlayers = React.useMemo(() => {
+    const seen = new Set();
+    return targetPlayers.filter(p => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [targetPlayers]);
 
   return (
     <div>
@@ -178,7 +244,7 @@ export const MainView: React.FC<MainViewProps> = ({
         {activeView === 'explorer' && <PlayerExplorerView 
             leagueSettings={leagueSettings} 
             players={players} 
-            targetPlayers={targetPlayers}
+            targetPlayers={dedupedTargetPlayers}
             onAddTarget={onAddTarget}
             onRemoveTarget={onRemoveTarget}
             showFavouritesOnly={showFavouritesOnly}
@@ -192,7 +258,7 @@ export const MainView: React.FC<MainViewProps> = ({
             leagueSettings={leagueSettings} 
             roleBudget={roleBudget}
             onRoleBudgetChange={onRoleBudgetChange}
-            targetPlayers={targetPlayers}
+            targetPlayers={dedupedTargetPlayers}
             onAddTarget={onAddTarget}
             onRemoveTarget={onRemoveTarget}
             onBidChange={onTargetBidChange}

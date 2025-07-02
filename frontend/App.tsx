@@ -12,6 +12,7 @@ import { LeagueSettings, Player, MyTeamPlayer, AuctionResult, Role, TargetPlayer
 import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
 import { UpgradeView } from './components/UpgradeView';
 import { FeatureGuard } from './components/FeatureGuard';
+import { SuccessPage } from './components/SuccessPage';
 
 // Helper to map feature keys to user-friendly names
 const FEATURE_LABELS: Record<string, string> = {
@@ -108,8 +109,11 @@ const App: React.FC = () => {
     };
     
     // Target Player Handlers
-    const handleAddTarget = useCallback((player: Player) => {
-        setTargetPlayers(prev => [...prev, { ...player, maxBid: 1 }]);
+    const handleAddTarget = useCallback((player: Player | TargetPlayer) => {
+        setTargetPlayers(prev => [
+            ...prev,
+            { ...player, maxBid: (player as TargetPlayer).maxBid ?? 1 }
+        ]);
     }, []);
 
     const handleRemoveTarget = useCallback((playerId: number) => {
@@ -262,6 +266,7 @@ const App: React.FC = () => {
                     ) : (
                         <Routes>
                             <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
+                            <Route path="/success" element={<SuccessPage />} />
                             <Route path="/setup" element={<SetupWizard onConfirm={handleSetupConfirm} initialSettings={leagueSettings} />} />
                             <Route path="/preparation" element={
                                 <FeatureGuard feature="strategyPrep" fallback={<UpgradeView featureName={FEATURE_LABELS['strategyPrep']} onNavigateHome={handleGoHome} />}>

@@ -68,13 +68,16 @@ def strategy_board():
     if request.method == 'POST':
         data = request.get_json() or {}
         target_players = data.get('target_players', [])
-        # Remove all current targets for this user
-        db.execute("DELETE FROM strategy_board_targets WHERE google_sub = ?", (google_sub,))
-        # Insert new targets
+        # Upsert each target player (no delete, just update or insert)
         for player in target_players:
             db.execute(
-                "INSERT INTO strategy_board_targets (google_sub, player_id, max_bid) VALUES (?, ?, ?)",
-                (google_sub, player.get('id'), player.get('max_bid', 0))
+                """
+                INSERT INTO strategy_board_targets (google_sub, player_id, max_bid)
+                VALUES (?, ?, ?)
+                ON CONFLICT(google_sub, player_id) DO UPDATE SET
+                    max_bid=excluded.max_bid
+                """,
+                (google_sub, player.get('id'), player.get('maxBid', 0))
             )
         db.commit()
         return jsonify_success({'message': 'Saved'})
@@ -104,11 +107,11 @@ def strategy_board_budget():
 
     if request.method == 'POST':
         data = request.get_json() or {}
-        role_budget = data.get('role_budget', {})
-        gk = role_budget['role_budget_gk']
-        d = role_budget['role_budget_def']
-        m = role_budget['role_budget_mid']
-        f = role_budget['role_budget_fwd']
+        # Accept flat keys directly from frontend
+        gk = data.get('role_budget_gk', 10)
+        d = data.get('role_budget_def', 20)
+        m = data.get('role_budget_mid', 35)
+        f = data.get('role_budget_fwd', 35)
         # Upsert logic
         db.execute(
             """

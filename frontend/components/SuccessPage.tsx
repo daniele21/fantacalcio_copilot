@@ -3,6 +3,7 @@ import Confetti from 'react-confetti';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { useApi } from '../services/useApi';
+import { useAuth } from '../services/AuthContext';
 
 export const SuccessPage: React.FC = () => {
   const [plan, setPlan] = useState<string>('');
@@ -10,6 +11,7 @@ export const SuccessPage: React.FC = () => {
   const [error, setError] = useState<boolean>(false);
   const sessionId = new URLSearchParams(window.location.search).get('session_id');
   const { call } = useApi();
+  const { refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,6 +19,8 @@ export const SuccessPage: React.FC = () => {
     call<any>(`/api/checkout-session?sessionId=${sessionId}`)
       .then(data => {
         setPlan(data.metadata.plan);
+        // Refresh user profile to update plan after payment
+        refreshProfile();
       })
       .catch(() => {
         setError(true);
@@ -24,7 +28,7 @@ export const SuccessPage: React.FC = () => {
       .finally(() => {
         setLoading(false);
       });
-  }, [sessionId, call]);
+  }, [sessionId, call, refreshProfile]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-green-50 to-white p-6">

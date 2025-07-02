@@ -21,7 +21,6 @@ declare global {
     google?: any;
   }
 }
-
 interface HomePageProps {
     onLogin: (plan?: string) => void;
     userPlan: string | null;

@@ -10,12 +10,12 @@ export interface RoleBudget {
 }
 
 export const getStrategyBoardBudget = async (token: string) => {
-  const resp = await callApi<{ data: { strategy_board: RoleBudget|null } }>(
+  const resp = await callApi<{ data: { strategy_board: { role_budget: RoleBudget|null } } }>(
     BASE_URL + '/api/strategy-board-budget',
     { method: 'GET' },
     token
   );
-  return resp.data.strategy_board;
+  return resp.data.strategy_board?.role_budget;
 };
 
 export const saveStrategyBoardBudget = async (token: string, budget: RoleBudget) => {

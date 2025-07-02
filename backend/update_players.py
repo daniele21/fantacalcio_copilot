@@ -1,6 +1,7 @@
 # extract player data to update the database
 import os
-
+from rapidfuzz import fuzz
+from unidecode import unidecode
 import pandas as pd
 from backend.data.extract import run_all
 from backend.database.insert_giocatori import insert_giocatori_from_records
@@ -41,21 +42,38 @@ def get_player_data(filepath: str) -> list:
     df['Skills'] = df['Skills'].astype(str)
     return df.to_dict(orient='records')
 
-def merge_and_update_players() -> None:
+def merge_and_update_players(threshold: int = 85) -> None:
     from backend.database.insert_giocatori import insert_giocatori_from_records
 
     fantagazzetta_player_data = get_last_quote_file()
     fantacalciopedia_player_data = get_player_data('players_attributes.csv')
     
-    # merge the two datasets where the condition is: nome (fantacalciopedia_player_data) contains Nome (fantagazzetta_player_data)
+    def normalize(text: str) -> str:
+        return unidecode(text or "").strip().lower()
+
     merged_data = []
-    for fg_player in fantagazzetta_player_data:
-        for fc_player in fantacalciopedia_player_data:
-            if fg_player['Cognome'].lower() in fc_player['Nome'].lower():
-                # Merge the data, prioritizing fantagazzetta data
-                merged_player = {**fc_player, **fg_player}
-                merged_data.append(merged_player)
-                break
+    for fg in fantagazzetta_player_data:
+        fg_cognome = normalize(fg.get('Cognome', ''))
+        if not fg_cognome:
+            continue
+
+        best_match = None
+        best_score = 0
+        for fc in fantacalciopedia_player_data:
+            fc_nome = normalize(fc.get('Nome', ''))
+            score = fuzz.partial_ratio(fg_cognome, fc_nome)
+            if score > best_score:
+                best_score = score
+                best_match = fc
+
+        # Accept the best fuzzy match if above threshold
+        if best_match and best_score >= threshold:
+            merged_player = {**best_match, **fg}
+            merged_data.append(merged_player)
+        else:
+            # Optional: log or collect unmatched entries for review
+            # print(f"No good match for {fg.get('Cognome')} (best: {best_score})")
+            pass
 
     # Always open a new DB connection in this thread for SQLite
     import sqlite3
