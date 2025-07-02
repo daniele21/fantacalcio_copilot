@@ -22,6 +22,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
     sources: [],
   });
   const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(true);
 
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
@@ -71,34 +72,44 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   return (
     <div>
       <div className="bg-base-200 p-6 rounded-lg mb-8 border border-brand-primary/20">
-        <h3 className="text-xl font-bold text-brand-primary mb-3 flex items-center">
+        <button
+          className="flex items-center justify-between w-full mb-3 text-xl font-bold text-brand-primary focus:outline-none"
+          onClick={() => setIsAnalysisOpen((open) => !open)}
+        >
+          <span className="flex items-center">
             <Sparkles className="w-6 h-6 mr-3" />
             Analisi Strategica Aggregata
-        </h3>
-        {isAnalysisLoading ? (
-             <div className="space-y-3">
+          </span>
+          <span className={`transition-transform ${isAnalysisOpen ? 'rotate-180' : ''}`}>▼</span>
+        </button>
+        {isAnalysisOpen && (
+          <div>
+            {isAnalysisLoading ? (
+              <div className="space-y-3">
                 <div className="h-4 bg-base-300 rounded w-3/4 animate-pulse"></div>
                 <div className="h-4 bg-base-300 rounded w-full animate-pulse"></div>
                 <div className="h-4 bg-base-300 rounded w-1/2 animate-pulse"></div>
-            </div>
-        ) : (
-            <>
-                <div className="text-content-200 whitespace-pre-wrap prose" dangerouslySetInnerHTML={{ __html: aggregatedAnalysis.analysis.replace(/\*\*(.*?)\*\*/g, '<strong class="text-content-100">$1</strong>').replace(/\n/g, '<br />') }}/>
+              </div>
+            ) : (
+              <>
+                <div className="text-content-200 whitespace-pre-wrap prose" dangerouslySetInnerHTML={{ __html: aggregatedAnalysis.analysis.replace(/\*\*(.*?)\*\*/g, '<strong class=\"text-content-100\">$1</strong>').replace(/\n/g, '<br />') }}/>
                 {aggregatedAnalysis.sources.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-base-300/50">
-                        <h4 className="font-semibold text-sm text-content-200 mb-2">Fonti utilizzate:</h4>
-                        <ul className="list-disc list-inside space-y-1">
-                            {aggregatedAnalysis.sources.map((source: any, index: number) => (
-                                <li key={index}>
-                                    <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline text-sm truncate">
-                                        {source.title || source.uri}
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                  <div className="mt-4 pt-4 border-t border-base-300/50">
+                    <h4 className="font-semibold text-sm text-content-200 mb-2">Fonti utilizzate:</h4>
+                    <ul className="list-disc list-inside space-y-1">
+                      {aggregatedAnalysis.sources.map((source: any, index: number) => (
+                        <li key={index}>
+                          <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline text-sm truncate">
+                            {source.title || source.uri}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-            </>
+              </>
+            )}
+          </div>
         )}
       </div>
 

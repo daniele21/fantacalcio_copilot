@@ -1,20 +1,15 @@
 import React, { useEffect, useState } from 'react';
-
-const BASE_URL = 'http://127.0.0.1:5000';
+import { useApi } from '../services/useApi';
 
 export const SuccessPage: React.FC = () => {
   const [plan, setPlan] = useState<string>('');
   const sessionId = new URLSearchParams(window.location.search).get('session_id');
+  const { call } = useApi();
 
   useEffect(() => {
     if (!sessionId) return;
-    // Call your backend to retrieve the session
-    fetch(`${BASE_URL}/api/checkout-session?sessionId=${sessionId}`, {
-      headers: { 'Content-Type': 'application/json' }
-    })
-      .then(r => r.json())
+    call<any>(`/api/checkout-session?sessionId=${sessionId}`)
       .then(data => {
-        // `data.metadata.plan` was set when creating the session
         setPlan(data.metadata.plan);
       })
       .catch(console.error);

@@ -156,7 +156,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
     }
     onConfirm(settings, mode);
     if (mode === 'preparation') {
-      navigate('/strategy');
+      navigate('/preparation');
     } else if (mode === 'live_auction') {
       navigate('/auction');
     }

@@ -1,6 +1,7 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { Player, DetailedAnalysisResult } from '../types';
+import { Player, DetailedAnalysisResult, Role } from '../types';
 import { getDetailedPlayerAnalysis } from '../services/geminiService';
 import { Search, Sparkles, X, Loader, AlertTriangle, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
 
@@ -83,12 +84,12 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
         setShowSuggestions(false);
     };
 
-    const getRoleColor = (role: string) => {
+    const getRoleColor = (role: Role) => {
         switch (role) {
-            case 'P': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            case 'D': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-            case 'C': return 'bg-green-500/20 text-green-400 border-green-500/30';
-            case 'A': return 'bg-red-500/20 text-red-400 border-red-500/30';
+            case Role.GK: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+            case Role.DEF: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+            case Role.MID: return 'bg-green-500/20 text-green-400 border-green-500/30';
+            case Role.FWD: return 'bg-red-500/20 text-red-400 border-red-500/30';
             default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
         }
     };

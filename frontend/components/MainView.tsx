@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { LeagueSettings, Player, Role, TargetPlayer } from '../types';
 import { PlayerExplorerView } from './PreparationView';
 import { TargetedSearchView } from './TargetedSearchView';
@@ -34,7 +35,27 @@ export const MainView: React.FC<MainViewProps> = ({
     onResetChanges,
     isSaving
 }) => {
-  const [activeView, setActiveView] = useState<ActiveView>('explorer');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Set initial activeView based on the current path
+  const getViewFromPath = () => {
+    if (location.pathname === '/search') return 'search';
+    if (location.pathname === '/strategy') return 'strategy';
+    return 'explorer';
+  };
+  const [activeView, setActiveView] = useState<ActiveView>(getViewFromPath());
+
+  // Sync activeView with route changes
+  useEffect(() => {
+    setActiveView(getViewFromPath());
+  }, [location.pathname]);
+
+  const handleTabClick = (view: ActiveView) => {
+    if (view === 'explorer') navigate('/preparation');
+    else if (view === 'search') navigate('/search');
+    else if (view === 'strategy') navigate('/strategy');
+  };
 
   const TabButton: React.FC<{
     label: string;
@@ -64,19 +85,19 @@ export const MainView: React.FC<MainViewProps> = ({
               label="Esplora Giocatori"
               icon={<Compass className="w-5 h-5 md:w-6 md:h-6" />}
               isActive={activeView === 'explorer'}
-              onClick={() => setActiveView('explorer')}
+              onClick={() => handleTabClick('explorer')}
             />
             <TabButton
               label="Ricerca Mirata"
               icon={<Search className="w-5 h-5 md:w-6 md:h-6" />}
               isActive={activeView === 'search'}
-              onClick={() => setActiveView('search')}
+              onClick={() => handleTabClick('search')}
             />
             <TabButton
               label="Tavolo Strategia"
               icon={<ClipboardList className="w-5 h-5 md:w-6 md:h-6" />}
               isActive={activeView === 'strategy'}
-              onClick={() => setActiveView('strategy')}
+              onClick={() => handleTabClick('strategy')}
             />
           </div>
       </div>
