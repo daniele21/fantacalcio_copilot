@@ -25,7 +25,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const GOOGLE_CLIENT_ID_CONST = '294925298549-35bq5mf2inki7nsuqiljrkv7g6ajfsbq.apps.googleusercontent.com';
-const BASE_URL = "http://127.0.0.1:5000";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 const featureMap: Record<UserProfile['plan'], string[]> = {
   free: [],

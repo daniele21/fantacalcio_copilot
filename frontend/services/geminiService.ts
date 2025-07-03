@@ -141,7 +141,7 @@ Sii specifico, incisivo e vai dritto al punto. Evita frasi generiche. Rispondi i
 };
 
 export const getBiddingAdvice = async (player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings, currentBid: number, roleBudget: Record<Role, number>): Promise<BiddingAdviceResult> => {
-    if (!API_KEY) {
+    if (!process.env.API_KEY) {
         throw new Error("Consiglio AI non disponibile (API Key mancante).");
     }
 

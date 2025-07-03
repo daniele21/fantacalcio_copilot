@@ -6,7 +6,8 @@ export default defineConfig(({ mode }) => {
     return {
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.BASE_URL': JSON.stringify(env.API_URL)
       },
       resolve: {
         alias: {
@@ -17,7 +18,7 @@ export default defineConfig(({ mode }) => {
       },
       server: {
         proxy: {
-          '/api': 'http://127.0.0.1:5000'
+          '/api': 'https://fantacalcio-backend-ze7lkfza2a-ew.a.run.app'
         }
       }
     };

@@ -12,6 +12,8 @@ const mapRole = (ruolo: string): Role => {
   }
 };
 
+const BASE_URL = import.meta.env.VITE_API_URL;
+
 export function usePlayerApi() {
   const { call } = useApi();
 
@@ -21,7 +23,7 @@ export function usePlayerApi() {
    * @returns Una Promise che si risolve con un array di oggetti Player.
    */
   const fetchPlayers = async (): Promise<Player[]> => {
-    const data = await call<any>('/api/giocatori');
+    const data = await call<any>(`${BASE_URL}/api/giocatori`);
     // Fix: get giocatori from data.data.giocatori
     const giocatori = data?.data?.giocatori;
     // console.log('[playerService] Raw API response:', data);
