@@ -6,6 +6,8 @@ import { useAuth } from '../services/AuthContext';
 import { useApi } from '../services/useApi';
 import { useNavigate } from 'react-router-dom';
 
+const BASE_URL = import.meta.env.VITE_API_URL;
+
 interface SetupWizardProps {
   onConfirm: (settings: Pick<LeagueSettings, 'participants' | 'budget' | 'participantNames' | 'roster' | 'useCleanSheetBonus' | 'useDefensiveModifier'>, mode: AppMode) => void;
   initialSettings: Pick<LeagueSettings, 'participants' | 'budget' | 'participantNames' | 'roster' | 'useCleanSheetBonus' | 'useDefensiveModifier'>;
@@ -144,7 +146,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
       useDefensiveModifier,
     };
     try {
-      await call('/api/save-league-settings', {
+      await call(`${BASE_URL}/api/save-league-settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -191,7 +193,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
     async function fetchSettings() {
       setLoading(true);
       try {
-        const data = await call<any>('/api/league-settings', {
+        const data = await call<any>(`${BASE_URL}/api/league-settings`, {
           headers: { Authorization: `Bearer ${idToken}` }
         });
         if (data.settings) {
