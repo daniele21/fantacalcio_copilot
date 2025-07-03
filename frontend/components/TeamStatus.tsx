@@ -1,15 +1,20 @@
 import React, { useMemo } from 'react';
 import { MyTeamPlayer, LeagueSettings, Role } from '../types';
+import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 import { Wallet, Users, Shirt, Trash2, PieChart } from 'lucide-react';
+
+const ROLE_ICONS: { [key in Role]: string } = {
+  [Role.GK]: '🧤',
+  [Role.DEF]: '🛡️',
+  [Role.MID]: '⚽',
+  [Role.FWD]: '🎯',
+};
 
 interface TeamStatusProps {
     myTeam: MyTeamPlayer[];
     leagueSettings: LeagueSettings;
     roleBudget: Record<Role, number>;
 }
-
-const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
-const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
 
 export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, roleBudget }) => {
     
@@ -44,36 +49,33 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
 
 
     return (
-        <div className="bg-base-200 rounded-lg shadow-lg p-4">
-            <h2 className="text-xl font-bold text-brand-primary flex items-center mb-4"><Wallet className="w-6 h-6 mr-3"/>Stato Squadra</h2>
-            <div className="space-y-6">
+        <div className="bg-base-200 rounded-2xl shadow-2xl p-5">
+            <h2 className="text-2xl font-extrabold text-brand-primary flex items-center mb-5"><Wallet className="w-7 h-7 mr-3"/>Stato Squadra</h2>
+            <div className="space-y-8">
                 {/* Budget */}
-                <div className="mb-6">
-                    <h3 className="font-semibold text-content-100 mb-2">Budget Globale</h3>
-                    <div className="w-full bg-base-300 rounded-full h-2.5 mb-2">
-                        <div className="bg-brand-primary h-2.5 rounded-full" style={{ width: `${budgetInfo.percentage}%` }}></div>
+                <div>
+                    <h3 className="font-semibold text-content-100 mb-2 text-lg">Budget Globale</h3>
+                    <div className="w-full bg-base-300 rounded-full h-3 mb-2">
+                        <div className="bg-brand-primary h-3 rounded-full transition-all duration-300" style={{ width: `${budgetInfo.percentage}%` }}></div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                        <span className="text-content-200">Spesi: <span className="font-bold text-red-400">{budgetInfo.spent}</span></span>
-                        <span className="text-content-200">Rimanenti: <span className="font-bold text-green-400">{budgetInfo.remaining}</span></span>
+                    <div className="flex justify-between text-base mt-1">
+                        <span className="text-content-200">Spesi: <span className="font-bold text-red-500 bg-red-100 px-2 py-0.5 rounded">{budgetInfo.spent}</span></span>
+                        <span className="text-content-200">Rimanenti: <span className="font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">{budgetInfo.remaining}</span></span>
                     </div>
                 </div>
 
                 {/* Roster Slots */}
                 <div>
-                    <h3 className="font-semibold text-content-100 mb-3">Slot Rosa</h3>
+                    <h3 className="font-semibold text-content-100 mb-3 text-lg">Slot Rosa</h3>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                         {rosterInfo.map(({ role, name, current, max }) => (
-                            <div key={role} className="flex justify-between items-center text-sm">
-                                <span className="text-content-200">{name}</span>
-                                <span className={`font-bold ${current === max ? 'text-brand-primary' : 'text-content-100'}`}>
-                                    {current}/{max}
-                                </span>
+                            <div key={role} className="flex justify-between items-center text-base">
+                                <span className="flex items-center gap-2 text-content-200">{ROLE_ICONS[role]} {name}</span>
+                                <span className={`font-bold px-2 py-0.5 rounded ${current === max ? 'bg-brand-primary/20 text-brand-primary' : 'bg-base-300 text-content-100'}`}>{current}/{max}</span>
                             </div>
                         ))}
                     </div>
                 </div>
-
 
                 {/* Allocazione Budget per Ruolo */}
                 <div className="pt-6 border-t border-base-300">
@@ -84,11 +86,10 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
                             const spentAmount = spentByRole[role];
                             const progress = allocatedAmount > 0 ? Math.min((spentAmount / allocatedAmount) * 100, 100) : 0;
                             const isOverbudget = spentAmount > allocatedAmount;
-
                             return (
-                                <div key={role} className="bg-base-100 p-3 rounded-md">
+                                <div key={role} className="bg-base-100 p-3 rounded-lg shadow-sm">
                                     <div className="flex justify-between items-center mb-1">
-                                        <label className="font-semibold text-content-100">{ROLE_NAMES[role]}</label>
+                                        <label className="font-semibold text-content-100 flex items-center gap-2">{ROLE_ICONS[role]} {ROLE_NAMES[role]}</label>
                                         <div className="font-bold text-content-100 bg-base-300 px-2 py-0.5 rounded-md text-sm">
                                             {roleBudget[role]}%
                                         </div>
@@ -109,22 +110,22 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
                     </div>
                 </div>
 
-
                 {/* Giocatori Acquistati */}
                 <div className="pt-6 border-t border-base-300">
-                    <h3 className="font-semibold text-content-100 mb-3 flex items-center">
+                    <h3 className="font-semibold text-content-100 mb-3 flex items-center text-lg">
                         <Shirt className="w-5 h-5 mr-2"/>
                         Rosa Attuale ({myTeam.length})
                     </h3>
                     <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                         {myTeam.length === 0 ? (
-                            <p className="text-sm text-content-200 text-center py-4">Nessun giocatore ancora acquistato.</p>
+                            <p className="text-base text-content-200 text-center py-4">Nessun giocatore ancora acquistato.</p>
                         ) : (
                             [...myTeam].sort((a,b) => ROLES_ORDER.indexOf(a.role) - ROLES_ORDER.indexOf(b.role) || b.purchasePrice - a.purchasePrice).map(player => (
-                                <div key={player.id} className="flex justify-between items-center bg-base-100 p-2 rounded-md text-sm">
-                                    <div>
+                                <div key={player.id} className="flex justify-between items-center bg-base-100 p-2 rounded-lg text-base shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">{ROLE_ICONS[player.role]}</span>
                                         <span className="font-bold">{player.name}</span>
-                                        <span className="text-xs text-content-200 ml-2">{`(${player.role})`}</span>
+                                        <span className="text-xs text-content-200 ml-2">({player.team})</span>
                                     </div>
                                     <span className="font-bold bg-brand-primary/20 text-brand-primary px-2 py-1 rounded">
                                         {player.purchasePrice}

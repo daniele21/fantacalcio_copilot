@@ -7,6 +7,9 @@ import { ChevronDown, ChevronUp, Users, Wallet, Info } from 'lucide-react';
 import { TeamsView } from './TeamsView';
 import { InstantHeader } from './InstantHeader';
 import { InsightColumn } from './InsightColumn';
+import { useAuth } from '../services/AuthContext';
+import { getStrategyBoard } from '../services/strategyBoardService';
+import { fetchLeagueSettings } from '../services/leagueSettingsService';
 
 interface LiveAuctionViewProps {
     players: Player[];
@@ -19,12 +22,15 @@ interface LiveAuctionViewProps {
     onUpdateAuctionResult: (playerId: number, newPrice: number) => void;
 }
 
-export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam, auctionLog, onPlayerAuctioned, leagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
+export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam, auctionLog, onPlayerAuctioned, leagueSettings: initialLeagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
     const [isAuctionBoardExpanded, setIsAuctionBoardExpanded] = useState(true);
     const [isTeamsViewExpanded, setIsTeamsViewExpanded] = useState(false);
     const [playerForBidding, setPlayerForBidding] = useState<Player | null>(null);
     const [currentBid, setCurrentBid] = useState<number | ''>(1);
     const biddingAssistantRef = useRef<HTMLDivElement>(null);
+    const { idToken, isLoggedIn } = useAuth();
+    const [localTargetPlayers, setLocalTargetPlayers] = useState<TargetPlayer[]>(targetPlayers);
+    const [leagueSettings, setLeagueSettings] = useState(initialLeagueSettings);
 
     const availablePlayers = React.useMemo(() => {
         const auctionedPlayerIds = new Set(Object.keys(auctionLog).map(Number));
@@ -51,6 +57,52 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
     };
     
     const isInstantHeaderVisible = playerForBidding && (Number(currentBid) || 0) > 0;
+
+    // Always reload league settings on mount
+    useEffect(() => {
+        (async () => {
+            try {
+                const latest = await fetchLeagueSettings(idToken || undefined);
+                if (latest) setLeagueSettings(latest);
+            } catch (e) {
+                // Optionally show error/toast
+                console.error('Errore nel caricamento delle impostazioni lega:', e);
+            }
+        })();
+    }, [idToken]);
+
+    // Ensure 'io' is always present in participantNames
+    const myName = "io";
+    let participantNames = Array.isArray(leagueSettings.participantNames) ? [...leagueSettings.participantNames] : [];
+    if (!participantNames.map(n => n.toLowerCase()).includes(myName)) {
+        participantNames = [myName, ...participantNames];
+    }
+
+    // Load favourites from API if missing
+    useEffect(() => {
+        if (!isLoggedIn || !idToken) return;
+        if (localTargetPlayers.length === 0) {
+            (async () => {
+                try {
+                    const board = await getStrategyBoard(idToken);
+                    if (board && board.target_players) {
+                        const validPlayers = board.target_players
+                            .map((p: any) => {
+                                const player = players.find(pl => pl.id === p.player_id);
+                                if (player) {
+                                    return { ...player, maxBid: p.max_bid };
+                                }
+                                return null;
+                            })
+                            .filter(Boolean);
+                        setLocalTargetPlayers(validPlayers);
+                    }
+                } catch (e) {
+                    // Ignore errors
+                }
+            })();
+        }
+    }, [isLoggedIn, idToken, localTargetPlayers.length, players]);
 
     return (
         <div>
@@ -81,7 +133,7 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             leagueSettings={leagueSettings}
                             onPlayerAuctioned={handlePlayerAuctionedAndClear}
                             roleBudget={roleBudget}
-                            participantNames={leagueSettings.participantNames}
+                            participantNames={participantNames.length > 0 ? participantNames : ["Partecipante 1"]}
                             playerForBidding={playerForBidding}
                             onSelectPlayer={handlePlayerSelectForBidding}
                             onClearPlayer={handleClearBiddingPlayer}
@@ -130,7 +182,7 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                                         players={players} 
                                         auctionLog={auctionLog} 
                                         leagueSettings={leagueSettings}
-                                        targetPlayers={targetPlayers}
+                                        targetPlayers={localTargetPlayers}
                                         onPlayerSelect={handlePlayerSelectForBidding}
                                     />
                                 )}

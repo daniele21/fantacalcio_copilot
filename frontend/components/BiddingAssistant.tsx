@@ -42,19 +42,31 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     useEffect(() => {
         if (playerForBidding) {
             setFinalPrice(1);
-            onCurrentBidChange(1);
+            // Only reset bid if currentBid is empty or not a number
+            if (currentBid === '' || typeof currentBid !== 'number' || currentBid < 1) {
+                onCurrentBidChange(1);
+            }
             setAdvice(null);
             setError('');
-        }
-    }, [playerForBidding, onCurrentBidChange]);
-
-    useEffect(() => {
-        if (participantNames.length > 0 && !buyer) {
-            const myName = participantNames.find(n => n.toLowerCase() === 'io') || participantNames[0];
+            const myName = participantNames.find(n => n.toLowerCase() === 'io') || participantNames[0] || '';
             setBuyer(myName);
+        } else {
+            setBuyer('');
         }
-    }, [participantNames, buyer]);
-        
+    }, [playerForBidding, onCurrentBidChange, participantNames]);
+
+    // Fallback: if buyer is empty but participantNames exist, show first participant
+    useEffect(() => {
+        if (!buyer && participantNames.length > 0) {
+            setBuyer(participantNames.find(n => n.toLowerCase() === 'io') || participantNames[0]);
+        }
+    }, [buyer, participantNames]);
+
+    // For debugging: log buyer and participantNames
+    useEffect(() => {
+        console.log('buyer:', buyer, 'participantNames:', participantNames);
+    }, [buyer, participantNames]);
+
     const suggestions = useMemo(() => {
         if (!query) return [];
         return availablePlayers.filter(p =>
@@ -66,7 +78,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
         onSelectPlayer(player);
         setQuery('');
         setShowSuggestions(false);
-        setBuyer(participantNames.find(n => n.toLowerCase() === 'io') || participantNames[0] || '');
+        // Buyer will be set by useEffect above
     };
 
     const handleGetAdvice = async () => {
@@ -166,25 +178,50 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                             <div>
                                 <label htmlFor="current_bid" className="text-sm font-medium text-content-200 mb-1 block">Offerta Attuale</label>
-                                <input 
-                                    id="current_bid" 
-                                    type="number" 
-                                    value={currentBid} 
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        if (val === '') {
-                                            onCurrentBidChange('');
-                                        } else {
-                                            const num = parseInt(val, 10);
-                                            if (!isNaN(num) && num >= 1) {
-                                                onCurrentBidChange(num);
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        aria-label="Diminuisci offerta"
+                                        className="bg-base-300 hover:bg-base-400 text-lg rounded-l-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                        onClick={() => {
+                                            if (typeof currentBid === 'number' && currentBid > 1) onCurrentBidChange(currentBid - 1);
+                                        }}
+                                        disabled={typeof currentBid !== 'number' || currentBid <= 1}
+                                    >
+                                        -
+                                    </button>
+                                    <input
+                                        id="current_bid"
+                                        type="number"
+                                        value={currentBid}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === '') {
+                                                onCurrentBidChange('');
+                                            } else {
+                                                const num = parseInt(val, 10);
+                                                if (!isNaN(num) && num >= 1) {
+                                                    onCurrentBidChange(num);
+                                                }
                                             }
-                                        }
-                                    }}
-                                    placeholder="1"
-                                    min="1" 
-                                    className="w-full bg-base-100 border-2 border-base-300 rounded-lg px-4 py-3 text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition"
-                                />
+                                        }}
+                                        placeholder="1"
+                                        min="1"
+                                        className="w-24 text-center bg-base-100 border-2 border-base-300 text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
+                                        style={{ appearance: 'textfield' }}
+                                    />
+                                    <button
+                                        type="button"
+                                        aria-label="Aumenta offerta"
+                                        className="bg-base-300 hover:bg-base-400 text-lg rounded-r-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                        onClick={() => {
+                                            if (typeof currentBid === 'number') onCurrentBidChange(currentBid + 1);
+                                        }}
+                                        disabled={typeof currentBid !== 'number'}
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                             <button onClick={handleGetAdvice} disabled={isLoadingAdvice} className="w-full h-[62px] flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-lg">
                                 {isLoadingAdvice ? <><Loader className="w-6 h-6 mr-3 animate-spin" />Analisi...</> : <><Sparkles className="w-6 h-6 mr-3" />Chiedi Consiglio</>}
@@ -227,13 +264,54 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                                 <div>
                                     <label htmlFor="final_price" className="text-sm font-medium text-content-200 mb-1 block">Prezzo Finale</label>
-                                    <input id="final_price" type="number" value={finalPrice} onChange={e => setFinalPrice(parseInt(e.target.value) || 1)} min="1" className="w-full h-full bg-base-200 border-2 border-base-300 rounded-lg px-4 py-2 text-xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition" />
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            aria-label="Diminuisci prezzo finale"
+                                            className="bg-base-300 hover:bg-base-400 text-lg rounded-l-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                            onClick={() => setFinalPrice(prev => Math.max(1, prev - 1))}
+                                            disabled={finalPrice <= 1}
+                                        >
+                                            -
+                                        </button>
+                                        <input id="final_price" type="number" value={finalPrice} onChange={e => {
+                                            const val = e.target.value;
+                                            const num = parseInt(val, 10);
+                                            if (!isNaN(num) && num >= 1) setFinalPrice(num);
+                                            else if (val === '') setFinalPrice(1);
+                                        }} min="1" className="w-24 text-center bg-base-200 border-2 border-base-300 text-xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2" style={{ appearance: 'textfield' }} />
+                                        <button
+                                            type="button"
+                                            aria-label="Aumenta prezzo finale"
+                                            className="bg-base-300 hover:bg-base-400 text-lg rounded-r-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                            onClick={() => setFinalPrice(prev => prev + 1)}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    {finalPrice > 500 && (
+                                        <p className="text-yellow-500 text-xs mt-1 flex items-center gap-1"><AlertTriangle className="w-4 h-4"/>Prezzo molto alto, sei sicuro?</p>
+                                    )}
                                 </div>
                                 <div>
                                     <label htmlFor="buyer" className="text-sm font-medium text-content-200 mb-1 block">Acquirente</label>
-                                    <select id="buyer" value={buyer} onChange={(e) => setBuyer(e.target.value)} className="w-full h-full bg-base-200 border-2 border-base-300 rounded-lg px-3 py-2 text-content-100 focus:ring-1 focus:ring-brand-primary">
-                                        {participantNames.map(name => (<option key={name} value={name}>{name}</option>))}
-                                    </select>
+                                    <div className="relative">
+                                        <select
+                                            id="buyer"
+                                            value={buyer || (participantNames[0] || '')}
+                                            onChange={(e) => setBuyer(e.target.value)}
+                                            className="w-full h-full bg-base-200 border-2 border-base-300 rounded-lg px-3 py-2 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary appearance-none pr-10"
+                                            style={{ minHeight: '48px' }}
+                                        >
+                                            <option value="" disabled>Seleziona acquirente...</option>
+                                            {participantNames.map(name => (
+                                                <option key={name} value={name}>{name.toLowerCase() === 'io' ? '👤 Io (Tu)' : name}</option>
+                                            ))}
+                                        </select>
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-content-200">
+                                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                              <button onClick={handleAcquirePlayer} disabled={!playerForBidding || finalPrice <= 0 || !buyer} className="w-full mt-4 flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-lg">

@@ -22,7 +22,7 @@ export const InstantHeader: React.FC<InstantHeaderProps> = ({ player, currentPri
 
     const suggestedCap = React.useMemo(() => {
         const scaleFactor = leagueSettings.budget / 500;
-        const scaledCost = player.baseCost * scaleFactor;
+        const scaledCost = (player.baseCost ?? 0) * scaleFactor;
         return Math.round(scaledCost * 1.15);
     }, [player, leagueSettings.budget]);
 

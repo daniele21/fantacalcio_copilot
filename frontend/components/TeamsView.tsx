@@ -1,10 +1,7 @@
-
 import React, { useMemo, useState } from 'react';
 import { AuctionResult, Player, LeagueSettings, MyTeamPlayer, Role } from '../types';
+import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 import { Users, Wallet, Trophy, Edit, Coins, X } from 'lucide-react';
-
-const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
-const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
 
 
 interface TeamData {

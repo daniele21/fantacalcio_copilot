@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Player, AuctionResult, LeagueSettings, TargetPlayer } from '../types';
+import { Player, AuctionResult, LeagueSettings, TargetPlayer, Role } from '../types';
+import { ROLES_ORDER, ROLE_NAMES } from '../constants';
 import { Search, Star } from 'lucide-react';
 
 interface AuctionBoardProps {
@@ -10,81 +11,72 @@ interface AuctionBoardProps {
     onPlayerSelect: (player: Player) => void;
 }
 
-// Use string keys for roles throughout
-const ROLES_ORDER = ['GK', 'DEF', 'MID', 'FWD'] as const;
-type RoleKey = typeof ROLES_ORDER[number];
-const ROLE_NAMES: Record<RoleKey, string> = { GK: 'Portieri', DEF: 'Difensori', MID: 'Centrocampisti', FWD: 'Attaccanti' };
-const ROLE_ICONS: Record<RoleKey, string> = { GK: '🧤', DEF: '🛡️', MID: '⚽', FWD: '🎯' };
+const ROLE_ICONS: Record<Role, string> = { [Role.GK]: '🧤', [Role.DEF]: '🛡️', [Role.MID]: '⚽', [Role.FWD]: '🎯' };
 
 export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog, leagueSettings, targetPlayers, onPlayerSelect }) => {
-    console.log('[AuctionBoard] players prop:', players);
-
     const [searchQuery, setSearchQuery] = useState('');
-    const [filter, setFilter] = useState<'all' | 'available' | 'taken'>('all');
-    const [selectedRole, setSelectedRole] = useState<RoleKey>('GK');
+    const [filter, setFilter] = useState<'all' | 'available' | 'taken' | 'favourite'>('all');
+    const [selectedRole, setSelectedRole] = useState<Role>(Role.GK);
 
     const targetPlayersMap = useMemo(() => new Map(targetPlayers.map(p => [p.id, p])), [targetPlayers]);
 
     const playersByRole = useMemo(() => {
-        const grouped: Record<RoleKey, Player[]> = { GK: [], DEF: [], MID: [], FWD: [] };
-        for (const player of players) {
-            let roleKey = (player && player.role) ? String(player.role).toUpperCase() : '';
-            if (["P", "POR", "PORTIERE", "PORTIERI"].includes(roleKey)) roleKey = 'GK';
-            else if (["D", "DIF", "DIFENSORE", "DIFENSORI"].includes(roleKey)) roleKey = 'DEF';
-            else if (["C", "CEN", "CENTROCAMPISTA", "CENTROCAMPISTI"].includes(roleKey)) roleKey = 'MID';
-            else if (["A", "ATT", "ATTACCANTE", "ATTACCANTI"].includes(roleKey)) roleKey = 'FWD';
-            if ((grouped as any)[roleKey]) {
-                (grouped as any)[roleKey].push(player);
+        const grouped = players.reduce((acc, player) => {
+            if (!acc[player.role]) {
+                acc[player.role] = [];
             }
-        }
+            acc[player.role].push(player);
+            return acc;
+        }, {} as Record<Role, Player[]>);
+
         for (const role of ROLES_ORDER) {
-            grouped[role].sort((a, b) => a.name.localeCompare(b.name));
+            if (grouped[role]) {
+              grouped[role].sort((a, b) => a.name.localeCompare(b.name));
+            } else {
+              grouped[role] = [];
+            }
         }
         return grouped;
     }, [players]);
+
 
     const filteredPlayers = useMemo(() => {
         const q = searchQuery.toLowerCase();
         if (!playersByRole[selectedRole]) return [];
         return playersByRole[selectedRole].filter((p: Player) => {
             const isTaken = !!auctionLog[p.id];
+            const isFavourite = !!targetPlayersMap.get(p.id);
             const matchesFilter =
                 filter === 'all' ||
                 (filter === 'available' && !isTaken) ||
-                (filter === 'taken' && isTaken);
+                (filter === 'taken' && isTaken) ||
+                (filter === 'favourite' && isFavourite);
             const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q);
             return matchesFilter && matchesSearch;
         });
-    }, [playersByRole, auctionLog, searchQuery, filter, selectedRole]);
+    }, [playersByRole, auctionLog, searchQuery, filter, selectedRole, targetPlayersMap]);
 
-    // Only allow selecting normalized roles
-    const handleSetSelectedRole = (role: RoleKey) => {
-        if (ROLES_ORDER.includes(role)) {
-            setSelectedRole(role);
-        }
-    };
-
-    const RoleTabButton: React.FC<{role: RoleKey}> = ({role}) => (
+    const RoleTabButton: React.FC<{role: Role}> = ({role}) => (
         <button
-            onClick={() => handleSetSelectedRole(role)}
+            onClick={() => setSelectedRole(role)}
             className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
         >
            <span className="hidden sm:inline-block mr-2">{ROLE_ICONS[role]}</span>{ROLE_NAMES[role]}
         </button>
     );
 
-    const FilterButton: React.FC<{label: string, value: 'all' | 'available' | 'taken'}> = ({label, value}) => (
+    const FilterButton: React.FC<{label: string, value: 'all' | 'available' | 'taken' | 'favourite', icon?: React.ReactNode}> = ({label, value, icon}) => (
         <button
             onClick={() => setFilter(value)}
-            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${filter === value ? 'bg-brand-primary text-white' : 'bg-base-300 text-content-200 hover:bg-base-300/70'}`}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors flex items-center gap-1 ${filter === value ? 'bg-brand-primary text-white' : 'bg-base-300 text-content-200 hover:bg-base-300/70'}`}
         >
+            {icon}
             {label}
         </button>
     );
 
-    // Auto-select first non-empty role if current selectedRole has no players or is not a valid role
     React.useEffect(() => {
-        if (!ROLES_ORDER.includes(selectedRole) || !playersByRole[selectedRole] || playersByRole[selectedRole].length === 0) {
+        if (!playersByRole[selectedRole] || playersByRole[selectedRole].length === 0) {
             const firstNonEmpty = ROLES_ORDER.find(role => playersByRole[role] && playersByRole[role].length > 0);
             if (firstNonEmpty && firstNonEmpty !== selectedRole) {
                 setSelectedRole(firstNonEmpty);
@@ -92,18 +84,9 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
         }
     }, [playersByRole, selectedRole]);
 
-    // Defensive effect: forcibly reset selectedRole if it is not a valid UI role
-    React.useEffect(() => {
-        if (!ROLES_ORDER.includes(selectedRole)) {
-            setSelectedRole(ROLES_ORDER[0]);
-        }
-    }, [selectedRole]);
-
-    // --- SORTING STATE ---
     const [sortBy, setSortBy] = useState<'name'|'baseCost'|'recommendedBid'|'maxBid'|'result'>("name");
     const [sortDir, setSortDir] = useState<'asc'|'desc'>("asc");
 
-    // --- SORT HANDLER ---
     const handleSort = (col: typeof sortBy) => {
         if (sortBy === col) {
             setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -113,19 +96,18 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
         }
     };
 
-    // --- SORTED PLAYERS ---
     const sortedPlayers = React.useMemo(() => {
         const arr = [...filteredPlayers];
         arr.sort((a, b) => {
             let aVal: any, bVal: any;
+            const scaleFactor = leagueSettings.budget / 500;
             if (sortBy === 'name') {
                 aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase();
             } else if (sortBy === 'baseCost') {
-                aVal = (a.price ?? 0); bVal = (b.price ?? 0);
+                aVal = a.baseCost ?? 0; bVal = b.baseCost ?? 0;
             } else if (sortBy === 'recommendedBid') {
-                const scaleFactor = leagueSettings.budget / 500;
-                aVal = Math.round((a.price ?? 0) * scaleFactor * 1.15);
-                bVal = Math.round((b.price ?? 0) * scaleFactor * 1.15);
+                aVal = Math.round((a.baseCost ?? 0) * scaleFactor * 1.15);
+                bVal = Math.round((b.baseCost ?? 0) * scaleFactor * 1.15);
             } else if (sortBy === 'maxBid') {
                 aVal = targetPlayersMap.get(a.id)?.maxBid ?? 0;
                 bVal = targetPlayersMap.get(b.id)?.maxBid ?? 0;
@@ -158,6 +140,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                    <FilterButton label="Tutti" value="all" />
                    <FilterButton label="Liberi" value="available" />
                    <FilterButton label="Presi" value="taken" />
+                   <FilterButton label="Preferiti" value="favourite" icon={<Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />} />
                 </div>
             </div>
 
@@ -195,10 +178,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                                 const isTaken = !!result;
                                 const targetInfo = targetPlayersMap.get(player.id);
                                 const scaleFactor = leagueSettings.budget / 500;
-                                // Use player.baseCost if available, else fallback to player.base_price or player.price or 0
-                                const baseCost = Math.round((
-                                    (player as any).baseCost ?? (player as any).base_price ?? (player as any).price ?? 0
-                                ) * scaleFactor);
+                                const baseCost = Math.round((player.baseCost ?? player.price ?? 0) * scaleFactor);
                                 const recommendedBid = Math.round(baseCost * 1.15);
 
                                 return (

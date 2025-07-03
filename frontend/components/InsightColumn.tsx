@@ -38,7 +38,7 @@ const CollapsibleSection: React.FC<{ title: string; icon: React.ReactNode; child
 const calculateOpportunityScore = (currentBid: number, player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings): number => {
     if (currentBid <= 0) return 50;
     const scaleFactor = settings.budget / 500;
-    const scaledBaseCost = player.baseCost * scaleFactor;
+    const scaledBaseCost = (player.baseCost ?? 0) * scaleFactor;
     const recommendationModifier = 1 + ((player.recommendation - 3) * 0.05);
     const fairValue = scaledBaseCost * recommendationModifier;
     const greatDealPrice = fairValue * 0.8;
@@ -174,6 +174,22 @@ const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagu
         }).sort((a,b) => b.remaining - a.remaining);
     }, [auctionLog, leagueSettings, currentBid]);
 
+    // Debug log
+    useEffect(() => {
+        console.log('Heatmap Rivali:', {
+            participantNames: leagueSettings.participantNames,
+            auctionLog,
+            rivalsData
+        });
+    }, [leagueSettings.participantNames, auctionLog, rivalsData]);
+
+    if (!leagueSettings.participantNames || leagueSettings.participantNames.length <= 1) {
+        return <div className="text-content-200 text-sm">Nessun rivale trovato. Aggiungi altri partecipanti nelle impostazioni della lega.</div>;
+    }
+    if (rivalsData.length === 0) {
+        return <div className="text-content-200 text-sm">Nessun rivale da mostrare.</div>;
+    }
+
     return(
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {rivalsData.map(rival => (
@@ -259,6 +275,7 @@ const RiskItem: React.FC<{ icon: React.ReactNode; label: string; description: st
 
 const RiskFactors: React.FC<{ player: Player }> = ({ player }) => {
     const risks = useMemo(() => {
+        if (!player.stats) return [];
         const { stats, analystCeiling, analystFloor } = player;
         const result: { key: string; icon: React.ReactNode; label: string; description: string; colorClass: string; }[] = [];
 
@@ -303,14 +320,22 @@ const RiskFactors: React.FC<{ player: Player }> = ({ player }) => {
 
 // --- SUB-COMPONENT: ALTERNATIVES CAROUSEL ---
 const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentBid' | 'roleBudget'>> = ({ player, players, auctionLog, leagueSettings }) => {
+    // Add role icon mapping
+const ROLE_ICONS: { [key in Role]: string } = {
+  P: '🧤',
+  D: '🛡️',
+  C: '⚽',
+  A: '🎯',
+};
+
     const alternatives = useMemo(() => {
         const auctionedIds = new Set(Object.keys(auctionLog).map(Number));
         return players.filter(p => 
             p.id !== player.id &&
-            p.role === player.role &&
+            p.role === player.role && // Ensure same role
             !auctionedIds.has(p.id)
         )
-        .sort((a,b) => b.recommendation - a.recommendation || b.price - a.price)
+        .sort((a,b) => b.recommendation - a.recommendation || (b.baseCost ?? 0) - (a.baseCost ?? 0))
         .slice(0, 5);
     }, [player, players, auctionLog]);
 
@@ -322,15 +347,15 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
         <div className="flex overflow-x-auto space-x-3 p-1 pb-2 -mx-3">
             {alternatives.map(alt => {
                  const scaleFactor = leagueSettings.budget / 500;
-                 const baseCost = typeof alt.price === 'number' && !isNaN(alt.price) ? alt.price : 1;
+                 const baseCost = typeof alt.baseCost === 'number' && !isNaN(alt.baseCost) ? alt.baseCost : 1;
                  const minSpend = Math.round((baseCost * scaleFactor) * 0.9);
                  const maxSpend = Math.round((baseCost * scaleFactor) * 1.15);
                  let badge = null;
                  if (alt.stats && typeof alt.stats.injury_score === 'number') {
-                    if (alt.stats.injury_score >= 3) {
-                        badge = { text: 'Rischio Alto', color: 'bg-red-500/20 text-red-400' };
-                    } else if (alt.recommendation > 3) {
+                    if (alt.recommendation > 3) {
                         badge = { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' };
+                    } else if (alt.stats.injury_score >= 3) {
+                        badge = { text: 'Rischio Alto', color: 'bg-red-500/20 text-red-400' };
                     }
                  } else if (alt.recommendation > 3) {
                     badge = { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' };
@@ -342,7 +367,10 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
                  }
                 return (
                     <div key={alt.id} className="flex-shrink-0 w-40 bg-base-100 rounded-lg p-2.5 text-center border border-base-300/50">
-                        <p className="font-bold text-sm truncate text-content-100">{alt.name}</p>
+                        <div className="flex items-center justify-center mb-1">
+                            <span className="text-xl mr-1">{ROLE_ICONS[alt.role]}</span>
+                            <p className="font-bold text-sm truncate text-content-100">{alt.name}</p>
+                        </div>
                         <p className="text-xs truncate text-content-200">{alt.team}</p>
                         <p className="my-1 font-bold text-brand-primary">{minSpend}-{maxSpend} Cr</p>
                         <p className="text-xs text-content-200">FantaMedia: {fantamedia}</p>
@@ -362,24 +390,10 @@ export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid
         <div className="space-y-4 animate-fade-in">
             <ROIGauge score={opportunityScore} currentBid={currentBid} />
             <RoleBudgetImpactBar player={player} currentBid={currentBid} myTeam={myTeam} leagueSettings={leagueSettings} roleBudget={roleBudget} />
-            <CollapsibleSection title="Analisi 'E se...?'" icon={<TrendingUp size={20} />} defaultOpen>
+            {/* <CollapsibleSection title="Analisi 'What if...?'" icon={<TrendingUp size={20} />} defaultOpen>
                 <WhatIfAnalysis myTeam={myTeam} leagueSettings={leagueSettings} currentPrice={currentBid} />
-            </CollapsibleSection>
-             <CollapsibleSection title="Heatmap Rivali" icon={<Users size={20} />} defaultOpen>
-                <RivalsHeatmap auctionLog={auctionLog} leagueSettings={leagueSettings} currentBid={currentBid} />
-            </CollapsibleSection>
-            <CollapsibleSection title="Fattori di Rischio" icon={<Shield size={20} />} defaultOpen>
-                <RiskFactors player={player} />
-            </CollapsibleSection>
-            <CollapsibleSection title="Inflazione Ruolo" icon={<BarChart size={20} />}>
-                 <RoleInflationChart 
-                    player={player} 
-                    auctionLog={auctionLog}
-                    players={players}
-                    leagueSettings={leagueSettings}
-                 />
-            </CollapsibleSection>
-             <CollapsibleSection title="Alternative" icon={<FileText size={20} />}>
+            </CollapsibleSection> */}
+            <CollapsibleSection title="Alternative" icon={<FileText size={20} />}>
                 <AlternativesCarousel 
                     player={player} 
                     players={players} 
@@ -387,6 +401,21 @@ export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid
                     leagueSettings={leagueSettings} 
                 />
             </CollapsibleSection>
+             <CollapsibleSection title="Heatmap Rivali" icon={<Users size={20} />} defaultOpen>
+                <RivalsHeatmap auctionLog={auctionLog} leagueSettings={leagueSettings} currentBid={currentBid} />
+            </CollapsibleSection>
+            <CollapsibleSection title="Fattori di Rischio" icon={<Shield size={20} />} defaultOpen>
+                <RiskFactors player={player} />
+            </CollapsibleSection>
+            {/* <CollapsibleSection title="Inflazione Ruolo" icon={<BarChart size={20} />}>
+                 <RoleInflationChart 
+                    player={player} 
+                    auctionLog={auctionLog}
+                    players={players}
+                    leagueSettings={leagueSettings}
+                 />
+            </CollapsibleSection> */}
+             
             
             <style>{`
                 @keyframes fade-in {
