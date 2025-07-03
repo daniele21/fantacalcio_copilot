@@ -19,7 +19,7 @@ interface PlayerExplorerViewProps {
 }
 
 export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget, showFavouritesOnly, setShowFavouritesOnly, onSaveFavourites, isSavingFavourites }: PlayerExplorerViewProps) => {
-  const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('P');
+  const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [aggregatedAnalysis, setAggregatedAnalysis] = useState<AggregatedAnalysisResult>({
     analysis: "Seleziona i filtri e clicca su 'Analizza Segmento' per ottenere una valutazione strategica da Gemini.",

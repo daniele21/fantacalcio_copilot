@@ -1,7 +1,14 @@
 import React from 'react';
 import { Player, Role, LeagueSettings } from '../types';
 import { Badge } from './shared/Badge';
-import { Star, TrendingUp, TrendingDown, Crosshair, User, BarChart2, HeartPulse, ThumbsUp } from 'lucide-react';
+import {
+  Star,
+  Crosshair,
+  User,
+  BarChart2,
+  HeartPulse,
+  ThumbsUp,
+} from 'lucide-react';
 
 interface PlayerCardProps {
   player: Player;
@@ -11,104 +18,158 @@ interface PlayerCardProps {
   onRemoveTarget: (playerId: number) => void;
 }
 
-const StatItem: React.FC<{ icon: React.ReactNode; label: string; value: string | number; className?: string }> = ({ icon, label, value, className }) => (
-    <div className={`flex items-center space-x-2 text-sm ${className}`}>
-        {icon}
-        <span className="font-medium text-content-200">{label}:</span>
-        <span className="font-bold text-content-100">{value}</span>
-    </div>
-);
-
-
-export const PlayerCard: React.FC<PlayerCardProps> = ({ player, leagueSettings, isTarget, onAddTarget, onRemoveTarget }) => {
+export const PlayerCard: React.FC<PlayerCardProps> = ({
+  player,
+  leagueSettings,
+  isTarget,
+  onAddTarget,
+  onRemoveTarget,
+}) => {
   const getRoleColor = (role: Role) => {
     switch (role) {
-      case Role.GK: return 'bg-yellow-500/20 text-yellow-400';
-      case Role.DEF: return 'bg-blue-500/20 text-blue-400';
-      case Role.MID: return 'bg-green-500/20 text-green-400';
-      case Role.FWD: return 'bg-red-500/20 text-red-400';
+      case Role.GK:
+        return 'dark:bg-yellow-900 dark:text-yellow-300';
+      case Role.DEF:
+        return 'dark:bg-blue-900 dark:text-blue-300';
+      case Role.MID:
+        return 'dark:bg-green-900 dark:text-green-300';
+      case Role.FWD:
+        return 'dark:bg-red-900 dark:text-red-300';
     }
   };
 
-  const calculateSpendingRange = () => {
-    const scaleFactor = leagueSettings.budget / 500;
-    const scaledCost = player.baseCost * scaleFactor;
-    const minSpend = Math.round(scaledCost * 0.9);
-    const maxSpend = Math.round(scaledCost * 1.15);
-    return { min: minSpend, max: maxSpend };
+  const getIconColor = (label: string) => {
+    if (label.startsWith('FM')) return 'text-purple-300';
+    if (label.includes('Presenze')) return 'text-indigo-300';
+    if (label.includes('Rischio')) return 'text-red-300';
+    if (label.startsWith('x')) return 'text-yellow-300';
+    if (label.includes('Buon')) return 'text-green-300';
+    return 'text-content-400';
   };
 
-  const spendingRange = calculateSpendingRange();
+  const { min, max } = React.useMemo(() => {
+    const scale = leagueSettings.budget / 500;
+    const cost = player.baseCost * scale;
+    return { min: Math.round(cost * 0.9), max: Math.round(cost * 1.15) };
+  }, [leagueSettings.budget, player.baseCost]);
 
-  const handleToggleTarget = (e: React.MouseEvent) => {
+  const toggleTarget = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isTarget) {
-      onRemoveTarget(player.id);
-    } else {
-      onAddTarget(player);
-    }
+    isTarget ? onRemoveTarget(player.id) : onAddTarget(player);
   };
+
+  // Prepare stats, ensure xAssist, xGoal, xPresenze are treated as text
+  const stats = [
+    { label: 'FM 23/24', icon: BarChart2, value: player.stats?.fm1y },
+    { label: 'FM 22/23', icon: BarChart2, value: player.stats?.fm2y },
+    { label: 'Presenze 23/24', icon: User, value: player.stats?.presenze1y },
+    { label: 'Rischio Infortuni', icon: HeartPulse, value: player.stats?.injury_score },
+    { label: 'xAssist', icon: Crosshair, value: player.stats?.exp_assist?.toString() ?? '-' },
+    { label: 'xGoal', icon: Crosshair, value: player.stats?.exp_goal?.toString() ?? '-' },
+    { label: 'xPresenze', icon: Crosshair, value: player.stats?.exp_presenze?.toString() ?? '-' },
+    { label: 'Buon Investimento', icon: ThumbsUp, value: player.stats?.good_bet },
+  ];
 
   return (
-    <div className="bg-base-200 rounded-xl shadow-lg overflow-hidden border border-base-300/50 transition-all duration-300 hover:border-brand-primary hover:scale-[1.02] relative">
-       <div className="p-4">
-        <div className="flex flex-col items-start">
-          <div className="flex items-center gap-2 mb-1">
-            <Badge className={getRoleColor(player.role)}>{player.role}</Badge>
-            <button 
-              onClick={handleToggleTarget}
-              className="p-2 rounded-full bg-base-100/50 hover:bg-base-100 transition-colors z-10"
-              aria-label={isTarget ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+    <article className="flex flex-col h-full border dark:border-base-600 border-base-300 shadow-lg rounded-xl dark:bg-base-800 bg-base-200 overflow-hidden">
+      <header className="flex items-center justify-between p-4">
+        <Badge className={getRoleColor(player.role)}>{player.role}</Badge>
+        <button
+          onClick={toggleTarget}
+          aria-label={isTarget ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+          className="p-2 rounded-full dark:bg-base-700 bg-base-100/50 hover:dark:bg-base-600 transition-colors"
+        >
+          <Star
+            className={`w-6 h-6 transition-colors ${
+              isTarget ? 'text-yellow-300 fill-yellow-300' : 'text-gray-400 hover:text-yellow-300'
+            }`}
+          />
+        </button>
+      </header>
+
+      <section className="px-4">
+        <h1 className="font-bold text-2xl">
+          {player.name}
+        </h1>
+        <p className="text-lg font-semibold dark:text-content-200 text-content-200 mb-2">{player.team}</p>
+
+        {/* Skills: show first 3 always, extras collapsible */}
+{/* Skills: first 3 always visible, extras collapsible inline */}
+{/* Skills */}
+{/* Skills: first 3 always visible, extras collapsible */}
+<div className="flex flex-wrap gap-1 text-sm mb-4">
+  {player.skills?.slice(0, 2).map(skill => (
+    <Badge key={skill} className="dark:bg-base-700 bg-base-100 text-content-200 text-xs px-2 py-1">
+      {skill}
+    </Badge>
+  ))}
+  {player.skills && player.skills.length > 2 && (
+    <details className="relative">
+      <summary className="cursor-pointer text-sm text-content-600 dark:text-content-200 px-2 py-1 rounded-md hover:bg-base-100 dark:hover:bg-base-700">
+        +{player.skills.length - 2} more
+      </summary>
+      <div className="absolute mt-1 bg-base-200 dark:bg-base-800 p-2 rounded shadow-lg flex flex-wrap gap-1 z-10">
+        {player.skills.slice(2).map(skill => (
+          <Badge key={skill} className="dark:bg-base-700 bg-base-100 text-content-200 text-xs px-2 py-1">
+            {skill}
+          </Badge>
+        ))}
+      </div>
+    </details>
+  )}
+</div>
+      </section>
+
+      <section className="px-4">
+        <div className="dark:bg-base-700 bg-base-100/50 p-3 rounded-md text-center mb-4">
+          <p className="text-s dark:text-content-200 text-content-200 mb-1">Range di spesa suggerito</p>
+          <p className="text-lg font-bold dark:text-brand-primary text-brand-primary tracking-wide">
+            {min} - {max} <span className="text-m">Cr</span>
+          </p>
+        </div>
+      </section>
+
+      <section className="px-4 flex items-center gap-2 mb-4">
+        {[...Array(5)].map((_, i) => (
+          <Star
+            key={i}
+            className={`w-6 h-6 ${
+              i < player.recommendation
+                ? 'text-yellow-300 fill-yellow-300'
+                : 'text-gray-600 dark:text-gray-400'
+            }`}
+          />
+        ))}
+        <span className="text-sm font-medium dark:text-content-200 text-content-200">
+          {player.recommendation >= 4 ? 'Top Pick' : `${player.recommendation}/5`}
+        </span>
+      </section>
+
+      <details className="mt-auto px-4 pb-4 dark:border-t dark:border-base-600 border-t border-base-300" open>
+        <summary className="flex items-center justify-between cursor-pointer py-2 text-sm font-semibold dark:text-content-200 text-content-200">
+          <div className="flex items-center gap-1">
+            <BarChart2 className="w-4 h-4" />
+            <span className="text-lg font-bold">Statistiche Chiave</span>
+          </div>
+          <span aria-hidden>▾</span>
+        </summary>
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          {stats.map(({ label, icon: Icon, value }) => (
+            <div
+              key={label}
+              className="flex items-center justify-between p-2 rounded-lg dark:bg-base-700"
             >
-              <Star className={`w-6 h-6 transition-all ${isTarget ? 'text-yellow-400 fill-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`} />
-            </button>
-          </div>
-          <h3 className="text-xl font-bold text-content-100">{player.name}</h3>
-          <p className="text-sm text-content-200">{player.team}</p>
-        </div>
-
-        <div className="mt-3 text-sm text-brand-primary font-semibold">
-          {player.skills && player.skills.length > 0 ? player.skills.join(', ') : '-'}
-        </div>
-      </div>
-
-      <div className="px-4 py-3 bg-base-100/50">
-        <div className="text-sm text-content-200 mb-1">Range di spesa suggerito:</div>
-        <div className="text-2xl font-bold text-center text-brand-primary tracking-wide">
-          {spendingRange.min} - {spendingRange.max}
-          <span className="text-lg ml-1">Cr</span>
-        </div>
-      </div>
-      
-      <div className="p-4 space-y-4">
-        <div>
-          <h4 className="font-semibold text-content-200 mb-2 flex items-center"><Star className="w-4 h-4 mr-2 text-yellow-400"/>Punteggio Copilot</h4>
-          <div className="flex items-center">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className={`w-6 h-6 ${i < player.recommendation ? 'text-yellow-400 fill-yellow-400' : 'text-gray-500'}`} />
-            ))}
-          </div>
-        </div>
-        
-        {/* <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-4 border-t border-base-300/50">
-           <StatItem icon={<TrendingUp className="w-4 h-4 text-green-400"/>} label="Ceiling" value={player.analystCeiling}/>
-           <StatItem icon={<TrendingDown className="w-4 h-4 text-red-400"/>} label="Floor" value={player.analystFloor}/>
-        </div> */}
-
-        <div className="pt-4 border-t border-base-300/50">
-            <h4 className="font-semibold text-content-200 mb-3 flex items-center"><BarChart2 className="w-4 h-4 mr-2"/>Statistiche Chiave</h4>
-            <div className="grid grid-cols-2 gap-2">
-                <StatItem icon={<BarChart2 className="w-4 h-4"/>} label="FM 23/24" value={player.stats?.fm1y !== undefined && !isNaN(Number(player.stats.fm1y)) ? Number(player.stats.fm1y).toFixed(2) : '-'} />
-                <StatItem icon={<BarChart2 className="w-4 h-4"/>} label="FM 22/23" value={player.stats?.fm2y !== undefined && !isNaN(Number(player.stats.fm2y)) ? Number(player.stats.fm2y).toFixed(2) : '-'} />
-                <StatItem icon={<User className="w-4 h-4"/>} label="Presenze 23/24" value={player.stats?.presenze1y ?? '-'} />
-                <StatItem icon={<HeartPulse className="w-4 h-4 text-red-400"/>} label="Rischio Infortuni" value={player.stats?.injury_score ?? '-'} />
-                <StatItem icon={<Crosshair className="w-4 h-4"/>} label="xAssist" value={player.stats?.exp_assist ?? '-'} />
-                <StatItem icon={<Crosshair className="w-4 h-4"/>} label="xGoal" value={player.stats?.exp_goal ?? '-'} />
-                <StatItem icon={<Crosshair className="w-4 h-4"/>} label="xPresenze" value={player.stats?.exp_presenze ?? '-'} />
-                <StatItem icon={<ThumbsUp className="w-4 h-4 text-green-400"/>} label="Buon Investimento" value={player.stats?.good_bet ?? '-'} />
+              <div className="flex items-center gap-1 text-sm dark:text-content-300 text-content-600">
+                <Icon className={`w-4 h-4 ${getIconColor(label)}`} />
+                <span>{label}</span>
+              </div>
+              <span className={` ${label.startsWith('x') ? 'font-normal' : 'font-mono font-semibold'} dark:text-content-50 text-content-100`}>
+                {value ?? '-'}
+              </span>
             </div>
+          ))}
         </div>
-      </div>
-    </div>
+      </details>
+    </article>
   );
 };
