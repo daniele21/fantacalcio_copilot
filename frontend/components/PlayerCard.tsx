@@ -63,11 +63,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     { label: 'FM 23/24', icon: BarChart2, value: player.stats?.fm1y },
     { label: 'FM 22/23', icon: BarChart2, value: player.stats?.fm2y },
     { label: 'Presenze 23/24', icon: User, value: player.stats?.presenze1y },
-    { label: 'Rischio Infortuni', icon: HeartPulse, value: player.stats?.injury_score },
+    { label: 'Rischio Infortuni', icon: HeartPulse, value: player.stats?.injury_score != null ? `${player.stats.injury_score}/5` : '-' },
     { label: 'xAssist', icon: Crosshair, value: player.stats?.exp_assist?.toString() ?? '-' },
     { label: 'xGoal', icon: Crosshair, value: player.stats?.exp_goal?.toString() ?? '-' },
     { label: 'xPresenze', icon: Crosshair, value: player.stats?.exp_presenze?.toString() ?? '-' },
-    { label: 'Buon Investimento', icon: ThumbsUp, value: player.stats?.good_bet },
+    { label: 'Buon Investimento', icon: ThumbsUp, value: player.stats?.good_bet != null ? `${player.stats.good_bet}/5` : '-' },
   ];
 
   return (

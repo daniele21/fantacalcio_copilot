@@ -41,22 +41,23 @@ export function usePlayerApi() {
         : typeof p.skills === 'string'
           ? p.skills.split(',').map((s: string) => s.trim())
           : [],
+      score: p.punteggio ?? 0,
       recommendation: Number(p.recommendation ?? 0),
-      analystCeiling: p.fanta_media_2024_2025 ?? p.fantamedia_2024_2025 ?? 0,
-      analystFloor: p.fantamedia_2023_2024 ?? 0,
-      priceTier: p.priceTier,
+      // analystCeiling: p.fanta_media_2024_2025 ?? p.fantamedia_2024_2025 ?? 0,
+      // analystFloor: p.fantamedia_2023_2024 ?? 0,
+      // priceTier: p.priceTier,
       stats: {
         fm1y: parseFloat(p['fantamedia_2023_2024'] ?? p['fanta_media_2024_2025'] ?? 0),
         fm2y: parseFloat(p['fantamedia_2022_2023'] ?? 0),
         presenze1y: parseInt(p['presenze_2024_2025'] ?? p['presenze'] ?? 0),
-        injury_score: parseFloat(p['resistenza_infortuni'] ?? 0),
+        injury_score: parseFloat(p['resistenza_infortuni'] ?? 0) / 20,
         injuries: p.injuries,
         yellowCards: p.yellowCards,
         redCards: p.redCards,
         exp_assist: p['assist_previsti'] ?? '-',
         exp_goal: p['gol_previsti'] ?? '-',
         exp_presenze: p['presenze_previste'] ?? '-',
-        good_bet: p['buon_investimento'] ?? '-',
+        good_bet: (p['buon_investimento'] ?? 0) / 20,
       }
     }));
     // console.log('[playerService] Mapped players:', mapped);
