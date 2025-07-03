@@ -10,6 +10,7 @@ import { InsightColumn } from './InsightColumn';
 import { useAuth } from '../services/AuthContext';
 import { getStrategyBoard } from '../services/strategyBoardService';
 import { fetchLeagueSettings } from '../services/leagueSettingsService';
+import { getAuctionLog, saveAuctionLog } from '../services/auctionLogService';
 
 interface LiveAuctionViewProps {
     players: Player[];
@@ -20,9 +21,10 @@ interface LiveAuctionViewProps {
     roleBudget: Record<Role, number>;
     targetPlayers: TargetPlayer[];
     onUpdateAuctionResult: (playerId: number, newPrice: number) => void;
+    onMyTeamUpdate?: (myTeam: MyTeamPlayer[]) => void;
 }
 
-export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam, auctionLog, onPlayerAuctioned, leagueSettings: initialLeagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult }) => {
+export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam: myTeamProp, auctionLog, onPlayerAuctioned, leagueSettings: initialLeagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult, onMyTeamUpdate }) => {
     const [isAuctionBoardExpanded, setIsAuctionBoardExpanded] = useState(true);
     const [isTeamsViewExpanded, setIsTeamsViewExpanded] = useState(false);
     const [playerForBidding, setPlayerForBidding] = useState<Player | null>(null);
@@ -32,10 +34,38 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
     const [localTargetPlayers, setLocalTargetPlayers] = useState<TargetPlayer[]>(targetPlayers);
     const [leagueSettings, setLeagueSettings] = useState(initialLeagueSettings);
 
+    // Local state for auction log, synced with localStorage
+    const [localAuctionLog, setLocalAuctionLog] = useState<Record<number, AuctionResult>>(() => {
+        try {
+            const stored = localStorage.getItem('auctionLog');
+            return stored ? JSON.parse(stored) : {};
+        } catch {
+            return {};
+        }
+    });
+
+    // Local state for myTeam, always rebuilt from localAuctionLog
+    const [localMyTeam, setLocalMyTeam] = useState<MyTeamPlayer[]>([]);
+
+    // Rebuild myTeam from localAuctionLog
+    useEffect(() => {
+        const mine = Object.values(localAuctionLog)
+            .filter(result => result.buyer.toLowerCase() === 'io')
+            .map(result => {
+                const player = players.find(p => p.id === result.playerId);
+                return player ? { ...player, purchasePrice: result.purchasePrice } : null;
+            })
+            .filter(Boolean) as MyTeamPlayer[];
+        setLocalMyTeam(mine);
+        if (typeof onMyTeamUpdate === 'function') {
+            onMyTeamUpdate(mine);
+        }
+    }, [localAuctionLog, players, onMyTeamUpdate]);
+
     const availablePlayers = React.useMemo(() => {
-        const auctionedPlayerIds = new Set(Object.keys(auctionLog).map(Number));
+        const auctionedPlayerIds = new Set(Object.keys(localAuctionLog).map(Number));
         return players.filter(p => !auctionedPlayerIds.has(p.id));
-    }, [players, auctionLog]);
+    }, [players, localAuctionLog]);
     
     const handlePlayerSelectForBidding = (player: Player) => {
         setPlayerForBidding(player);
@@ -51,11 +81,75 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
         setCurrentBid(1);
     };
 
+    // Sync localAuctionLog to localStorage and Cache Storage
+    useEffect(() => {
+        try {
+            localStorage.setItem('auctionLog', JSON.stringify(localAuctionLog));
+            if ('caches' in window) {
+                caches.open('fantacalcio-auction').then(cache => {
+                    const response = new Response(JSON.stringify(localAuctionLog), { headers: { 'Content-Type': 'application/json' } });
+                    cache.put('/auctionLog', response);
+                });
+            }
+        } catch (e) {
+            console.warn('Failed to persist auctionLog:', e);
+        }
+    }, [localAuctionLog]);
+
+    // On mount, try to restore from Cache Storage if localStorage is empty
+    useEffect(() => {
+        if (Object.keys(localAuctionLog).length === 0 && 'caches' in window) {
+            caches.open('fantacalcio-auction').then(async cache => {
+                const cached = await cache.match('/auctionLog');
+                if (cached) {
+                    const data = await cached.json();
+                    if (data && typeof data === 'object') {
+                        setLocalAuctionLog(data);
+                    }
+                }
+            });
+        }
+    }, []);
+
+    // On mount, if localStorage is empty, try to load from API
+    useEffect(() => {
+        if (Object.keys(localAuctionLog).length === 0 && idToken) {
+            (async () => {
+                try {
+                    const apiLog = await getAuctionLog(idToken);
+                    if (apiLog && typeof apiLog === 'object') {
+                        setLocalAuctionLog(apiLog);
+                        localStorage.setItem('auctionLog', JSON.stringify(apiLog));
+                    }
+                } catch (e) {
+                    console.warn('Could not load auction log from API:', e);
+                }
+            })();
+        }
+    }, [idToken]);
+
+    // Update localAuctionLog when a player is auctioned
     const handlePlayerAuctionedAndClear = (player: Player, purchasePrice: number, buyer: string) => {
         onPlayerAuctioned(player, purchasePrice, buyer);
+        setLocalAuctionLog(prev => ({
+            ...prev,
+            [player.id]: { playerId: player.id, purchasePrice, buyer }
+        }));
         handleClearBiddingPlayer();
     };
-    
+
+    // Update localAuctionLog when a price is edited
+    const handleUpdateAuctionResult = (playerId: number, newPrice: number) => {
+        onUpdateAuctionResult(playerId, newPrice);
+        setLocalAuctionLog(prev => {
+            const updated = { ...prev };
+            if (updated[playerId]) {
+                updated[playerId].purchasePrice = newPrice;
+            }
+            return updated;
+        });
+    };
+
     const isInstantHeaderVisible = playerForBidding && (Number(currentBid) || 0) > 0;
 
     // Always reload league settings on mount
@@ -104,13 +198,41 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
         }
     }, [isLoggedIn, idToken, localTargetPlayers.length, players]);
 
+    // Add a button to start a new auction (reset auction log)
+    const handleResetAuctionLog = () => {
+        if (window.confirm('Sei sicuro di voler iniziare una nuova asta? Tutti i dati attuali verranno persi.')) {
+            setLocalAuctionLog({});
+            localStorage.removeItem('auctionLog');
+            if ('caches' in window) {
+                caches.open('fantacalcio-auction').then(cache => cache.delete('/auctionLog'));
+            }
+            if (idToken) {
+                saveAuctionLog(idToken, {});
+            }
+        }
+    };
+
     return (
         <div>
+            <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                    onClick={() => window.location.href = '/setup'}
+                    className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
+                >
+                    ← Setup
+                </button>
+                <button
+                    onClick={handleResetAuctionLog}
+                    className="px-3 py-1.5 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700"
+                >
+                    Inizia Nuova Asta
+                </button>
+            </div>
             {isInstantHeaderVisible && (
                 <InstantHeader 
                     player={playerForBidding!}
                     currentPrice={Number(currentBid)}
-                    myTeam={myTeam}
+                    myTeam={localMyTeam}
                     leagueSettings={leagueSettings}
                 />
             )}
@@ -120,16 +242,10 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
                 {/* Left/Main Column */}
                 <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-                    <button
-                        onClick={() => window.location.href = '/setup'}
-                        className="mb-4 px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
-                    >
-                        ← Torna alle Impostazioni
-                    </button>
                     <div ref={biddingAssistantRef} className="scroll-mt-32">
                         <BiddingAssistant 
                             availablePlayers={availablePlayers}
-                            myTeam={myTeam}
+                            myTeam={localMyTeam}
                             leagueSettings={leagueSettings}
                             onPlayerAuctioned={handlePlayerAuctionedAndClear}
                             roleBudget={roleBudget}
@@ -151,12 +267,12 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             aria-expanded={isTeamsViewExpanded}
                             aria-controls="teams-view-content"
                         >
-                             <h2 className="text-xl font-bold text-brand-primary flex items-center"><Users className="w-6 h-6 mr-3"/>Rose Avversari</h2>
+                             <h2 className="text-xl font-bold text-brand-primary flex items-center"><Users className="w-6 h-6 mr-3"/>Rose Partecipanti</h2>
                             {isTeamsViewExpanded ? <ChevronUp className="w-6 h-6 text-content-200" /> : <ChevronDown className="w-6 h-6 text-content-200" />}
                         </button>
                          {isTeamsViewExpanded && (
                             <div id="teams-view-content" className="p-4 pt-0">
-                                <TeamsView auctionLog={auctionLog} players={players} leagueSettings={leagueSettings} onUpdateAuctionResult={onUpdateAuctionResult} />
+                                <TeamsView auctionLog={localAuctionLog} players={players} leagueSettings={leagueSettings} onUpdateAuctionResult={handleUpdateAuctionResult} />
                             </div>
                         )}
                     </div>
@@ -180,7 +296,7 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                                 ) : (
                                     <AuctionBoard 
                                         players={players} 
-                                        auctionLog={auctionLog} 
+                                        auctionLog={localAuctionLog} 
                                         leagueSettings={leagueSettings}
                                         targetPlayers={localTargetPlayers}
                                         onPlayerSelect={handlePlayerSelectForBidding}
@@ -198,10 +314,10 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             <InsightColumn
                                 player={playerForBidding}
                                 currentBid={Number(currentBid) || 0}
-                                myTeam={myTeam}
+                                myTeam={localMyTeam}
                                 leagueSettings={leagueSettings}
                                 roleBudget={roleBudget}
-                                auctionLog={auctionLog}
+                                auctionLog={localAuctionLog}
                                 players={players}
                             />
                         ) : (
@@ -212,7 +328,7 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             </div>
                         )}
                          <TeamStatus 
-                            myTeam={myTeam}
+                            myTeam={localMyTeam}
                             leagueSettings={leagueSettings}
                             roleBudget={roleBudget}
                         />

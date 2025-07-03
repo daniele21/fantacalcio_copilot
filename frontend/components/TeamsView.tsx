@@ -192,10 +192,8 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
     const teamsData = useMemo(() => {
         // The definitive list of team names comes from the settings.
         const teamNames = leagueSettings.participantNames;
-        
         // Map all players by their ID for quick lookups.
         const allPlayersMap = new Map(players.map(p => [p.id, p]));
-
         // Initialize a map to hold data for each team.
         const teamsMap = new Map<string, TeamData>();
         teamNames.forEach(name => {
@@ -206,12 +204,11 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
                 remainingBudget: leagueSettings.budget,
             });
         });
-
         // Populate teams with auctioned players
         Object.entries(auctionLog).forEach(([playerId, result]) => {
-            const player = allPlayersMap.get(Number(playerId));
+            // Use the same logic as for 'io', but for all participants
+            const player = players.find(p => String(p.id) === String(result.playerId));
             const team = teamsMap.get(result.buyer);
-
             if (player && team) {
                 const teamPlayer: MyTeamPlayer = {
                     ...player,
@@ -220,7 +217,10 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
                 team.players.push(teamPlayer);
             }
         });
-
+        // Debug: log which players are assigned to which teams
+        teamsMap.forEach((teamData, teamName) => {
+            console.log(`[TeamsView DEBUG] Team '${teamName}' has players:`, teamData.players.map(p => p.name));
+        });
         // Calculate totals and sort players for each team
         teamsMap.forEach(teamData => {
             teamData.totalSpent = teamData.players.reduce((sum, p) => sum + p.purchasePrice, 0);
@@ -231,14 +231,12 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
                 return b.purchasePrice - a.purchasePrice;
             });
         });
-
         // Convert map to array and sort teams (placing 'Io' first)
         return Array.from(teamsMap.values()).sort((a, b) => {
             if (a.name.toLowerCase() === 'io') return -1;
             if (b.name.toLowerCase() === 'io') return 1;
             return a.name.localeCompare(b.name);
         });
-
     }, [auctionLog, players, leagueSettings]);
 
     const handleEditClick = (player: MyTeamPlayer) => {

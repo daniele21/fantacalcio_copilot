@@ -40,11 +40,13 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
     }, [players]);
 
 
+    // Ensure auctionLog lookup is robust (string/number)
     const filteredPlayers = useMemo(() => {
         const q = searchQuery.toLowerCase();
         if (!playersByRole[selectedRole]) return [];
         return playersByRole[selectedRole].filter((p: Player) => {
-            const isTaken = !!auctionLog[p.id];
+            // Robustly check if player is taken
+            const isTaken = !!auctionLog[p.id] || !!auctionLog[String(p.id)];
             const isFavourite = !!targetPlayersMap.get(p.id);
             const matchesFilter =
                 filter === 'all' ||
@@ -96,6 +98,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
         }
     };
 
+    // Also update isTaken and result lookup in sortedPlayers
     const sortedPlayers = React.useMemo(() => {
         const arr = [...filteredPlayers];
         arr.sort((a, b) => {
@@ -112,8 +115,8 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                 aVal = targetPlayersMap.get(a.id)?.maxBid ?? 0;
                 bVal = targetPlayersMap.get(b.id)?.maxBid ?? 0;
             } else if (sortBy === 'result') {
-                aVal = auctionLog[a.id]?.purchasePrice ?? 0;
-                bVal = auctionLog[b.id]?.purchasePrice ?? 0;
+                aVal = (auctionLog[a.id]?.purchasePrice ?? auctionLog[String(a.id)]?.purchasePrice) ?? 0;
+                bVal = (auctionLog[b.id]?.purchasePrice ?? auctionLog[String(b.id)]?.purchasePrice) ?? 0;
             }
             if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
             if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
@@ -174,7 +177,8 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                         </thead>
                         <tbody className="divide-y divide-base-300/50">
                             {sortedPlayers.map(player => {
-                                const result = auctionLog[player.id];
+                                // Robustly get result and isTaken
+                                const result = auctionLog[player.id] || auctionLog[String(player.id)];
                                 const isTaken = !!result;
                                 const targetInfo = targetPlayersMap.get(player.id);
                                 const scaleFactor = leagueSettings.budget / 500;

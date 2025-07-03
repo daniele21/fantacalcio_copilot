@@ -108,3 +108,10 @@ CREATE TABLE IF NOT EXISTS strategy_board_targets (
     FOREIGN KEY(google_sub) REFERENCES users(google_sub),
     FOREIGN KEY(player_id) REFERENCES giocatori(id)
 );
+
+CREATE TABLE IF NOT EXISTS auction_log (
+    google_sub TEXT PRIMARY KEY,
+    auction_log TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(google_sub) REFERENCES users(google_sub)
+);

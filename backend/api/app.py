@@ -296,6 +296,60 @@ def create_app():
                 rows = db.execute('SELECT * FROM giocatori').fetchall()
             return jsonify_success({'giocatori': [dict(r) for r in rows]})
 
+    # --- /api/save-auction-log ---
+    @app.route('/api/save-auction-log', methods=['POST'])
+    @require_auth
+    def save_auction_log():
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
+        data = request.get_json() or {}
+        auction_log = data.get('auctionLog', {})
+        if db_type == 'firestore':
+            doc_ref = db.collection('auction_logs').document(g.user_id)
+            doc_ref.set({'auctionLog': auction_log}, merge=True)
+            return jsonify_success()
+        else:
+            # Store as JSON string in new table auction_log
+            try:
+                db.execute(
+                    '''
+                    INSERT INTO auction_log (google_sub, auction_log)
+                    VALUES (?, ?)
+                    ON CONFLICT(google_sub) DO UPDATE SET auction_log=excluded.auction_log
+                    ''',
+                    (g.user_id, json.dumps(auction_log))
+                )
+                db.commit()
+                return jsonify_success()
+            except Exception:
+                app.logger.exception('Error saving auction log')
+                return jsonify_error('db_error', 'Could not save auction log', 500)
+
+    # --- /api/get-auction-log ---
+    @app.route('/api/get-auction-log', methods=['GET'])
+    @require_auth
+    def get_auction_log():
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
+        if db_type == 'firestore':
+            doc_ref = db.collection('auction_logs').document(g.user_id)
+            doc = doc_ref.get()
+            if not doc.exists:
+                return jsonify_success({'auctionLog': {}})
+            row = doc.to_dict()
+            return jsonify_success({'auctionLog': row.get('auctionLog', {})})
+        else:
+            row = db.execute(
+                "SELECT auction_log FROM auction_log WHERE google_sub = ?", (g.user_id,)
+            ).fetchone()
+            if not row:
+                return jsonify_success({'auctionLog': {}})
+            try:
+                return jsonify_success({'auctionLog': json.loads(row['auction_log'])})
+            except Exception:
+                app.logger.exception('Error loading auction log')
+                return jsonify_error('corrupted', 'Corrupted auction log')
+
     # Register strategy blueprint
     app.register_blueprint(strategy_api, url_prefix='/api')
 

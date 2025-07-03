@@ -214,7 +214,7 @@ export const MainView: React.FC<MainViewProps> = ({
               onClick={() => navigate('/setup')}
               className="mr-4 px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
             >
-              ← Torna alle Impostazioni
+              ← Setup
             </button>
             <div className="flex flex-1 items-center">
               <TabButton
