@@ -209,14 +209,14 @@ export const MainView: React.FC<MainViewProps> = ({
   return (
     <div>
       <div className="border-b border-base-300 mb-6 sticky top-[65px] z-20 bg-base-100/80 backdrop-blur-lg">
-          <div className="flex items-center">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0">
             <button
               onClick={() => navigate('/setup')}
-              className="mr-4 px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
+              className="mb-2 sm:mb-0 sm:mr-4 px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
             >
               ← Setup
             </button>
-            <div className="flex flex-1 items-center">
+            <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center">
               <TabButton
                 label="Esplora Giocatori"
                 icon={<Compass className="w-5 h-5 md:w-6 md:h-6" />}

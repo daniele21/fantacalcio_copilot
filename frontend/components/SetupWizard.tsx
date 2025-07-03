@@ -215,21 +215,21 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
   if (loading) return <div className="flex items-center justify-center h-96 text-lg">Caricamento impostazioni...</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-base-200 w-full max-w-2xl rounded-2xl shadow-2xl border border-base-300/50 p-6 md:p-8 transform transition-all animate-fade-in-up max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-base-200 w-full max-w-2xl rounded-2xl shadow-2xl border border-base-300/50 p-2 sm:p-6 md:p-8 transform transition-all animate-fade-in-up max-h-[95vh] flex flex-col">
         <div className="flex flex-col items-center text-center">
           <ShieldCheck className="w-16 h-16 text-brand-primary mb-4" />
           <h2 className="text-3xl font-bold text-content-100">Benvenuto in Fantacalcio Copilot</h2>
           <p className="text-content-200 mt-2 max-w-md">Imposta i parametri base della tua lega per iniziare.</p>
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/')} 
             className="mt-4 mb-2 px-4 py-2 bg-base-300 hover:bg-base-100 border border-base-300 rounded-lg text-content-200 text-sm font-medium transition-colors flex items-center gap-2"
           >
             <span>←</span> Torna alla Home
           </button>
         </div>
-        <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-8 space-y-4 flex-grow overflow-y-auto pr-2">
+        <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-8 space-y-4 flex-grow overflow-y-auto pr-0 sm:pr-2 min-h-[40vh]">
           <div>
             <label htmlFor="budget" className="flex items-center text-sm font-medium text-content-200 mb-2">
               <Coins className="w-4 h-4 mr-2" />Crediti per Squadra
@@ -265,7 +265,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
                 <label className="text-sm font-medium text-content-200 mb-2 block">
                   Numero Partecipanti
                 </label>
-                <div className="flex items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1 max-w-xs">
+                <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1 max-w-xs">
                   <button
                     type="button"
                     onClick={() => handleParticipantsChange(-1)}
@@ -323,7 +323,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
               {ROLES_ORDER.map(role => (
                 <div key={role}>
                   <label className="text-sm font-medium text-content-200 mb-2 block">{ROLE_NAMES[role]}</label>
-                  <div className="flex items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1">
+                  <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1">
                     <button type="button" onClick={() => handleRosterChange(role, -1)} disabled={roster[role] <= 0} className="p-2 rounded-md text-content-200 hover:bg-base-300 disabled:opacity-50 transition-colors">
                       <Minus className="w-5 h-5" />
                     </button>
@@ -335,7 +335,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
                 </div>
               ))}
             </div>
-            <div className="mt-4 pt-4 border-t border-base-300/50 flex justify-between items-center">
+            <div className="mt-4 pt-4 border-t border-base-300/50 flex flex-col sm:flex-row justify-between items-center gap-2">
               <span className="font-semibold text-content-200">Giocatori totali per squadra:</span>
               <span className="text-xl font-bold text-brand-primary">{totalRosterSize}</span>
             </div>
@@ -366,7 +366,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
           </CollapsibleSection>
         </form>
         {/* Scelta Modalità */}
-        <div className="mt-auto pt-6 border-t border-base-300">
+        <div className="mt-auto pt-6 border-t border-base-300 bg-base-200 sticky bottom-0 z-10">
           <h3 className="text-center font-semibold text-content-100 mb-4">Scegli la modalità e inizia</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button

@@ -145,12 +145,12 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
 
           />
         </div> */}
-        <div className="flex bg-base-100 rounded-t-lg border-b-2 border-base-300 items-center gap-2 px-2 py-1">
+        <div className="flex flex-wrap bg-base-100 rounded-t-lg border-b-2 border-base-300 items-center gap-2 px-2 py-1">
           {ROLES_ORDER.map(role => (
             <button
               key={role}
               onClick={() => setSelectedRole(role)}
-              className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+              className={`min-w-[100px] flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
             >
               {ROLE_NAMES[role]}
             </button>
@@ -158,7 +158,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
           <button
             key="ALL"
             onClick={() => setSelectedRole('ALL')}
-            className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+            className={`min-w-[100px] flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
           >
             Tutti
           </button>
@@ -199,8 +199,8 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
               />
             ))}
           </FilterSection>
-          <div className="flex items-center gap-4 my-4">
-            <div className="w-1/4">
+          <div className="flex flex-col md:flex-row items-center gap-4 my-4">
+            <div className="w-full md:w-1/4">
               <input
                 type="text"
                 placeholder="Digita nome giocatore…"
@@ -209,7 +209,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out"
               />
             </div>
-            <div className="w-3/4">
+            <div className="w-full md:w-3/4">
               <button
                 onClick={handleAnalysisRequest}
                 disabled={isAnalysisLoading || filteredPlayers.length === 0}
