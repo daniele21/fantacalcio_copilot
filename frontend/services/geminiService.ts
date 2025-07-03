@@ -30,7 +30,7 @@ Il segmento di mercato da analizzare è: ${roleName}.
 I giocatori in questo segmento includono: ${playerList}.
 
 Basandoti sui risultati della ricerca web, fornisci un'analisi strategica concisa che includa:
-- Un riassunto del trend generale per questo segmento (es. "costosi", "sottovalutati", "poche opzioni valide").
+- Un riassunto del trend generale per questo segmento (es. "costosi", "sottovalutati", "poche opzioni valide", ...).
 - I 2-3 giocatori "più caldi" o consigliati dalle guide online, con una breve motivazione del perché.
 - Una potenziale "trappola" o giocatore sopravvalutato da evitare.
 

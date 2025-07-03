@@ -219,7 +219,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
         });
         // Debug: log which players are assigned to which teams
         teamsMap.forEach((teamData, teamName) => {
-            console.log(`[TeamsView DEBUG] Team '${teamName}' has players:`, teamData.players.map(p => p.name));
+            // console.log(`[TeamsView DEBUG] Team '${teamName}' has players:`, teamData.players.map(p => p.name));
         });
         // Calculate totals and sort players for each team
         teamsMap.forEach(teamData => {

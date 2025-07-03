@@ -17,6 +17,32 @@ interface TeamStatusProps {
 }
 
 export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, roleBudget }) => {
+    // Map backend roster keys to frontend keys if needed
+    function mapRosterKeys(roster: any) {
+        if (!roster) return { POR: 0, DIF: 0, CEN: 0, ATT: 0 };
+        // If already mapped, return as is
+        if ('POR' in roster && 'DIF' in roster && 'CEN' in roster && 'ATT' in roster) return roster;
+        return {
+            POR: roster.P ?? 0,
+            DIF: roster.D ?? 0,
+            CEN: roster.C ?? 0,
+            ATT: roster.A ?? 0,
+        };
+    }
+    const mappedRoster = mapRosterKeys(leagueSettings.roster);
+
+    // Defensive: keep last valid roster
+    const lastValidRoster = React.useRef(mappedRoster);
+    React.useEffect(() => {
+        if (mappedRoster && Object.values(mappedRoster).every(v => typeof v === 'number' && v > 0)) {
+            lastValidRoster.current = mappedRoster;
+        }
+    }, [mappedRoster]);
+    const safeRoster = mappedRoster && Object.values(mappedRoster).every(v => typeof v === 'number' && v > 0)
+        ? mappedRoster
+        : lastValidRoster.current;
+    
+    console.log('TeamStatus leagueSettings:', leagueSettings);
     
     const budgetInfo = useMemo(() => {
         const spent = myTeam.reduce((sum, p) => sum + p.purchasePrice, 0);
@@ -31,13 +57,20 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
             return acc;
         }, {} as Record<Role, number>);
 
-        return ROLES_ORDER.map(role => ({
-            role,
-            name: ROLE_NAMES[role],
-            current: counts[role] || 0,
-            max: leagueSettings.roster[role],
-        }));
-    }, [myTeam, leagueSettings.roster]);
+        return ROLES_ORDER.map(role => {
+            const max = safeRoster?.[role] ?? 0;
+            if (max === 0) {
+                console.warn(`Missing or zero max value for role '${role}' in leagueSettings.roster`);
+            }
+            return {
+                role,
+                name: ROLE_NAMES[role],
+                current: counts[role] || 0,
+                max,
+                missing: max === 0
+            };
+        });
+    }, [myTeam, safeRoster]);
     
     const spentByRole = useMemo(() => {
         const spending: Record<Role, number> = { [Role.GK]: 0, [Role.DEF]: 0, [Role.MID]: 0, [Role.FWD]: 0 };
@@ -68,10 +101,10 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
                 <div>
                     <h3 className="font-semibold text-content-100 mb-3 text-lg">Slot Rosa</h3>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                        {rosterInfo.map(({ role, name, current, max }) => (
+                        {rosterInfo.map(({ role, name, current, max, missing }) => (
                             <div key={role} className="flex justify-between items-center text-base">
                                 <span className="flex items-center gap-2 text-content-200">{ROLE_ICONS[role]} {name}</span>
-                                <span className={`font-bold px-2 py-0.5 rounded ${current === max ? 'bg-brand-primary/20 text-brand-primary' : 'bg-base-300 text-content-100'}`}>{current}/{max}</span>
+                                <span className={`font-bold px-2 py-0.5 rounded ${current === max && !missing ? 'bg-brand-primary/20 text-brand-primary' : 'bg-base-300 text-content-100'} ${missing ? 'border border-red-500 text-red-500' : ''}`}>{current}/{max}{missing ? ' ⚠️' : ''}</span>
                             </div>
                         ))}
                     </div>

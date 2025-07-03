@@ -64,7 +64,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
 
     // For debugging: log buyer and participantNames
     useEffect(() => {
-        console.log('buyer:', buyer, 'participantNames:', participantNames);
+        // console.log('buyer:', buyer, 'participantNames:', participantNames);
     }, [buyer, participantNames]);
 
     const suggestions = useMemo(() => {
