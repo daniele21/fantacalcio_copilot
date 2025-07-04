@@ -243,7 +243,7 @@ const App: React.FC = () => {
                                {/* Settings and logout only if logged in */}
                                {isLoggedIn && (
                                  <>
-                                   <button onClick={handleSignOut} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
+                                   <button onClick={() => { handleSignOut(); window.location.reload(); }} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
                                        <LogOut className="w-4 h-4"/>
                                    </button>
                                  </>
