@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { AIGenerativeBadge } from "./shared/AIGenerativeBadge";
 import { PoweredByGeminiBadge } from "./shared/PoweredByGeminiBadge";
 import { VerifiedGoogleSignInBadge } from "./shared/VerifiedGoogleSignInBadge";
+import CookieConsent from "react-cookie-consent";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -278,6 +279,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="flex justify-center mb-4">
             <PoweredByGeminiBadge />
           </div>
+          <div className="h-8" />
           <p className="mt-6 text-lg md:text-2xl font-semibold text-content-200">
             FantaCopilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
           </p>
@@ -359,11 +361,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </section>
       </main>
-
-      {/* ------------------------------------------------ FOOTER */}
-      <footer className="mt-32 py-10 bg-base-200 text-center text-sm text-content-200">
-        © {new Date().getFullYear()} FantaCopilot · Tutti i diritti riservati
-      </footer>
+      <div className="h-32" />
     </div>
   );
 };
