@@ -9,5 +9,18 @@ export const fetchLeagueSettings = async (token?: string) => {
     { method: 'GET' },
     token
   );
-  return resp.data.settings;
+  const settings = resp.data.settings;
+  if (!settings) return settings;
+  // Map backend roster keys (P, D, C, A) to enum values (POR, DIF, CEN, ATT)
+  const backendToEnum: Record<string, string> = { P: 'POR', D: 'DIF', C: 'CEN', A: 'ATT' };
+  const migratedRosterRaw = Object.fromEntries(
+    Object.entries(settings.roster || {}).map(([k, v]) => [backendToEnum[k] || k, v])
+  );
+  const migratedRoster = {
+    POR: migratedRosterRaw.POR ?? 0,
+    DIF: migratedRosterRaw.DIF ?? 0,
+    CEN: migratedRosterRaw.CEN ?? 0,
+    ATT: migratedRosterRaw.ATT ?? 0,
+  };
+  return { ...settings, roster: migratedRoster };
 };

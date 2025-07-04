@@ -93,7 +93,7 @@ MIT – Usa, modifica, condividi. Ma soprattutto… **divertiti a vincere la tua
 <details>
 <summary>🇬🇧 English version</summary>
 
-### Fantacalcio Copilot – The auction reinvented
+### FantaCopilot – The auction reinvented
 
 *(Compact English description mirroring the Italian storyline – use if your repo targets an international audience.)*
 

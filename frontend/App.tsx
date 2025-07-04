@@ -13,6 +13,7 @@ import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
 import { UpgradeView } from './components/UpgradeView';
 import { FeatureGuard } from './components/FeatureGuard';
 import { SuccessPage } from './components/SuccessPage';
+import { AIGenerativeBadge } from './components/shared/AIGenerativeBadge';
 
 // Helper to map feature keys to user-friendly names
 const FEATURE_LABELS: Record<string, string> = {
@@ -219,38 +220,40 @@ const App: React.FC = () => {
         <BrowserRouter>
             <div>
                 {/* Header - always visible */}
-                <header className="sticky top-0 z-30 w-full bg-base-100/80 backdrop-blur-lg">
-                    <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex h-16 items-center justify-between border-b border-base-300">
-                            <div className="flex items-center">
-                                <ShieldCheck className="w-8 h-8 text-brand-primary" />
-                                <h1 className="ml-2 text-xl font-bold">Fantacalcio Copilot</h1>
-                            </div>
-                            <div className="flex items-center gap-4">
-                               {profile && (
-                                    <div className="flex items-center gap-3">
-                                        <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
-                                        <div className="hidden sm:block">
-                                            <p className="text-sm font-semibold">{profile.name}</p>
-                                            <p className="text-xs text-content-200 capitalize">{profile.plan || 'Free'} Plan</p>
-                                        </div>
-                                    </div>
-                               )}
-                               {/* Show Google Sign-In badge if not logged in */}
-                               {!isLoggedIn && (
-                                   <div ref={googleSignInRef}></div>
-                               )}
-                               {/* Settings and logout only if logged in */}
-                               {isLoggedIn && (
-                                 <>
-                                   <button onClick={() => { handleSignOut(); window.location.reload(); }} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
-                                       <LogOut className="w-4 h-4"/>
-                                   </button>
-                                 </>
-                               )}
-                            </div>
-                        </div>
+                <header className="bg-base-100 shadow-sm sticky top-0 z-40">
+                  <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="w-7 h-7 text-brand-primary" />
+                      <span className="font-extrabold text-xl tracking-tight text-content-100">FantaCopilot</span>
+                    <div className="text-brand-primary text-lg font-semibold tracking-wide text-center md:text-center">
+                        La tua asta, potenziata dall’<strong>AI</strong>
                     </div>
+                      <AIGenerativeBadge className="ml-2" />
+                    </div>
+                    <div className="flex items-center gap-4">
+                       {profile && (
+                            <div className="flex items-center gap-3">
+                                <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
+                                <div className="hidden sm:block">
+                                    <p className="text-sm font-semibold">{profile.name}</p>
+                                    <p className="text-xs text-content-200 capitalize">{profile.plan || 'Free'} Plan</p>
+                                </div>
+                            </div>
+                       )}
+                       {/* Show Google Sign-In badge if not logged in */}
+                       {!isLoggedIn && (
+                           <div ref={googleSignInRef}></div>
+                       )}
+                       {/* Settings and logout only if logged in */}
+                       {isLoggedIn && (
+                         <>
+                           <button onClick={() => { handleSignOut(); window.location.reload(); }} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
+                               <LogOut className="w-4 h-4"/>
+                           </button>
+                         </>
+                       )}
+                    </div>
+                  </div>
                 </header>
                 <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     {/* Loading and error states */}

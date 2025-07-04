@@ -13,6 +13,9 @@ import { useAuth } from "../services/AuthContext";
 import { SuccessPage } from "./SuccessPage";
 import { useApi } from "../services/useApi";
 import { useNavigate } from "react-router-dom";
+import { AIGenerativeBadge } from "./shared/AIGenerativeBadge";
+import { PoweredByGeminiBadge } from "./shared/PoweredByGeminiBadge";
+import { VerifiedGoogleSignInBadge } from "./shared/VerifiedGoogleSignInBadge";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -262,27 +265,35 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* ------------------------------------------------ MAIN CONTENT */}
       <main className="flex-1">
         <section className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32 text-center max-w-5xl">
+
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
             Punta meglio. 
+            <br></br>
             Rilancia più veloce. 
           </h1>
+            <h1 className="text-6xl md:text-8xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-200 to-green-600">
+              Vinci la tua lega.
+            </h1>
           <br></br>
-          <p className="text-7xl md:text-8xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
-            Vinci la tua lega.
-          </p>
-          <br></br>
+          <div className="flex justify-center mb-4">
+            <PoweredByGeminiBadge />
+          </div>
           <p className="mt-6 text-lg md:text-2xl font-semibold text-content-200">
-            Fantacalcio Copilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
+            FantaCopilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
           </p>
 
-          <div className="mt-10 flex justify-center gap-4">
+          <div className="mt-10 flex flex-col items-center gap-2">
             {!isLoggedIn ? (
-              <button
-                onClick={() => handleSubscribe("free")}
-                className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300"
-              >
-                Prova gratis con Google
-              </button>
+              <>
+                <button
+                  onClick={() => handleSubscribe("free")}
+                  className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300"
+                >
+                  Prova gratis. Accedi con Google
+                </button>
+                {/* Google Sign-In badge directly under the button */}
+                {/* <VerifiedGoogleSignInBadge className="mt-2" /> */}
+              </>
             ) : (
               <button
                 onClick={() => {
@@ -351,7 +362,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* ------------------------------------------------ FOOTER */}
       <footer className="mt-32 py-10 bg-base-200 text-center text-sm text-content-200">
-        © {new Date().getFullYear()} Fantacalcio Copilot · Tutti i diritti riservati
+        © {new Date().getFullYear()} FantaCopilot · Tutti i diritti riservati
       </footer>
     </div>
   );

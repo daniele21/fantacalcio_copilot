@@ -126,7 +126,21 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
         if (parsed && typeof parsed === 'object') {
           if (parsed.participants) setParticipants(parsed.participants);
           if (parsed.budget) setBudget(parsed.budget);
-          if (parsed.roster) setRoster(parsed.roster);
+          // --- MIGRATION: map old roster keys to Role enum values if needed ---
+          if (parsed.roster) {
+            const migratedRoster: typeof parsed.roster = {};
+            Object.entries(parsed.roster).forEach(([key, value]) => {
+              // Accept both old and new keys
+              switch (key) {
+                case 'POR': migratedRoster['POR'] = value; break;
+                case 'DIF': migratedRoster['DIF'] = value; break;
+                case 'CEN': migratedRoster['CEN'] = value; break;
+                case 'ATT': migratedRoster['ATT'] = value; break;
+                default: migratedRoster[key] = value;
+              }
+            });
+            setRoster(migratedRoster);
+          }
           if (parsed.participantNames) setParticipantNames(parsed.participantNames);
           if (typeof parsed.useCleanSheetBonus === 'boolean') setUseCleanSheetBonus(parsed.useCleanSheetBonus);
           if (typeof parsed.useDefensiveModifier === 'boolean') setUseDefensiveModifier(parsed.useDefensiveModifier);
@@ -196,10 +210,19 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
         const data = await call<any>(`${BASE_URL}/api/league-settings`, {
           headers: { Authorization: `Bearer ${idToken}` }
         });
-        if (data.settings) {
-          setParticipants(data.settings.participants);
-          setBudget(data.settings.budget);
-          setRoster(data.settings.roster);
+        if (data.data.settings) {
+          setParticipants(data.data.settings.participants);
+          setBudget(data.data.settings.budget);
+          // Robustly map any possible backend roster keys to the correct enum keys
+          const r = data.data.settings.roster || {};
+          const rosterFinal = {
+            POR: r.POR ?? r.P ?? r.GK ?? 0,
+            DIF: r.DIF ?? r.D ?? r.DEF ?? 0,
+            CEN: r.CEN ?? r.C ?? r.MID ?? 0,
+            ATT: r.ATT ?? r.A ?? r.FWD ?? 0,
+          };
+          console.log('Loaded roster from API:', r, 'Mapped roster:', rosterFinal);
+          setRoster(rosterFinal);
           setParticipantNames(data.settings.participantNames);
           setUseCleanSheetBonus(data.settings.useCleanSheetBonus);
           setUseDefensiveModifier(data.settings.useDefensiveModifier);
@@ -219,8 +242,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
       <div className="bg-base-200 w-full max-w-2xl rounded-2xl shadow-2xl border border-base-300/50 p-2 sm:p-6 md:p-8 transform transition-all animate-fade-in-up max-h-[95vh] flex flex-col">
         <div className="flex flex-col items-center text-center">
           <ShieldCheck className="w-16 h-16 text-brand-primary mb-4" />
-          <h2 className="text-3xl font-bold text-content-100">Benvenuto in Fantacalcio Copilot</h2>
-          <p className="text-content-200 mt-2 max-w-md">Imposta i parametri base della tua lega per iniziare.</p>
+          <h2 className="text-3xl font-bold text-content-100">Benvenuto in FantaCopilot</h2>
           <button
             type="button"
             onClick={() => navigate('/')} 
@@ -228,6 +250,35 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
           >
             <span>←</span> Torna alla Home
           </button>
+          {/* Scelta Modalità */}
+        <div className="mt-auto pt-6 bg-base-200 sticky bottom-0 z-10">
+          <h3 className="text-center font-semibold text-content-100 mb-4">Scegli la modalità e inizia</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => handleSubmit('preparation')}
+              disabled={!isFormValid}
+              className="group flex flex-col items-center text-center p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Play className="w-10 h-10 text-brand-primary mb-3 transition-transform group-hover:scale-110" />
+              <h4 className="font-bold text-lg text-content-100">Preparazione Asta</h4>
+              <p className="text-sm text-content-200">Analizza giocatori e crea la tua strategia prima dell'asta.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSubmit('live_auction')}
+              disabled={!isFormValid}
+              className="group flex flex-col items-center text-center p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Zap className="w-10 h-10 text-brand-primary mb-3 transition-transform group-hover:scale-110" />
+              <h4 className="font-bold text-lg text-content-100">Assistente Live</h4>
+              <p className="text-sm text-content-200">Ricevi suggerimenti in tempo reale durante l'asta.</p>
+            </button>
+          </div>
+        </div>
+        <br></br>
+          <p className="text-content-200 mt-2 max-w-md">Imposta i parametri base della tua lega per iniziare.</p>
+          
         </div>
         <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-8 space-y-4 flex-grow overflow-y-auto pr-0 sm:pr-2 min-h-[40vh]">
           <div>
@@ -327,7 +378,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
                     <button type="button" onClick={() => handleRosterChange(role, -1)} disabled={roster[role] <= 0} className="p-2 rounded-md text-content-200 hover:bg-base-300 disabled:opacity-50 transition-colors">
                       <Minus className="w-5 h-5" />
                     </button>
-                    <span className="text-xl font-bold text-brand-primary w-12 text-center select-none">{roster[role]}</span>
+                    <span className="text-xl font-bold text-brand-primary w-12 text-center select-none">
+                      {roster[role] ?? <span className="text-content-200">—</span>}
+                    </span>
                     <button type="button" onClick={() => handleRosterChange(role, 1)} disabled={roster[role] >= 15} className="p-2 rounded-md text-content-200 hover:bg-base-300 disabled:opacity-50 transition-colors">
                       <Plus className="w-5 h-5" />
                     </button>
@@ -365,32 +418,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
             </div>
           </CollapsibleSection>
         </form>
-        {/* Scelta Modalità */}
-        <div className="mt-auto pt-6 border-t border-base-300 bg-base-200 sticky bottom-0 z-10">
-          <h3 className="text-center font-semibold text-content-100 mb-4">Scegli la modalità e inizia</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              type="button"
-              onClick={() => handleSubmit('preparation')}
-              disabled={!isFormValid}
-              className="group flex flex-col items-center text-center p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Play className="w-10 h-10 text-brand-primary mb-3 transition-transform group-hover:scale-110" />
-              <h4 className="font-bold text-lg text-content-100">Preparazione Asta</h4>
-              <p className="text-sm text-content-200">Analizza giocatori e crea la tua strategia prima dell'asta.</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSubmit('live_auction')}
-              disabled={!isFormValid}
-              className="group flex flex-col items-center text-center p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Zap className="w-10 h-10 text-brand-primary mb-3 transition-transform group-hover:scale-110" />
-              <h4 className="font-bold text-lg text-content-100">Assistente Live</h4>
-              <p className="text-sm text-content-200">Ricevi suggerimenti in tempo reale durante l'asta.</p>
-            </button>
-          </div>
-        </div>
+        
         <style>{`
           @keyframes fade-in-up {
             from { opacity: 0; transform: translateY(20px) scale(0.95); }

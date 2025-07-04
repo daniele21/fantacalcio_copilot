@@ -1,5 +1,5 @@
 {
-  "name": "Fantacalcio Copilot AI",
+  "name": "FantaCopilot AI",
   "description": "Un'applicazione web PWA per assistere i fantallenatori durante la preparazione e lo svolgimento delle aste del Fantacalcio, potenziata da Gemini per analisi e suggerimenti intelligenti.",
   "requestFramePermissions": [],
   "prompt": ""
