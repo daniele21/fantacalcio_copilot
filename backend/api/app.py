@@ -159,6 +159,32 @@ def create_app():
             app.logger.exception('Error retrieving checkout session')
             return jsonify_error('stripe_error', 'Could not retrieve session', 500)
 
+    @app.route('/api/checkout-session', methods=['POST'])
+    @require_auth
+    def post_checkout_session():
+        data = request.get_json() or {}
+        plan = data.get('plan')
+        session_id = data.get('sessionId')
+        if not plan or not session_id:
+            return jsonify_error('missing_data', 'Missing plan or sessionId')
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            db_type = os.getenv('DB_TYPE', 'sqlite')
+            db = get_db()
+            if db_type == 'firestore':
+                user_ref = db.collection('users').document(session.client_reference_id)
+                user_ref.set({'plan': plan}, merge=True)
+            else:
+                db.execute(
+                    "UPDATE users SET plan = ? WHERE google_sub = ?",
+                    (plan, session.client_reference_id)
+                )
+                db.commit()
+            return jsonify_success({'status': 'updated', 'plan': plan})
+        except Exception:
+            app.logger.exception('Error updating plan after checkout')
+            return jsonify_error('stripe_error', 'Could not update plan', 500)
+
     # --- /api/save-league-settings ---
     @app.route('/api/save-league-settings', methods=['POST'])
     @require_auth
