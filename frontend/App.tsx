@@ -14,6 +14,9 @@ import { UpgradeView } from './components/UpgradeView';
 import { FeatureGuard } from './components/FeatureGuard';
 import { SuccessPage } from './components/SuccessPage';
 import { AIGenerativeBadge } from './components/shared/AIGenerativeBadge';
+import PrivacyPage from './components/PrivacyPage';
+import { CookieProvider } from './services/CookieContext';
+import { CookieBanner } from './components/CookieBanner';
 
 // Helper to map feature keys to user-friendly names
 const FEATURE_LABELS: Record<string, string> = {
@@ -217,7 +220,9 @@ const App: React.FC = () => {
     }, [profile]);
 
     return (
-        <BrowserRouter>
+        <CookieProvider>
+          <BrowserRouter>
+            <CookieBanner />
             <div>
                 {/* Header - always visible */}
                 <header className="bg-base-100 shadow-sm sticky top-0 z-40">
@@ -264,11 +269,10 @@ const App: React.FC = () => {
                         </div>
                     ) : error ? (
                         <div className="text-center text-red-500 py-20">{error}</div>
-                    ) : !isLoggedIn || !profile ? (
-                        <HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>
                     ) : (
                         <Routes>
                             <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
+                            <Route path="/privacy" element={<PrivacyPage />} />
                             <Route path="/success" element={<SuccessPage />} />
                             <Route path="/setup" element={<SetupWizard onConfirm={handleSetupConfirm} initialSettings={leagueSettings} />} />
                             <Route path="/preparation" element={
@@ -323,7 +327,7 @@ const App: React.FC = () => {
                                 </FeatureGuard>
                             } />
                             <Route path="/auction" element={
-                                <FeatureGuard feature="liveAuction" fallback={<UpgradeView featureName={FEATURE_LABELS['liveAuction']} onNavigateHome={handleGoHome} />}>
+                                <FeatureGuard feature="liveAuction" fallback={<UpgradeView featureName={FEATURE_LABELS['liveAuction']} onNavigateHome={handleGoHome} />}> 
                                     <LiveAuctionView 
                                         players={players}
                                         myTeam={myTeam}
@@ -336,13 +340,13 @@ const App: React.FC = () => {
                                     />
                                 </FeatureGuard>
                             } />
-                            {/* <Route path="/upgrade" element={<UpgradeView featureName={FEATURE_LABELS['strategyPrep']} onNavigateHome={handleGoHome} />} /> */}
                             <Route path="*" element={<Navigate to="/" />} />
                         </Routes>
                     )}
                 </main>
             </div>
-        </BrowserRouter>
+          </BrowserRouter>
+        </CookieProvider>
     );
 };
 
