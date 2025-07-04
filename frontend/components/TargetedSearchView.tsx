@@ -1,9 +1,8 @@
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Player, DetailedAnalysisResult, Role } from '../types';
 import { getDetailedPlayerAnalysis } from '../services/geminiService';
 import { Search, Sparkles, X, Loader, AlertTriangle, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
+import { AIGenerativeBadge } from "./shared/AIGenerativeBadge";
 
 interface TargetedSearchViewProps {
     players: Player[];
@@ -96,7 +95,11 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
 
     return (
         <div className="bg-base-200 p-4 md:p-6 rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold text-brand-primary mb-1">Ricerca Mirata & Analisi On-Demand</h2>
+            <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-2xl font-bold text-brand-primary">Ricerca Mirata & Analisi On-Demand</h2>
+                <AIGenerativeBadge />
+            </div>
+            
             <p className="text-content-200 mb-6">Trova un giocatore e ottieni un'analisi dettagliata generata da Gemini e aggiornata con dati web.</p>
 
             <div className="relative mb-4">

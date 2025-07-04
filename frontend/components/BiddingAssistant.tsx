@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Player, MyTeamPlayer, LeagueSettings, Role, BiddingAdviceResult } from '../types';
 import { getBiddingAdvice } from '../services/geminiService';
 import { Search, Sparkles, X, Loader, AlertTriangle, Gavel, Coins, MessageSquare, Star, PiggyBank, Users, Tag, Lightbulb } from 'lucide-react';
+import { AIGenerativeBadge } from "./shared/AIGenerativeBadge";
 
 interface BiddingAssistantProps {
     availablePlayers: Player[];
@@ -119,6 +120,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                     <h2 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
                         Assistente Offerte Asta
                     </h2>
+                    <AIGenerativeBadge />
                 </div>
                 <p className="text-content-200 mb-6 ml-11">
                     Il tuo copilota intelligente per le decisioni in tempo reale.
