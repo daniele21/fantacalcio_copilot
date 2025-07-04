@@ -268,13 +268,12 @@ export const HomePage: React.FC<HomePageProps> = ({
         <section className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32 text-center max-w-5xl">
 
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
-            Punta meglio. 
-            <br></br>
-            Rilancia più veloce. 
+        <span className="block">Punta meglio.</span>
+        <span className="block">Rilancia più veloce.</span>
           </h1>
-            <h1 className="text-6xl md:text-8xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-200 to-green-600">
+            <h2 className="text-6xl leading-[1.15] md:text-8xl md:leading-[1.15] font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-200 to-green-600">
               Vinci la tua lega.
-            </h1>
+            </h2>
           <br></br>
           <div className="flex justify-center mb-4">
             <PoweredByGeminiBadge />
