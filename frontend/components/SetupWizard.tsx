@@ -316,7 +316,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
                 <label className="text-sm font-medium text-content-200 mb-2 block">
                   Numero Partecipanti
                 </label>
-                <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1 max-w-xs">
+                <div className="flex flex-row items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1 max-w-xs">
                   <button
                     type="button"
                     onClick={() => handleParticipantsChange(-1)}
@@ -374,7 +374,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
               {ROLES_ORDER.map(role => (
                 <div key={role}>
                   <label className="text-sm font-medium text-content-200 mb-2 block">{ROLE_NAMES[role]}</label>
-                  <div className="flex flex-col xs:flex-row items-stretch xs:items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1">
+                  <div className="flex flex-row items-center justify-between gap-2 bg-base-100 border border-base-300 rounded-lg p-1">
                     <button type="button" onClick={() => handleRosterChange(role, -1)} disabled={roster[role] <= 0} className="p-2 rounded-md text-content-200 hover:bg-base-300 disabled:opacity-50 transition-colors">
                       <Minus className="w-5 h-5" />
                     </button>
@@ -402,7 +402,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
               `${useCleanSheetBonus ? 'Porta Imbattuta' : ''}${useCleanSheetBonus && useDefensiveModifier ? ' • ' : ''}${useDefensiveModifier ? 'Mod. Difesa' : ''}`.trim() || 'Default'
             }
           >
-            <div className="space-y-3">
+            <div className="flex flex-col md:flex-row gap-3 md:gap-6 items-stretch md:items-end">
               <ToggleSwitch
                 label="Bonus Porta Imbattuta"
                 description="Attiva il bonus per il portiere quando non subisce gol."
