@@ -333,7 +333,7 @@ const ROLE_ICONS: { [key in Role]: string } = {
         return players.filter(p => 
             p.id !== player.id &&
             p.role === player.role && // Ensure same role
-            !auctionedIds.has(p.id)
+            !auctionedIds.has(p.id) // Only not already taken players
         )
         .sort((a,b) => b.recommendation - a.recommendation || (b.baseCost ?? 0) - (a.baseCost ?? 0))
         .slice(0, 5);
@@ -393,7 +393,7 @@ export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid
             {/* <CollapsibleSection title="Analisi 'What if...?'" icon={<TrendingUp size={20} />} defaultOpen>
                 <WhatIfAnalysis myTeam={myTeam} leagueSettings={leagueSettings} currentPrice={currentBid} />
             </CollapsibleSection> */}
-            <CollapsibleSection title="Alternative" icon={<FileText size={20} />}>
+            <CollapsibleSection title="Alternative" icon={<FileText size={20} />} defaultOpen>
                 <AlternativesCarousel 
                     player={player} 
                     players={players} 
