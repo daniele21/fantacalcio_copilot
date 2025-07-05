@@ -117,7 +117,12 @@ const RoleBudgetImpactBar: React.FC<{ player: Player; currentBid: number; myTeam
 
     return (
         <div className="bg-base-200 rounded-lg shadow-lg p-3">
-            <h3 className="text-sm font-semibold text-content-200 mb-2">Impatto sul Budget del Ruolo</h3>
+            <h3 className="text-sm font-semibold text-content-200 mb-2">
+                Impatto sul Budget del Ruolo
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded bg-base-300 text-brand-primary font-bold text-xs align-middle">
+                    {player.role} {/* Optionally add icon: {ROLE_ICONS[player.role]} */}
+                </span>
+            </h3>
             <div className="w-full bg-base-300 rounded-full h-5 relative overflow-hidden">
                 <div 
                     className={`h-full rounded-full transition-all duration-300 ${isOver ? 'bg-red-500' : 'bg-brand-primary'}`}
