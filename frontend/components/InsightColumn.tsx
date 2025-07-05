@@ -321,19 +321,24 @@ const RiskFactors: React.FC<{ player: Player }> = ({ player }) => {
 // --- SUB-COMPONENT: ALTERNATIVES CAROUSEL ---
 const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentBid' | 'roleBudget'>> = ({ player, players, auctionLog, leagueSettings }) => {
     // Add role icon mapping
-const ROLE_ICONS: { [key in Role]: string } = {
-  P: '🧤',
-  D: '🛡️',
-  C: '⚽',
-  A: '🎯',
-};
+    const ROLE_ICONS: { [key in Role]: string } = {
+      P: '🧤',
+      D: '🛡️',
+      C: '⚽',
+      A: '🎯',
+    };
 
+    // Only show alternatives that are NOT taken (not present in auctionLog)
     const alternatives = useMemo(() => {
-        const auctionedIds = new Set(Object.keys(auctionLog).map(Number));
+        // Defensive: filter out all players present in auctionLog, regardless of key type
+        const auctionedIds = new Set([
+            ...Object.keys(auctionLog).map(Number),
+            ...Object.values(auctionLog).map(r => r.playerId)
+        ]);
         return players.filter(p => 
             p.id !== player.id &&
-            p.role === player.role && // Ensure same role
-            !auctionedIds.has(p.id) // Only not already taken players
+            p.role === player.role &&
+            !auctionedIds.has(p.id)
         )
         .sort((a,b) => b.recommendation - a.recommendation || (b.baseCost ?? 0) - (a.baseCost ?? 0))
         .slice(0, 5);
