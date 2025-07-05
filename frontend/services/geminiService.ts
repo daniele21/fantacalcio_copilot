@@ -140,7 +140,7 @@ Sii specifico, incisivo e vai dritto al punto. Evita frasi generiche. Rispondi i
   }
 };
 
-export const getBiddingAdvice = async (player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings, currentBid: number, roleBudget: Record<Role, number>): Promise<BiddingAdviceResult> => {
+export const getBiddingAdvice = async (player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings, currentBid: number, roleBudget: Record<Role, number>, allPlayers?: Player[], auctionLog?: Record<number, any>): Promise<BiddingAdviceResult> => {
     if (!API_KEY) {
         throw new Error("Consiglio AI non disponibile (API Key mancante).");
     }
@@ -164,19 +164,31 @@ export const getBiddingAdvice = async (player: Player, myTeam: MyTeamPlayer[], s
     const spentOnRole = spentByRole[player.role] || 0;
     const remainingBudgetForRole = allocatedBudgetForRole - spentOnRole;
 
+    // --- NEW: Find alternative players still available for this role ---
+    console.log('getBiddingAdvice allPlayers:', allPlayers ? allPlayers.length : allPlayers, 'auctionLog:', auctionLog ? Object.keys(auctionLog).length : auctionLog);
+    let alternativesList: Player[] = [];
+    if (allPlayers && auctionLog) {
+        const auctionedIds = new Set(Object.keys(auctionLog).map(Number));
+        alternativesList = allPlayers.filter(p => 
+            p.id !== player.id &&
+            p.role === player.role &&
+            !auctionedIds.has(p.id)
+        ).sort((a, b) => (b.recommendation ?? 0) - (a.recommendation ?? 0)).slice(0, 5);
+        console.log('AI BiddingAdvice alternativesList:', alternativesList);
+    }
+    const alternativesStr = alternativesList.length > 0 ? alternativesList.map(p => `${p.name} (${p.team})`).join(", ") : "Nessuna alternativa di rilievo";
 
     const prompt = `Sei un copilota esperto per un'asta di Fantacalcio. Devo decidere se fare un'offerta per un giocatore. Analizza la situazione e restituisci SOLO un oggetto JSON con consigli strategici separati, seguendo questa interfaccia TypeScript, senza aggiungere testo o markdown:
 
 \`\`\`
 interface BiddingAdviceResult {
-    roleBudgetAdvice: string; // Consiglio relativo allo stato del budget per questo ruolo. (Es: "Hai ancora molto budget per questo ruolo, puoi essere aggressivo.")
-    roleSlotAdvice: string; // Consiglio relativo agli slot per questo ruolo. (Es: "Ti mancano ancora 3 attaccanti, quindi non puoi concentrare tutto il budget su di lui.")
-    recommendedPriceAdvice: string; // Consiglio sul prezzo basato sulla squadra attuale. (Es: "Considerando la tua rosa, un prezzo giusto sarebbe intorno a 75-80 crediti.")
-    opportunityAdvice: string; // Consiglio sull'opportunità di mercato. (Es: "A questo prezzo è un affare. Il suo potenziale giustifica una spesa anche maggiore.")
+    roleBudgetAdvice: string; // Consiglio relativo allo stato del budget per questo ruolo. (Es: "Hai ancora molto budget per questo ruolo, puoi essere aggressivo.") [Breve descrizione]
+    roleSlotAdvice: string; // Consiglio relativo all'appeal del giocatore in asta e le alternative disponibili ancora per questo ruolo. (Es: "Ti mancano X posti da riempire. Questo giocatore è uno dei migliori disponibili per il ruolo, ma ci sono anche queste alternative valide: xxxx, xxxx.") [Breve descrizione]
+    recommendedPriceAdvice: string; // Consiglio sul prezzo massimo da spendere sulla basa dei giocatori gia in squadra attuale. (Es: "Considerando la tua rosa, un prezzo giusto sarebbe intorno a 75-80 crediti.") [Breve Descrizione]
+    opportunityAdvice: string; // Consiglio sull'opportunità di mercato, tra prezzo asta, valore giocatore e alternative valide ancora disponibili. (Es: "A questo prezzo è un affare. Il suo potenziale giustifica una spesa anche maggiore.") [Breve Descrizione]
     finalAdvice: string; // Il consiglio finale e definitivo, secco e diretto, con un range massimo di puntata. (Es: "Sì, rilancia fino a 85. È un'occasione da cogliere, ma non superare questa soglia per non compromettere gli acquisti futuri.")
 }
 \`\`\`
-
 **1. GIOCATORE IN ESAME:**
 *   Nome: ${player.name || "(sconosciuto)"} (${player.role || "?"}, ${player.team || "?"})
 *   Punteggio Copilot: ${player.recommendation ?? "?"}/5
@@ -184,13 +196,13 @@ interface BiddingAdviceResult {
 **2. LA MIA SITUAZIONE DI BUDGET GLOBALE:**
 *   Budget Rimanente Totale: ${remainingBudget} crediti.
 *   Slot da riempire: ${totalSlotsLeft}.
-*   Credito Medio per Slot: ${avgCreditPerSlot} crediti.
 
 **3. IL MIO PIANO PER IL RUOLO '${ROLE_NAMES[player.role] || player.role}':**
 *   Budget Allocato: ${allocatedBudgetForRole} crediti (${roleBudget[player.role]}%).
 *   Spesa Attuale: ${spentOnRole} crediti.
 *   Budget Rimanente per questo Ruolo: ${remainingBudgetForRole} crediti.
 *   Slot da riempire per questo Ruolo: **${slotsLeftForRole}**.
+*   Alternative ancora disponibili per questo ruolo: ${alternativesStr}.
 
 **4. OFFERTA ATTUALE:**
 *   Offerta: ${currentBid} crediti.

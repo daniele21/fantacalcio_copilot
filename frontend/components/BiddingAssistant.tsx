@@ -16,6 +16,8 @@ interface BiddingAssistantProps {
     onClearPlayer: () => void;
     currentBid: number | '';
     onCurrentBidChange: (value: number | '') => void;
+    auctionLog: Record<number, any>; // <-- add auctionLog prop
+    allPlayers: Player[]; // <-- NEW: full player pool
 }
 
 export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({ 
@@ -30,6 +32,8 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     onClearPlayer,
     currentBid,
     onCurrentBidChange,
+    auctionLog, // <-- add auctionLog to destructure
+    allPlayers // <-- NEW: full player pool
 }) => {
     const [query, setQuery] = useState('');
     const [finalPrice, setFinalPrice] = useState<number>(1);
@@ -88,7 +92,16 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
         setAdvice(null);
         setError('');
         try {
-            const result = await getBiddingAdvice(playerForBidding, myTeam, leagueSettings, Number(currentBid) || 1, roleBudget);
+            // Pass allPlayers and auctionLog to getBiddingAdvice for alternatives
+            const result = await getBiddingAdvice(
+                playerForBidding,
+                myTeam,
+                leagueSettings,
+                Number(currentBid) || 1,
+                roleBudget,
+                allPlayers, // <-- FIX: use full player pool
+                auctionLog
+            );
             setAdvice(result);
         } catch (e: any) {
             setError(e.message || 'Errore nel ricevere il consiglio.');
@@ -249,15 +262,14 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                         {advice && (
                              <div className="mt-4 p-4 bg-base-100 rounded-lg border border-base-300 space-y-4">
                                 <h4 className="font-bold text-lg text-content-100">Analisi del Copilota</h4>
-                                <AdviceItem icon={<PiggyBank className="w-5 h-5 text-blue-400"/>} title="Budget Ruolo" content={advice.roleBudgetAdvice} />
-                                <AdviceItem icon={<Users className="w-5 h-5 text-yellow-400"/>} title="Slot Rosa" content={advice.roleSlotAdvice} />
-                                <AdviceItem icon={<Tag className="w-5 h-5 text-purple-400"/>} title="Prezzo Consigliato" content={advice.recommendedPriceAdvice} />
-                                <AdviceItem icon={<MessageSquare className="w-5 h-5 text-green-400"/>} title="Opportunità" content={advice.opportunityAdvice} />
-                               
-                                <div className="!mt-6 p-4 bg-brand-primary/10 rounded-lg border-2 border-brand-primary/30">
+                                <div className="!mb-6 p-4 bg-brand-primary/10 rounded-lg border-2 border-brand-primary/30">
                                     <h5 className="font-bold text-lg text-brand-primary flex items-center gap-2 mb-2"><Lightbulb className="w-6 h-6"/>Verdetto Finale</h5>
                                     <p className="text-content-100 font-medium text-base">{advice.finalAdvice}</p>
                                 </div>
+                                <AdviceItem icon={<MessageSquare className="w-5 h-5 text-green-400"/>} title="Opportunità" content={advice.opportunityAdvice} />
+                                <AdviceItem icon={<Tag className="w-5 h-5 text-purple-400"/>} title="Prezzo Consigliato" content={advice.recommendedPriceAdvice} />
+                                <AdviceItem icon={<Users className="w-5 h-5 text-yellow-400"/>} title="Slot Rosa" content={advice.roleSlotAdvice} />
+                                <AdviceItem icon={<PiggyBank className="w-5 h-5 text-blue-400"/>} title="Budget Ruolo" content={advice.roleBudgetAdvice} />
                             </div>
                         )}
                         

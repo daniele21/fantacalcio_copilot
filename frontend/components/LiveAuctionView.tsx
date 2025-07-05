@@ -255,6 +255,8 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             onClearPlayer={handleClearBiddingPlayer}
                             currentBid={currentBid}
                             onCurrentBidChange={setCurrentBid}
+                            auctionLog={localAuctionLog} // <-- pass auction log
+                            allPlayers={players} // <-- pass full player pool
                         />
                     </div>
                     
