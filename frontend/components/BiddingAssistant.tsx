@@ -36,7 +36,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     allPlayers // <-- NEW: full player pool
 }) => {
     const [query, setQuery] = useState('');
-    const [finalPrice, setFinalPrice] = useState<number>(1);
+    const [finalPrice, setFinalPrice] = useState<number | ''>(1);
     const [buyer, setBuyer] = useState<string>('');
     
     const [advice, setAdvice] = useState<BiddingAdviceResult | null>(null);
@@ -47,8 +47,8 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     useEffect(() => {
         if (playerForBidding) {
             setFinalPrice(1);
-            // Only reset bid if currentBid is empty or not a number
-            if (currentBid === '' || typeof currentBid !== 'number' || currentBid < 1) {
+            // Only set bid to 1 if currentBid is undefined (not '')
+            if (currentBid === undefined) {
                 onCurrentBidChange(1);
             }
             setAdvice(null);
@@ -127,7 +127,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
             setShowRoleFullDialog(true);
             return;
         }
-        if (!playerForBidding || finalPrice <= 0 || !buyer) return;
+        if (!playerForBidding || finalPrice === '' || finalPrice <= 0 || !buyer) return;
         onPlayerAuctioned(playerForBidding, finalPrice, buyer);
     };
 
@@ -223,17 +223,25 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                     </button>
                                     <input
                                         id="current_bid"
-                                        type="number"
-                                        value={currentBid}
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={currentBid === '' ? '' : currentBid}
                                         onChange={e => {
                                             const val = e.target.value;
                                             if (val === '') {
                                                 onCurrentBidChange('');
-                                            } else {
+                                            } else if (/^\d+$/.test(val)) {
                                                 const num = parseInt(val, 10);
                                                 if (!isNaN(num) && num >= 1) {
                                                     onCurrentBidChange(num);
                                                 }
+                                            }
+                                        }}
+                                        onBlur={e => {
+                                            // If left empty on blur, set to 1
+                                            if (e.target.value === '') {
+                                                onCurrentBidChange(1);
                                             }
                                         }}
                                         placeholder="1"
@@ -304,12 +312,24 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                         >
                                             -
                                         </button>
-                                        <input id="final_price" type="number" value={finalPrice} onChange={e => {
-                                            const val = e.target.value;
-                                            const num = parseInt(val, 10);
-                                            if (!isNaN(num) && num >= 1) setFinalPrice(num);
-                                            else if (val === '') setFinalPrice(1);
-                                        }} min="1" className="w-24 text-center bg-base-200 border-2 border-base-300 text-xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2" style={{ appearance: 'textfield' }} />
+                                        <input id="final_price" type="text" inputMode="numeric" pattern="[0-9]*"
+                                            value={finalPrice === '' ? '' : finalPrice}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (val === '') setFinalPrice('');
+                                                else if (/^\d+$/.test(val)) {
+                                                    const num = parseInt(val, 10);
+                                                    if (!isNaN(num) && num >= 1) setFinalPrice(num);
+                                                }
+                                                // else: ignore invalid input
+                                            }}
+                                            onBlur={e => {
+                                                if (e.target.value === '') setFinalPrice(1);
+                                            }}
+                                            min="1"
+                                            className="w-24 text-center bg-base-200 border-2 border-base-300 text-xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
+                                            style={{ appearance: 'textfield' }}
+                                        />
                                         <button
                                             type="button"
                                             aria-label="Aumenta prezzo finale"
