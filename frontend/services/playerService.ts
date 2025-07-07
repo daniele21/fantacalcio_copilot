@@ -45,6 +45,7 @@ export function usePlayerApi() {
           ? p.skills.split(',').map((s: string) => s.trim())
           : [],
       score: p.punteggio ?? 0,
+      fvm: p.fvm ?? 0,
       // recommendation: Number(p.recommendation ?? 0),
       recommendation: Number(p.fvm_recommendation ?? 0),
       // analystCeiling: p.fanta_media_2024_2025 ?? p.fantamedia_2024_2025 ?? 0,

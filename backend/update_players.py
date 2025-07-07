@@ -31,7 +31,7 @@ def get_last_quote_file() -> str:
     else:
         df_quote['fvm_recommendation'] = 0  # fallback if column missing
         
-    df_quote['suggested_bid_min'] = df_quote['FVM'].apply(lambda x: max(int(x * 0.9), 1))
+    df_quote['suggested_bid_min'] = df_quote['FVM'].apply(lambda x: max(int(x * 0.8), 1))
     df_quote['suggested_bid_max'] = df_quote['FVM'].apply(lambda x: int(x * 1.2))
 
     return df_quote.to_dict(orient='records')

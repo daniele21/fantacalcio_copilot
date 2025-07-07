@@ -37,12 +37,13 @@ const CollapsibleSection: React.FC<{ title: string; icon: React.ReactNode; child
 // --- SUB-COMPONENT: ROI GAUGE (FIXED) ---
 const calculateOpportunityScore = (currentBid: number, player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings): number => {
     if (currentBid <= 0) return 50;
-    const scaleFactor = settings.budget / 500;
-    const scaledBaseCost = (player.baseCost ?? 0) * scaleFactor;
+    const scaleFactor = settings.budget / 100;
+    const scaledBaseCost = (player.fvm ?? 0) * scaleFactor;
     const recommendationModifier = 1 + ((player.recommendation - 3) * 0.05);
     const fairValue = scaledBaseCost * recommendationModifier;
-    const greatDealPrice = fairValue * 0.8;
+    const greatDealPrice = fairValue * 0.7;
     const overpayPrice = fairValue * 1.5;
+    let final_score;
 
     let score: number;
     if (currentBid <= greatDealPrice) score = 100;
@@ -62,7 +63,12 @@ const calculateOpportunityScore = (currentBid: number, player: Player, myTeam: M
     if (budgetPressureRatio > 1.5) {
         score -= Math.min(30, (budgetPressureRatio - 1.5) * 20);
     }
-    return Math.max(0, Math.min(100, Math.round(score)));
+    final_score = Math.max(0, Math.min(100, Math.round(score)));
+    //log final_score
+    console.log(`Calculated ROI score for ${player.name} at current bid ${currentBid}:`, final_score);
+    
+    
+    return final_score;
 };
 
 const ROIGauge: React.FC<{ score: number, currentBid: number }> = ({ score, currentBid }) => {

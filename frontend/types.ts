@@ -43,15 +43,25 @@ export interface Player {
   team: string;
   role: Role;
   price: number;
+  baseCost: number;
+  suggestedBidMin: number;
+  suggestedBidMax: number;
+  fvm: number;
   // 'skills' is the array of strings from the 'Skills' column in players_attributes.csv
   skills: Skill[];
   score: number;
   recommendation: number;
+  buonInvestimento?: number;
+  xGoal?: number;
+  fm2324?: number;
+  xPresenze?: number;
+  xAssist?: number;
   stats: PlayerStats;
 }
 
 export interface MyTeamPlayer extends Player {
   purchasePrice: number;
+  buyer?: string; // Added for TeamsView UI logic
 }
 
 export interface TargetPlayer extends Player {
@@ -98,6 +108,7 @@ export interface BiddingAdviceResult {
 }
 
 export interface AuctionResult {
+  playerId: number;
   purchasePrice: number;
   buyer: string;
 }
