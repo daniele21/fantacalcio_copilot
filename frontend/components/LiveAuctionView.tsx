@@ -212,6 +212,25 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
         }
     };
 
+    // Wrapper to sync auction log changes to local state, localStorage, and backend
+    const handleAuctionLogChange = (newAuctionLog: Record<number, AuctionResult>) => {
+        setLocalAuctionLog(newAuctionLog);
+        try {
+            localStorage.setItem('auctionLog', JSON.stringify(newAuctionLog));
+            if ('caches' in window) {
+                caches.open('fantacalcio-auction').then(cache => {
+                    const response = new Response(JSON.stringify(newAuctionLog), { headers: { 'Content-Type': 'application/json' } });
+                    cache.put('/auctionLog', response);
+                });
+            }
+        } catch (e) {
+            console.warn('Failed to persist auctionLog:', e);
+        }
+        if (idToken) {
+            saveAuctionLog(idToken, newAuctionLog);
+        }
+    };
+
     return (
         <div>
             <div className="flex flex-wrap gap-2 mb-4">
@@ -274,7 +293,13 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                         </button>
                          {isTeamsViewExpanded && (
                             <div id="teams-view-content" className="p-4 pt-0">
-                                <TeamsView auctionLog={localAuctionLog} players={players} leagueSettings={leagueSettings} onUpdateAuctionResult={handleUpdateAuctionResult} />
+                                <TeamsView
+                                    auctionLog={localAuctionLog}
+                                    players={players}
+                                    leagueSettings={leagueSettings}
+                                    onUpdateAuctionResult={handleUpdateAuctionResult}
+                                    onAuctionLogChange={handleAuctionLogChange}
+                                />
                             </div>
                         )}
                     </div>

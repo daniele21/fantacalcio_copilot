@@ -42,7 +42,7 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
         ? mappedRoster
         : lastValidRoster.current;
     
-    console.log('TeamStatus leagueSettings:', leagueSettings);
+    // console.log('TeamStatus leagueSettings:', leagueSettings);
     
     const budgetInfo = useMemo(() => {
         const spent = myTeam.reduce((sum, p) => sum + p.purchasePrice, 0);

@@ -16,20 +16,24 @@ interface TeamsViewProps {
     players: Player[];
     leagueSettings: LeagueSettings;
     onUpdateAuctionResult: (playerId: number, newPrice: number) => void;
+    onAuctionLogChange: (newAuctionLog: Record<number, AuctionResult>) => void;
 }
 
 interface EditPriceModalProps {
     player: MyTeamPlayer;
-    onSave: (newPrice: number) => void;
+    participantNames: string[];
+    onSave: (newPrice: number, newOwner: string) => void;
+    onRemove: () => void;
     onClose: () => void;
 }
 
-const EditPriceModal: React.FC<EditPriceModalProps> = ({ player, onSave, onClose }) => {
+const EditPriceModal: React.FC<EditPriceModalProps> = ({ player, participantNames, onSave, onRemove, onClose }) => {
     const [price, setPrice] = useState<number | ''>(player.purchasePrice);
+    const [owner, setOwner] = useState<string>(player.buyer || participantNames[0]);
 
     const handleSave = () => {
-        if (typeof price === 'number' && price > 0) {
-            onSave(price);
+        if (typeof price === 'number' && price > 0 && owner) {
+            onSave(price, owner);
         }
     };
 
@@ -37,18 +41,32 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ player, onSave, onClose
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-base-200 w-full max-w-md rounded-2xl shadow-2xl border border-base-300/50 p-6 transform transition-all animate-fade-in-up" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-content-100">Modifica Prezzo Acquisto</h2>
+                    <h2 className="text-xl font-bold text-content-100">Modifica Giocatore</h2>
                     <button onClick={onClose} className="p-2 text-content-200 hover:text-content-100 rounded-full hover:bg-base-300">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-                
                 <div className="mb-4">
                     <p className="text-lg font-semibold">{player.name}</p>
                     <p className="text-sm text-content-200">{player.team} - {player.role}</p>
                 </div>
-
-                <div>
+                <div className="mb-4">
+                    <label htmlFor="edit_owner" className="flex items-center text-sm font-medium text-content-200 mb-2">
+                        <Users className="w-4 h-4 mr-2" />
+                        Proprietario
+                    </label>
+                    <select
+                        id="edit_owner"
+                        value={owner}
+                        onChange={e => setOwner(e.target.value)}
+                        className="w-full bg-base-100 border border-base-300 rounded-lg px-4 py-2 text-base font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition mb-2"
+                    >
+                        {participantNames.map(name => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="mb-4">
                     <label htmlFor="edit_price" className="flex items-center text-sm font-medium text-content-200 mb-2">
                         <Coins className="w-4 h-4 mr-2" />
                         Nuovo Prezzo di Acquisto
@@ -72,21 +90,25 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ player, onSave, onClose
                         autoFocus
                     />
                 </div>
-
-                <div className="mt-6 flex justify-end space-x-3">
-                    <button onClick={onClose} className="px-4 py-2 rounded-lg text-content-100 hover:bg-base-300 transition-colors">
-                        Annulla
+                <div className="mt-6 flex flex-wrap justify-between gap-2">
+                    <button onClick={onRemove} className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
+                        Rimuovi Giocatore
                     </button>
-                    <button 
-                        onClick={handleSave} 
-                        disabled={typeof price !== 'number' || price <= 0}
-                        className="px-6 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-secondary transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
-                    >
-                        Salva
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={onClose} className="px-4 py-2 rounded-lg text-content-100 hover:bg-base-300 transition-colors">
+                            Annulla
+                        </button>
+                        <button 
+                            onClick={handleSave} 
+                            disabled={typeof price !== 'number' || price <= 0 || !owner}
+                            className="px-6 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-brand-secondary transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                        >
+                            Salva
+                        </button>
+                    </div>
                 </div>
             </div>
-             <style>{`
+            <style>{`
                 @keyframes fade-in-up {
                     from { opacity: 0; transform: translateY(20px) scale(0.95); }
                     to { opacity: 1; transform: translateY(0) scale(1); }
@@ -186,15 +208,13 @@ const TeamCard: React.FC<{ teamData: TeamData, leagueSettings: LeagueSettings, o
     );
 };
 
-export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagueSettings, onUpdateAuctionResult }) => {
+export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagueSettings, onUpdateAuctionResult, onAuctionLogChange }) => {
     const [editingPlayer, setEditingPlayer] = useState<MyTeamPlayer | null>(null);
+    const [editModalOwner, setEditModalOwner] = useState<string | null>(null);
 
     const teamsData = useMemo(() => {
-        // The definitive list of team names comes from the settings.
         const teamNames = leagueSettings.participantNames;
-        // Map all players by their ID for quick lookups.
         const allPlayersMap = new Map(players.map(p => [p.id, p]));
-        // Initialize a map to hold data for each team.
         const teamsMap = new Map<string, TeamData>();
         teamNames.forEach(name => {
             teamsMap.set(name, {
@@ -204,24 +224,18 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
                 remainingBudget: leagueSettings.budget,
             });
         });
-        // Populate teams with auctioned players
         Object.entries(auctionLog).forEach(([playerId, result]) => {
-            // Use the same logic as for 'io', but for all participants
             const player = players.find(p => String(p.id) === String(result.playerId));
             const team = teamsMap.get(result.buyer);
             if (player && team) {
                 const teamPlayer: MyTeamPlayer = {
                     ...player,
                     purchasePrice: result.purchasePrice,
+                    buyer: result.buyer,
                 };
                 team.players.push(teamPlayer);
             }
         });
-        // Debug: log which players are assigned to which teams
-        teamsMap.forEach((teamData, teamName) => {
-            // console.log(`[TeamsView DEBUG] Team '${teamName}' has players:`, teamData.players.map(p => p.name));
-        });
-        // Calculate totals and sort players for each team
         teamsMap.forEach(teamData => {
             teamData.totalSpent = teamData.players.reduce((sum, p) => sum + p.purchasePrice, 0);
             teamData.remainingBudget = leagueSettings.budget - teamData.totalSpent;
@@ -231,7 +245,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
                 return b.purchasePrice - a.purchasePrice;
             });
         });
-        // Convert map to array and sort teams (placing 'Io' first)
         return Array.from(teamsMap.values()).sort((a, b) => {
             if (a.name.toLowerCase() === 'io') return -1;
             if (b.name.toLowerCase() === 'io') return 1;
@@ -241,17 +254,37 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
 
     const handleEditClick = (player: MyTeamPlayer) => {
         setEditingPlayer(player);
+        setEditModalOwner(player.buyer || leagueSettings.participantNames[0]);
     };
 
-    const handleModalSave = (newPrice: number) => {
+    const handleModalSave = (newPrice: number, newOwner: string) => {
         if (editingPlayer) {
-            onUpdateAuctionResult(editingPlayer.id, newPrice);
+            const updated = { ...auctionLog };
+            updated[editingPlayer.id] = {
+                playerId: editingPlayer.id,
+                purchasePrice: newPrice,
+                buyer: newOwner,
+            };
+            onAuctionLogChange(updated);
+            onUpdateAuctionResult(editingPlayer.id, newPrice); // parent can sync
         }
         setEditingPlayer(null);
+        setEditModalOwner(null);
+    };
+
+    const handleModalRemove = () => {
+        if (editingPlayer) {
+            const updated = { ...auctionLog };
+            delete updated[editingPlayer.id];
+            onAuctionLogChange(updated);
+        }
+        setEditingPlayer(null);
+        setEditModalOwner(null);
     };
 
     const handleModalClose = () => {
         setEditingPlayer(null);
+        setEditModalOwner(null);
     };
 
     return (
@@ -264,7 +297,9 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
             {editingPlayer && (
                 <EditPriceModal 
                     player={editingPlayer}
+                    participantNames={leagueSettings.participantNames}
                     onSave={handleModalSave}
+                    onRemove={handleModalRemove}
                     onClose={handleModalClose}
                 />
             )}

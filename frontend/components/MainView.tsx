@@ -224,16 +224,16 @@ export const MainView: React.FC<MainViewProps> = ({
                 onClick={() => handleTabClick('explorer')}
               />
               <TabButton
-                label="Ricerca Mirata"
-                icon={<Search className="w-5 h-5 md:w-6 md:h-6" />}
-                isActive={activeView === 'search'}
-                onClick={() => handleTabClick('search')}
-              />
-              <TabButton
                 label="Tavolo Strategia"
                 icon={<ClipboardList className="w-5 h-5 md:w-6 md:h-6" />}
                 isActive={activeView === 'strategy'}
                 onClick={() => handleTabClick('strategy')}
+              />
+              <TabButton
+                label="Ricerca Mirata"
+                icon={<Search className="w-5 h-5 md:w-6 md:h-6" />}
+                isActive={activeView === 'search'}
+                onClick={() => handleTabClick('search')}
               />
             </div>
           </div>
