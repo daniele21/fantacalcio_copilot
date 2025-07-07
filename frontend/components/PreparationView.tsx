@@ -248,64 +248,68 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
               />
             ))}
           </FilterSection>
-          {/* Sorting row */}
+          {/* Sorting and search row */}
           <div className="flex flex-wrap items-center gap-4 mb-4">
-            <label htmlFor="sortKey" className="font-medium text-content-200">Ordina per:</label>
-            <select
-              id="sortKey"
-              value={sortKey}
-              onChange={e => setSortKey(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
-            >
-              <option value="recommendation">Stelle Copilot</option>
-              <option value="buonInvestimento">Buon investimento</option>
-              <option value="xGoal">xGoal</option>
-              <option value="fm2324">FM23/24</option>
-              <option value="xPresenze">xPresenze</option>
-              <option value="xAssist">xAssist</option>
-            </select>
-            <label htmlFor="sortOrder" className="font-medium text-content-200">Ordine:</label>
-            <select
-              id="sortOrder"
-              value={sortOrder}
-              onChange={e => setSortOrder(e.target.value as 'asc' | 'desc')}
-              className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
-            >
-              <option value="desc">Discendente</option>
-              <option value="asc">Ascendente</option>
-            </select>
-          </div>
-          {/* End sorting row */}
-          <div className="flex flex-col md:flex-row items-center gap-4 my-4">
-            <div className="w-full md:w-1/4">
-              <input
-                type="text"
-                placeholder="Digita nome giocatore…"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out"
-              />
-            </div>
-            <div className="w-full md:w-3/4">
-              <button
-                onClick={handleAnalysisRequest}
-                disabled={isAnalysisLoading || filteredPlayers.length === 0}
-                className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
+            <div className="flex items-center gap-2">
+              <label htmlFor="sortKey" className="font-medium text-content-200 whitespace-nowrap">Ordina per:</label>
+              <select
+                id="sortKey"
+                value={sortKey}
+                onChange={e => setSortKey(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
               >
-                {isAnalysisLoading ? (
-                  <>
-                    <Loader className="w-5 h-5 mr-2 animate-spin" />
-                    Analisi in corso...
-                  </>
+                <option value="recommendation">Stelle Copilot</option>
+                <option value="buonInvestimento">Buon investimento</option>
+                <option value="fm2324">FM23/24</option>
+                <option value="xGoal">xGoal</option>
+                <option value="xAssist">xAssist</option>
+                <option value="xPresenze">xPresenze</option>
+              </select>
+              <button
+                type="button"
+                aria-label={sortOrder === 'desc' ? 'Ordine discendente' : 'Ordine ascendente'}
+                onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                className="ml-1 px-2 py-2 rounded border border-base-300 bg-base-100 text-content-100 hover:bg-base-200 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+              >
+                {sortOrder === 'desc' ? (
+                  <span title="Ordine discendente" className="inline-block">↓</span>
                 ) : (
-                  <>
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    Analizza Segmento ({filteredPlayers.length} giocatori)
-                  </>
+                  <span title="Ordine ascendente" className="inline-block">↑</span>
                 )}
               </button>
             </div>
+            <div className="flex-1 flex flex-col md:flex-row items-center gap-4">
+              <div className="w-full md:w-1/3">
+                <input
+                  type="text"
+                  placeholder="Digita nome giocatore…"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out"
+                />
+              </div>
+              <div className="w-full md:w-2/3">
+                <button
+                  onClick={handleAnalysisRequest}
+                  disabled={isAnalysisLoading || filteredPlayers.length === 0}
+                  className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                >
+                  {isAnalysisLoading ? (
+                    <>
+                      <Loader className="w-5 h-5 mr-2 animate-spin" />
+                      Analisi in corso...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Analizza Segmento ({filteredPlayers.length} giocatori)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
+          {/* End sorting and search row */}
         </div>
       </div>
       
