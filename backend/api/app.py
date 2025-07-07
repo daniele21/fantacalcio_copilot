@@ -8,6 +8,11 @@ from functools import wraps
 from flask import Flask, request, jsonify, g, make_response
 import stripe
 from google.cloud import firestore
+import functools
+import hashlib
+import time
+from functools import lru_cache
+import sys
 
 # Utility and blueprint imports
 from backend.api.utils import (
@@ -302,11 +307,10 @@ def create_app():
                 return jsonify_error('corrupted', 'Corrupted data')
 
     # --- /api/giocatori ---
-    @app.route('/api/giocatori', methods=['GET'])
-    def get_giocatori():
-        db_type = os.getenv('DB_TYPE', 'sqlite')
-        db = get_db()
+    @cache_api_lru(maxsize=128, ttl=60*24)  # Cache for 24 hours
+    def get_giocatori_cached(db_type, db_path):
         if db_type == 'firestore':
+            db = get_db()
             giocatori_ref = db.collection('giocatori')
             docs = giocatori_ref.stream()
             giocatori = [doc.to_dict() | {'id': doc.id} for doc in docs if doc.id != 'init']
@@ -314,13 +318,23 @@ def create_app():
                 merge_and_update_players()
                 docs = giocatori_ref.stream()
                 giocatori = [doc.to_dict() | {'id': doc.id} for doc in docs if doc.id != 'init']
-            return jsonify_success({'giocatori': giocatori})
+            return giocatori
         else:
-            rows = db.execute('SELECT * FROM giocatori').fetchall()
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute('SELECT * FROM giocatori').fetchall()
             if not rows:
                 merge_and_update_players()
-                rows = db.execute('SELECT * FROM giocatori').fetchall()
-            return jsonify_success({'giocatori': [dict(r) for r in rows]})
+                rows = conn.execute('SELECT * FROM giocatori').fetchall()
+            conn.close()
+            return [dict(r) for r in rows]
+
+    @app.route('/api/giocatori', methods=['GET'])
+    def get_giocatori():
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db_path = os.getenv('SQLITE_PATH', 'backend/database/fantacalcio.db')
+        giocatori = get_giocatori_cached(db_type, db_path)
+        return jsonify_success({'giocatori': giocatori})
 
     # --- /api/save-auction-log ---
     @app.route('/api/save-auction-log', methods=['POST'])
@@ -393,6 +407,31 @@ def create_app():
         return response
 
     return app
+
+
+# --- SIMPLE LRU CACHE DECORATOR FOR API (per-process, not distributed) ---
+def cache_api_lru(maxsize=128, ttl=60*24):
+    def decorator(func):
+        cached_func = lru_cache(maxsize=maxsize)(func)
+        cache_times = {}
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Use function arguments as cache key
+            key = str(args) + str(kwargs)
+            key_hash = hashlib.sha256(key.encode()).hexdigest()
+            now = time.time()
+            # Check TTL
+            if key_hash in cache_times and now - cache_times[key_hash] < ttl:
+                print("\033[92m[Cache] {} served from cache_api_lru\033[0m".format(request.path), file=sys.stderr)
+                return cached_func(*args, **kwargs)
+            # Call and cache
+            result = func(*args, **kwargs)
+            cached_func.cache_clear()  # Clear LRU cache to avoid memory leak
+            cached_func(*args, **kwargs)  # Store dummy value to keep LRU logic
+            cache_times[key_hash] = now
+            return result
+        return wrapper
+    return decorator
 
 
 if __name__ == '__main__':
