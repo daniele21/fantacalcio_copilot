@@ -20,6 +20,20 @@ def get_last_quote_file() -> str:
                              'Nome': 'Cognome',
                              'R': 'ruolo_quote',
                              'RM': 'ruolo_m'}, inplace=True)
+    # Normalize 'FVM' to a 1-5 scale
+    if 'FVM' in df_quote.columns:
+        fvm_min = df_quote['FVM'].min()
+        fvm_max = df_quote['FVM'].max()
+        if fvm_max > fvm_min:
+            df_quote['fvm_recommendation'] = ((df_quote['FVM'] - fvm_min) / (fvm_max - fvm_min) * 4 + 1).round().astype(int)
+        else:
+            df_quote['fvm_recommendation'] = 0  # fallback if all values are the same
+    else:
+        df_quote['fvm_recommendation'] = 0  # fallback if column missing
+        
+    df_quote['suggested_bid_min'] = df_quote['FVM'].apply(lambda x: max(int(x * 0.9), 1))
+    df_quote['suggested_bid_max'] = df_quote['FVM'].apply(lambda x: int(x * 1.2))
+
     return df_quote.to_dict(orient='records')
 
 def get_player_data(filepath: str) -> list:

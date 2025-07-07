@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS giocatori (
     presenze INTEGER,
     appetibilita REAL,
     recommendation INTEGER,
+    fvm_recommendation INTEGER,
+    suggested_bid_min INTEGER,
+    suggested_bid_max INTEGER,
     last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -49,7 +49,9 @@ def insert_giocatori_from_records(records, conn=None):
         "nome", "cognome", "punteggio", "fantamedia_2024_2025", "fantamedia_2023_2024", "fantamedia_2022_2023",
         "presenze_2024_2025", "fanta_media_2024_2025", "fm_su_tot_gare_2024_2025", "presenze_previste",
         "gol_previsti", "assist_previsti", "ruolo", "ruolo_m", "ruolo_quote", "skills", "buon_investimento", "resistenza_infortuni",
-        "consigliato", "infortunato", "nuovo_acquisto", "squadra", "squadra_quote", "quota_attuale", "quota_iniziale", "diff", "quota_attuale_m", "quota_iniziale_m", "diff_m", "fvm", "fvm_m", "trend", "presenze", "appetibilita", "recommendation", "last_modified"
+        "consigliato", "infortunato", "nuovo_acquisto", "squadra", "squadra_quote", "quota_attuale", "quota_iniziale", "diff", "quota_attuale_m", "quota_iniziale_m", "diff_m", "fvm", "fvm_m", "trend", "presenze", "appetibilita", "recommendation", 
+        "fvm_recommendation", "suggested_bid_min", "suggested_bid_max",
+        "last_modified"
     ]
     if db_type == 'firestore':
         from google.cloud import firestore
@@ -67,7 +69,8 @@ def insert_giocatori_from_records(records, conn=None):
                 "Resistenza_infortuni": "resistenza_infortuni", "Consigliato": "consigliato", "Infortunato": "infortunato", "Nuovo_acquisto": "nuovo_acquisto",
                 "Squadra": "squadra", "squadra_quote": "squadra_quote", "QuotaAttuale": "quota_attuale", "QuotaIniziale": "quota_iniziale", "Diff": "diff",
                 "Qt.A M": "quota_attuale_m", "Qt.I M": "quota_iniziale_m", "Diff.M": "diff_m", "FVM": "fvm", "FVM M": "fvm_m", "Trend": "trend",
-                "Presenze": "presenze", "Appetibilita": "appetibilita", "recommendation": "recommendation"
+                "Presenze": "presenze", "Appetibilita": "appetibilita", "recommendation": "recommendation",
+                "fvm_recommendation": "fvm_recommendation", "suggested_bid_min": "suggested_bid_min", "suggested_bid_max": "suggested_bid_max",
             }
             for k, v in rec.items():
                 canonical_key = key_map.get(k, k.lower())
@@ -125,7 +128,8 @@ def insert_giocatori_from_records(records, conn=None):
             "Resistenza_infortuni": "resistenza_infortuni", "Consigliato": "consigliato", "Infortunato": "infortunato", "Nuovo_acquisto": "nuovo_acquisto",
             "Squadra": "squadra", "squadra_quote": "squadra_quote", "QuotaAttuale": "quota_attuale", "QuotaIniziale": "quota_iniziale", "Diff": "diff",
             "Qt.A M": "quota_attuale_m", "Qt.I M": "quota_iniziale_m", "Diff.M": "diff_m", "FVM": "fvm", "FVM M": "fvm_m", "Trend": "trend",
-            "Presenze": "presenze", "Appetibilita": "appetibilita", "recommendation": "recommendation"
+            "Presenze": "presenze", "Appetibilita": "appetibilita", "recommendation": "recommendation",
+            "fvm_recommendation": "fvm_recommendation", "suggested_bid_min": "suggested_bid_min", "suggested_bid_max": "suggested_bid_max"
         }
         canonical_rec = {col: None for col in columns}
         for k, v in rec.items():

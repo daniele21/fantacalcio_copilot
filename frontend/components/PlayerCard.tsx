@@ -49,8 +49,10 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   const { min, max } = React.useMemo(() => {
     const scale = leagueSettings.budget / 500;
+    const scale1000 = leagueSettings.budget / 1000;
     const cost = player.baseCost * scale;
-    return { min: Math.round(cost * 0.9), max: Math.round(cost * 1.15) };
+    return { min: Math.round(player.suggestedBidMin * scale1000), max: Math.round(player.suggestedBidMax * scale1000) };
+    // return { min: Math.round(cost * 0.9), max: Math.round(cost * 1.15) };
   }, [leagueSettings.budget, player.baseCost]);
 
   const toggleTarget = (e: React.MouseEvent) => {

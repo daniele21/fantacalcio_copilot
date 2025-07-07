@@ -36,18 +36,26 @@ export function usePlayerApi() {
       team: p.squadra,
       role: mapRole(p.ruolo),
       baseCost: Number(p.quota_attuale),
+      suggestedBidMin: Number(p['suggested_bid_min'] ?? p['suggested_bid_min'] ?? 0),
+      suggestedBidMax: Number(p['suggested_bid_max'] ?? p['suggested_bid_max'] ?? 0),
+      // Fix: use fanta_media_2024_2025
       skills: Array.isArray(p.skills)
         ? p.skills
         : typeof p.skills === 'string'
           ? p.skills.split(',').map((s: string) => s.trim())
           : [],
       score: p.punteggio ?? 0,
-      recommendation: Number(p.recommendation ?? 0),
+      // recommendation: Number(p.recommendation ?? 0),
+      recommendation: Number(p.fvm_recommendation ?? 0),
       // analystCeiling: p.fanta_media_2024_2025 ?? p.fantamedia_2024_2025 ?? 0,
       // analystFloor: p.fantamedia_2023_2024 ?? 0,
       // priceTier: p.priceTier,
       stats: {
-        fm1y: parseFloat(p['fantamedia_2023_2024'] ?? p['fanta_media_2024_2025'] ?? 0),
+        fm1y: parseFloat(
+          p['fantamedia_2024_2025'] && p['fantamedia_2024_2025'] !== '' ? p['fantamedia_2024_2025']
+          : p['fantamedia_2023_2024'] && p['fantamedia_2023_2024'] !== '' ? p['fantamedia_2023_2024']
+          : '0'
+        ),
         fm2y: parseFloat(p['fantamedia_2022_2023'] ?? 0),
         presenze1y: parseInt(p['presenze_2024_2025'] ?? p['presenze'] ?? 0),
         injury_score: parseFloat(p['resistenza_infortuni'] ?? 0) / 20,
