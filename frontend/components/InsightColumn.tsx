@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Player, MyTeamPlayer, LeagueSettings, Role, AuctionResult, PriceTier } from '../types';
-import { ChevronDown, TrendingUp, DollarSign, Users, BarChart, FileText, Shield, AlertTriangle, HeartPulse, RectangleHorizontal, UsersRound, Plane } from 'lucide-react';
+import { ChevronDown, TrendingUp, DollarSign, Users, BarChart, FileText, Shield, AlertTriangle, HeartPulse, RectangleHorizontal, UsersRound, Plane, Star } from 'lucide-react';
 
 // --- PROPS INTERFACE ---
 interface InsightColumnProps {
@@ -442,8 +442,16 @@ export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid
              <CollapsibleSection title="Heatmap Rivali" icon={<Users size={20} />} defaultOpen>
                 <RivalsHeatmap auctionLog={auctionLog} leagueSettings={leagueSettings} currentBid={currentBid} />
             </CollapsibleSection>
-            <CollapsibleSection title="Fattori di Rischio" icon={<Shield size={20} />} defaultOpen>
-                <RiskFactors player={player} />
+            <CollapsibleSection title="Skill Giocatore" icon={<Star size={20} />} defaultOpen>
+                <div className="flex flex-wrap gap-2">
+                  {player.skills && player.skills.length > 0 ? (
+                    player.skills.map((skill, idx) => (
+                      <span key={idx} className="px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary font-semibold text-sm border border-brand-primary/30">{skill}</span>
+                    ))
+                  ) : (
+                    <span className="text-content-200 text-sm">Nessuna skill specifica rilevata.</span>
+                  )}
+                </div>
             </CollapsibleSection>
             {/* <CollapsibleSection title="Inflazione Ruolo" icon={<BarChart size={20} />}>
                  <RoleInflationChart 
