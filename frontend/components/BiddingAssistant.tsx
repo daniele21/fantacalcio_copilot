@@ -110,7 +110,23 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
         }
     };
 
+    // --- Role slot check for acquisition ---
+    const myRoleCount = useMemo(() => {
+        if (!playerForBidding) return 0;
+        return myTeam.filter(p => p.role === playerForBidding.role).length;
+    }, [myTeam, playerForBidding]);
+    const maxRoleCount = useMemo(() => {
+        if (!playerForBidding) return 0;
+        return leagueSettings?.roster?.[playerForBidding.role] ?? 0;
+    }, [leagueSettings, playerForBidding]);
+    const isRoleFull = playerForBidding && myRoleCount >= maxRoleCount;
+    const [showRoleFullDialog, setShowRoleFullDialog] = useState(false);
+
     const handleAcquirePlayer = () => {
+        if (isRoleFull) {
+            setShowRoleFullDialog(true);
+            return;
+        }
         if (!playerForBidding || finalPrice <= 0 || !buyer) return;
         onPlayerAuctioned(playerForBidding, finalPrice, buyer);
     };
@@ -332,6 +348,18 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                 <Gavel className="w-6 h-6 mr-2" />
                                 Registra Acquisto
                             </button>
+                            {isRoleFull && (
+                                <p className="text-red-500 text-sm mt-2 flex items-center gap-1"><AlertTriangle className="w-4 h-4"/>Hai già il numero massimo di giocatori per questo ruolo.</p>
+                            )}
+                            {showRoleFullDialog && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                                    <div className="bg-base-100 p-6 rounded-xl shadow-2xl max-w-sm w-full border-2 border-red-400">
+                                        <h3 className="text-lg font-bold text-red-600 mb-2 flex items-center gap-2"><AlertTriangle className="w-6 h-6"/>Ruolo al completo</h3>
+                                        <p className="text-content-100 mb-4">Hai già il numero massimo di giocatori per il ruolo <span className="font-bold">{playerForBidding?.role}</span>.<br/>Rimuovi un giocatore da "Stato Squadra" prima di aggiungerne un altro.</p>
+                                        <button onClick={() => setShowRoleFullDialog(false)} className="w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-lg mt-2">OK</button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

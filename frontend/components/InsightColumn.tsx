@@ -220,13 +220,7 @@ const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagu
                 const bgColor = `hsl(${hue}, 85%, ${lightness}%)`;
                 // Use black text for very light backgrounds, otherwise white or dark
                 let textColor = 'text-white';
-                // if (lightness >= 70) {
-                //     textColor = 'text-black';
-                // } else if (lightness < 60) {
-                //     textColor = 'text-white';
-                // } else {
-                //     textColor = 'text-content-100';
-                // }
+
                 // Calculate difference from me
                 const diff = rival.remaining - myRemaining;
                 const diffStr = diff === 0 ? '' : (diff > 0 ? ` (+${diff})` : ` (${diff})`);

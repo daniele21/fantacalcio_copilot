@@ -104,7 +104,10 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
                         {rosterInfo.map(({ role, name, current, max, missing }) => (
                             <div key={role} className="flex justify-between items-center text-base">
                                 <span className="flex items-center gap-2 text-content-200">{ROLE_ICONS[role]} {name}</span>
-                                <span className={`font-bold px-2 py-0.5 rounded ${current === max && !missing ? 'bg-brand-primary/20 text-brand-primary' : 'bg-base-300 text-content-100'} ${missing ? 'border border-red-500 text-red-500' : ''}`}>{current}/{max}{missing ? ' ⚠️' : ''}</span>
+                                <span className={`font-bold px-2 py-0.5 rounded
+                                    ${current === max && !missing ? 'bg-green-100 text-green-600' : 'bg-base-300 text-content-100'}
+                                    ${missing ? 'border border-red-500 text-red-500' : ''}
+                                `}>{current}/{max}{missing ? ' ⚠️' : ''}</span>
                             </div>
                         ))}
                     </div>
