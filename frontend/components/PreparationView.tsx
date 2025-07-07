@@ -28,6 +28,8 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState<string>('recommendation');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
@@ -70,8 +72,55 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
         (player.team && player.team.toLowerCase().includes(lower))
       );
     }
-    return filtered.sort((a, b) => (b.recommendation ?? 0) - (a.recommendation ?? 0));
-  }, [players, selectedRole, selectedSkills, showFavouritesOnly, targetPlayerIds, searchTerm]);
+    // Sorting
+    const sorters: Record<string, (a: Player, b: Player) => number> = {
+      recommendation: (a, b) => (parseFloat(b.recommendation ?? 0) || 0) - (parseFloat(a.recommendation ?? 0) || 0),
+      good_bet: (a, b) => {
+        // Log good_bet values for debugging
+        // console.log('good_bet a:', a.stats?.good_bet, 'good_bet b:', b.stats?.good_bet);
+        const parseScore = (val: any) => {
+          if (typeof val === 'string' && /^\d/.test(val)) return parseInt(val[0], 10);
+          if (typeof val === 'number') return val;
+          return null;
+        };
+        const bScore = parseScore(b.stats?.good_bet);
+        const aScore = parseScore(a.stats?.good_bet);
+        if (bScore === null && aScore === null) return 0;
+        if (bScore === null) return 1;
+        if (aScore === null) return -1;
+        return bScore - aScore;
+      },
+      xGoal: (a, b) => {
+        // Log xGoal values for debugging
+        // console.log('xGoal a:', a.stats.exp_goal, 'xGoal b:', b.stats.exp_goal);
+        const parseX = (val: any) => {
+          if (typeof val === 'string' && /^\d+/.test(val)) return parseInt(val.match(/^\d+/)?.[0] ?? '0', 10);
+          if (typeof val === 'number') return val;
+          return 0;
+        };
+        return parseX(b.stats.exp_goal) - parseX(a.stats.exp_goal);
+      },
+      fm2324: (a, b) => (parseFloat(b.stats.fm1y ?? 0) || 0) - (parseFloat(a.stats.fm1y ?? 0) || 0),
+      xPresenze: (a, b) => {
+        const parseX = (val: any) => {
+          if (typeof val === 'string' && /^\d+/.test(val)) return parseInt(val.match(/^\d+/)?.[0] ?? '0', 10);
+          if (typeof val === 'number') return val;
+          return 0;
+        };
+        return parseX(b.stats.exp_presenze) - parseX(a.stats.exp_presenze);
+      },
+      xAssist: (a, b) => {
+        const parseX = (val: any) => {
+          if (typeof val === 'string' && /^\d+/.test(val)) return parseInt(val.match(/^\d+/)?.[0] ?? '0', 10);
+          if (typeof val === 'number') return val;
+          return 0;
+        };
+        return parseX(b.stats.exp_assist) - parseX(a.stats.exp_assist);
+      },
+    };
+    const sorted = filtered.sort(sorters[sortKey === 'buonInvestimento' ? 'good_bet' : sortKey] || sorters['recommendation']);
+    return sortOrder === 'asc' ? [...sorted].reverse() : sorted;
+  }, [players, selectedRole, selectedSkills, showFavouritesOnly, targetPlayerIds, searchTerm, sortKey, sortOrder]);
 
   const handleAnalysisRequest = async () => {
     setIsAnalysisLoading(true);
@@ -199,6 +248,34 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
               />
             ))}
           </FilterSection>
+          {/* Sorting row */}
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <label htmlFor="sortKey" className="font-medium text-content-200">Ordina per:</label>
+            <select
+              id="sortKey"
+              value={sortKey}
+              onChange={e => setSortKey(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+            >
+              <option value="recommendation">Stelle Copilot</option>
+              <option value="buonInvestimento">Buon investimento</option>
+              <option value="xGoal">xGoal</option>
+              <option value="fm2324">FM23/24</option>
+              <option value="xPresenze">xPresenze</option>
+              <option value="xAssist">xAssist</option>
+            </select>
+            <label htmlFor="sortOrder" className="font-medium text-content-200">Ordine:</label>
+            <select
+              id="sortOrder"
+              value={sortOrder}
+              onChange={e => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+            >
+              <option value="desc">Discendente</option>
+              <option value="asc">Ascendente</option>
+            </select>
+          </div>
+          {/* End sorting row */}
           <div className="flex flex-col md:flex-row items-center gap-4 my-4">
             <div className="w-full md:w-1/4">
               <input
