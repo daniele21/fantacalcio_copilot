@@ -24,6 +24,7 @@ def get_last_quote_file() -> str:
 
 def get_player_data(filepath: str) -> list:
     import pandas as pd
+    import ast
 
     # Read the CSV file into a DataFrame
     df = pd.read_csv(filepath, sep=',')
@@ -39,49 +40,67 @@ def get_player_data(filepath: str) -> list:
     else:
         df['recommendation'] = 0  # fallback if column missing
 
-    df['Skills'] = df['Skills'].astype(str)
+    def parse_skills(x):
+        if isinstance(x, str) and x.startswith('['):
+            try:
+                return [s.strip().strip("'") for s in ast.literal_eval(x)]
+            except Exception:
+                return [x]
+        elif isinstance(x, str):
+            return [x]
+        elif isinstance(x, list):
+            return x
+        return []
+    df['Skills'] = df['Skills'].apply(parse_skills)
     return df.to_dict(orient='records')
 
 def merge_and_update_players(threshold: int = 85) -> None:
     from backend.database.insert_giocatori import insert_giocatori_from_records
-    import os
-    db_type = os.environ.get('DB_TYPE', 'sqlite')
+
     fantagazzetta_player_data = get_last_quote_file()
     fantacalciopedia_player_data = get_player_data('players_attributes.csv')
+    
     def normalize(text: str) -> str:
-        from unidecode import unidecode
         return unidecode(text or "").strip().lower()
+
     merged_data = []
     for fg in fantagazzetta_player_data:
         fg_cognome = normalize(fg.get('Cognome', ''))
         if not fg_cognome:
             continue
+
         best_match = None
         best_score = 0
         for fc in fantacalciopedia_player_data:
             fc_nome = normalize(fc.get('Nome', ''))
-            from rapidfuzz import fuzz
             score = fuzz.partial_ratio(fg_cognome, fc_nome)
             if score > best_score:
                 best_score = score
                 best_match = fc
+
+        # Accept the best fuzzy match if above threshold
         if best_match and best_score >= threshold:
             merged_player = {**best_match, **fg}
             merged_data.append(merged_player)
         else:
+            # Optional: log or collect unmatched entries for review
+            # print(f"No good match for {fg.get('Cognome')} (best: {best_score})")
             pass
-    if db_type == 'firestore':
-        from backend.database.insert_giocatori import insert_giocatori_from_records
-        insert_giocatori_from_records(merged_data)
-    else:
-        import sqlite3
-        db_path = os.environ.get('SQLITE_PATH') or os.path.join(os.path.dirname(__file__), 'database', 'fantacalcio.db')
-        conn = sqlite3.connect(db_path)
-        try:
-            insert_giocatori_from_records(merged_data, conn=conn)
-            conn.commit()
-        finally:
-            conn.close()
+
+    # Convert Skills list to string for DB compatibility
+    for player in merged_data:
+        if isinstance(player.get('Skills'), list):
+            player['Skills'] = ', '.join(player['Skills'])
+
+    # Always open a new DB connection in this thread for SQLite
+    import sqlite3
+    db_path = os.environ.get('SQLITE_PATH') or os.path.join(os.path.dirname(__file__), 'database', 'fantacalcio.db')
+    conn = sqlite3.connect(db_path)
+    try:
+        insert_giocatori_from_records(merged_data, conn=conn)
+        conn.commit()
+    finally:
+        conn.close()
 
 async def update_players() -> None:
     player_data = await run_all()
