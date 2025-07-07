@@ -188,6 +188,11 @@ const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagu
         });
     }, [leagueSettings.participantNames, auctionLog, rivalsData]);
 
+    // Calculate my (user's) remaining credits
+    const myName = 'io';
+    const mySpent = Object.values(auctionLog).filter(r => r.buyer.toLowerCase() === myName).reduce((sum, r) => sum + r.purchasePrice, 0);
+    const myRemaining = leagueSettings.budget - mySpent;
+
     if (!leagueSettings.participantNames || leagueSettings.participantNames.length <= 1) {
         return <div className="text-content-200 text-sm">Nessun rivale trovato. Aggiungi altri partecipanti nelle impostazioni della lega.</div>;
     }
@@ -197,12 +202,41 @@ const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagu
 
     return(
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {rivalsData.map(rival => (
-                <div key={rival.name} className={`p-2 rounded text-center border ${rival.canOutbid ? 'border-yellow-400 shadow-lg shadow-yellow-400/20' : 'border-transparent'}`} style={{ backgroundColor: `rgba(22, 163, 74, ${rival.heat * 0.5})` }}>
-                    <p className="text-xs font-bold truncate text-content-100">{rival.name}</p>
-                    <p className="text-sm font-mono text-content-200">{rival.remaining}</p>
-                </div>
-            ))}
+            {rivalsData.map(rival => {
+                // Gradient: green (142) -> yellow (48) -> red (0) in HSL
+                let hue: number;
+                let lightness: number;
+                if (rival.heat >= 0.5) {
+                    // Green to yellow
+                    const t = (rival.heat - 0.5) / 0.5; // 0 to 1
+                    hue = 48 + (142 - 48) * t; // 48 (yellow) to 142 (green)
+                    lightness = 20 + 10 * t; // slightly lighter for green
+                } else {
+                    // Yellow to red
+                    const t = rival.heat / 0.5; // 0 to 1
+                    hue = 0 + (48 - 0) * t; // 0 (red) to 48 (yellow)
+                    lightness = 54 - 10 * t; // slightly darker for red
+                }
+                const bgColor = `hsl(${hue}, 85%, ${lightness}%)`;
+                // Use black text for very light backgrounds, otherwise white or dark
+                let textColor = 'text-white';
+                // if (lightness >= 70) {
+                //     textColor = 'text-black';
+                // } else if (lightness < 60) {
+                //     textColor = 'text-white';
+                // } else {
+                //     textColor = 'text-content-100';
+                // }
+                // Calculate difference from me
+                const diff = rival.remaining - myRemaining;
+                const diffStr = diff === 0 ? '' : (diff > 0 ? ` (+${diff})` : ` (${diff})`);
+                return (
+                    <div key={rival.name} className={`p-2 rounded text-center border ${rival.canOutbid ? 'border-yellow-400 shadow-lg shadow-yellow-400/20' : 'border-transparent'}`} style={{ background: bgColor }}>
+                        <p className={`text-xs font-bold truncate ${textColor}`}>{rival.name}</p>
+                        <p className={`text-sm font-mono ${textColor}`}>{rival.remaining}{diffStr}</p>
+                    </div>
+                );
+            })}
         </div>
     );
 }
