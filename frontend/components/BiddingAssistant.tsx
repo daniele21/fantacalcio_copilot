@@ -54,6 +54,8 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     const profile = authContext?.profile;
     const setProfile = authContext?.setProfile;
 
+    // Only clear advice and error if playerForBidding actually changes (not on every effect run)
+    const prevPlayerRef = React.useRef<Player | null>(null);
     useEffect(() => {
         if (playerForBidding) {
             setFinalPrice(1);
@@ -61,13 +63,17 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
             if (currentBid === '' || typeof currentBid !== 'number' || currentBid < 1) {
                 onCurrentBidChange(1);
             }
-            setAdvice(null);
-            setError('');
+            // Only clear advice and error if the player actually changed
+            if (prevPlayerRef.current?.id !== playerForBidding.id) {
+                setAdvice(null);
+                setError('');
+            }
             const myName = participantNames.find(n => n.toLowerCase() === 'io') || participantNames[0] || '';
             setBuyer(myName);
         } else {
             setBuyer('');
         }
+        prevPlayerRef.current = playerForBidding;
     }, [playerForBidding, onCurrentBidChange, participantNames]);
 
     // Fallback: if buyer is empty but participantNames exist, show first participant
@@ -104,13 +110,17 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
         try {
             // Check credit before making Gemini call
             const creditResp = await call(`${base_url}/api/check-credit`, { method: 'GET' });
-            if (!creditResp?.data?.has_credit) {
+            console.log('[BiddingAssistant] check-credit response:', creditResp);
+            // Defensive: check for data property on API responses
+            const creditData = (creditResp && typeof creditResp === 'object' && 'data' in creditResp) ? (creditResp as any).data : undefined;
+            if (!creditData?.has_credit) {
                 setShowNoCreditDialog(true);
                 setIsLoadingAdvice(false);
                 return;
             }
             // Make Gemini call
             const result = await getBiddingAdvice(playerForBidding, myTeam, leagueSettings, Number(currentBid) || 1, roleBudget);
+            console.log('[BiddingAssistant] getBiddingAdvice result:', result);
             let parsedAdvice = result.result;
             if (typeof parsedAdvice === 'string') {
                 try {
@@ -118,27 +128,32 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                 } catch (e) {
                     setError('La risposta AI non è in formato valido.');
                     setIsLoadingAdvice(false);
+                    console.error('[BiddingAssistant] Error parsing advice:', parsedAdvice);
                     return;
                 }
             }
+            console.log('[BiddingAssistant] parsedAdvice:', parsedAdvice);
             // Ensure parsedAdvice is an object with expected keys
             if (!parsedAdvice || typeof parsedAdvice !== 'object' || !parsedAdvice.finalAdvice) {
                 setError('La risposta AI non contiene un verdetto valido.');
                 setIsLoadingAdvice(false);
+                console.error('[BiddingAssistant] Advice missing finalAdvice:', parsedAdvice);
                 return;
             }
             setAdvice(parsedAdvice);
-            console.log('[BiddingAssistant] Advice:', parsedAdvice);
+            console.log('[BiddingAssistant] Advice set:', parsedAdvice);
             // Deduct credit after successful Gemini call
             const useCreditResp = await call(`${base_url}/api/use-ai-credit`, { method: 'POST', body: JSON.stringify({ cost: result.cost ?? 0 }), headers: { 'Content-Type': 'application/json' } });
+            const useCreditData = (useCreditResp && typeof useCreditResp === 'object' && 'data' in useCreditResp) ? (useCreditResp as any).data : undefined;
             console.log('[BiddingAssistant] use-ai-credit response:', useCreditResp);
             // Update ai_credits in profile context using backend value and trigger re-render
-            if (profile && setProfile && useCreditResp && useCreditResp.data && useCreditResp.data.ai_credits !== undefined) {
-                console.log('[BiddingAssistant] Updating profile.ai_credits from', profile.ai_credits, 'to', useCreditResp.data.ai_credits);
-                setProfile({ ...profile, ai_credits: useCreditResp.data.ai_credits });
+            if (profile && setProfile && useCreditData && useCreditData.ai_credits !== undefined) {
+                console.log('[BiddingAssistant] Updating profile.ai_credits from', profile.ai_credits, 'to', useCreditData.ai_credits);
+                setProfile({ ...profile, ai_credits: useCreditData.ai_credits });
             }
         } catch (e: any) {
             setError(e.message || 'Errore nel ricevere il consiglio.');
+            console.error('[BiddingAssistant] Exception:', e);
         } finally {
             setIsLoadingAdvice(false);
         }

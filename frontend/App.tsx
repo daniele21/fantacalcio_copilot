@@ -17,6 +17,7 @@ import { AIGenerativeBadge } from './components/shared/AIGenerativeBadge';
 import PrivacyPage from './components/PrivacyPage';
 import { CookieProvider } from './services/CookieContext';
 import { CookieBanner } from './components/CookieBanner';
+import { base_url } from './services/api';
 
 // Helper to map feature keys to user-friendly names
 const FEATURE_LABELS: Record<string, string> = {
