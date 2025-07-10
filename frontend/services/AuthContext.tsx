@@ -21,6 +21,7 @@ interface AuthContextType {
   GOOGLE_CLIENT_ID: string;
   hasFeature: (featureKey: string) => boolean;
   refreshProfile: () => Promise<void>;
+  setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -227,6 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID_CONST,
         hasFeature,
         refreshProfile,
+        setProfile, // <-- Expose setProfile
       }}
     >
       {children}
