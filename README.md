@@ -2,12 +2,12 @@
 
 **Live Auction**
 
-<video src="demo/Registrazione%20schermo%202025-07-10%20alle%2009.50.01.mov" controls width="600"></video>
+<video src="demo/Registrazione schermo 2025-07-10 alle 09.50.01.mov" controls width="600"></video>
 
 
 **Auction Preparation**
 
-![Auction Preparation](demo/Screenshot%202025-07-10_alle_10.02.48.png)
+![Auction Preparation](demo/Screenshot_2025-07-10_alle_10.02.48.png)
 
 **GenAI Analysis on target players**
 ![Auction Preparation](demo/Screenshot_2025-07-10_alle_10.03.35.png)
