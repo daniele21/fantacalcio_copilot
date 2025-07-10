@@ -1,8 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { Player, DetailedAnalysisResult, Role } from '../types';
 import { getDetailedPlayerAnalysis } from '../services/geminiService';
 import { Search, Sparkles, X, Loader, AlertTriangle, ThumbsUp, ThumbsDown, Lightbulb } from 'lucide-react';
 import { AIGenerativeBadge } from "./shared/AIGenerativeBadge";
+import { AuthContext } from '../services/AuthContext';
+import { useApi } from '../services/useApi';
+import { base_url } from '../services/api';
 
 interface TargetedSearchViewProps {
     players: Player[];
@@ -36,6 +39,9 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
     const [error, setError] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
 
+    const { profile, refreshProfile } = useContext(AuthContext);
+    const { call } = useApi();
+
     const suggestions = useMemo(() => {
         if (!query) return [];
         return players.filter(p =>
@@ -65,8 +71,19 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
         setError('');
         setAnalysis(null);
         try {
+            // Check credit before making Gemini call
+            const creditResp: { data: { has_credit?: boolean } } = await call(`${base_url}/api/check-credit`, { method: 'GET' });
+            if (!creditResp?.data.has_credit) {
+                setError('Crediti AI esauriti. Acquista un nuovo pacchetto per continuare a usare le funzioni avanzate.');
+                setIsLoading(false);
+                return;
+            }
+            // Get analysis from Gemini
             const result = await getDetailedPlayerAnalysis(selectedPlayer.name, selectedPlayer.team, selectedPlayer.role);
-            setAnalysis(result);
+            setAnalysis(result.result);
+            // Only deduct credit if Gemini call was successful
+            await call(`${base_url}/api/use-ai-credit`, { method: 'POST', body: JSON.stringify({ cost: result.cost ?? 0 }), headers: { 'Content-Type': 'application/json' } });
+            await refreshProfile?.();
         } catch (err: any) {
             setError(err.message || "Si è verificato un errore durante la generazione dell'analisi.");
             console.error(err);
@@ -129,7 +146,16 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
             </div>
 
             <button onClick={handleAnalyze} disabled={!selectedPlayer || isLoading} className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">
-                {isLoading ? <><Loader className="w-5 h-5 mr-2 animate-spin" />Analisi in corso...</> : <><Sparkles className="w-5 h-5 mr-2" />Genera Analisi con Gemini</>}
+                {isLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 mr-2 animate-spin" />Analisi in corso...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 mr-2" />Genera Analisi con Gemini
+                    <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
+                  </>
+                )}
             </button>
 
             {error && <div className="mt-6 p-4 bg-red-500/10 text-red-400 rounded-lg flex items-center"><AlertTriangle className="w-5 h-5 mr-3 flex-shrink-0"/><p>{error}</p></div>}

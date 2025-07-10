@@ -1,0 +1,6 @@
+# AI credits per plan configuration
+credits_per_plan:
+  free: 5  
+  basic: 10
+  pro: 50
+  enterprise: 200

@@ -229,10 +229,18 @@ const App: React.FC = () => {
                   <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <ShieldCheck className="w-7 h-7 text-brand-primary" />
-                      <span className="font-extrabold text-xl tracking-tight text-content-100">FantaCopilot</span>
-                    <div className="text-brand-primary text-lg font-semibold tracking-wide text-center md:text-center">
+                      <button
+                        type="button"
+                        onClick={() => window.location.href = '/'}
+                        className="font-extrabold text-xl tracking-tight text-content-100 hover:text-brand-primary focus:outline-none bg-transparent border-none p-0 m-0 cursor-pointer"
+                        style={{ background: 'none', border: 'none' }}
+                        aria-label="Vai alla Home"
+                      >
+                        FantaCopilot
+                      </button>
+                      <div className="text-brand-primary text-lg font-semibold tracking-wide text-center md:text-center">
                         La tua asta, potenziata dall’<strong>AI</strong>
-                    </div>
+                      </div>
                       <AIGenerativeBadge className="ml-2" />
                     </div>
                     <div className="flex items-center gap-4">
@@ -241,7 +249,13 @@ const App: React.FC = () => {
                                 <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
                                 <div className="hidden sm:block">
                                     <p className="text-sm font-semibold">{profile.name}</p>
-                                    <p className="text-xs text-content-200 capitalize">{profile.plan || 'Free'} Plan</p>
+                                    <p className="text-xs text-content-200 capitalize flex items-center gap-1">
+                                      {profile.plan || 'Free'} Plan
+                                      {profile.plan === 'free' && (
+                                        <span className="ml-2 px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 font-bold text-[11px] border border-blue-400/60 uppercase tracking-wider">DEMO</span>
+                                      )}
+                                      <span className={`ml-2 font-bold ${profile.ai_credits === 0 ? 'text-red-500' : 'text-green-600'}`}>• {typeof profile.ai_credits === 'number' ? profile.ai_credits : 0} Crediti AI</span>
+                                    </p>
                                 </div>
                             </div>
                        )}

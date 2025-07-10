@@ -9,23 +9,35 @@ const BASE_URL = import.meta.env.VITE_API_URL;
 
 export const SuccessPage: React.FC = () => {
   const [plan, setPlan] = useState<string>('');
+  const [credits, setCredits] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
   const sessionId = new URLSearchParams(window.location.search).get('session_id');
   const { call } = useApi();
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, profile } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!sessionId) return;
     call<any>(`${BASE_URL}/api/checkout-session?sessionId=${sessionId}`)
       .then(data => {
-        setPlan(data.data.metadata.plan);
-        // Store the new plan state in the backend
+        const meta = data.data.metadata;
+        const postBody: any = { sessionId };
+        if (meta.credits) {
+          setCredits(Number(meta.credits));
+          postBody.credits = Number(meta.credits);
+        }
+        if (meta.plan) {
+          setPlan(meta.plan);
+          postBody.plan = meta.plan;
+        }
+        if (postBody.credits && !postBody.plan && profile?.plan) {
+          postBody.current_plan = profile.plan;
+        }
         call<any>(`${BASE_URL}/api/checkout-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: data.data.metadata.plan, sessionId }),
+          body: JSON.stringify(postBody),
         });
         // Refresh user profile to update plan after payment, after 3 seconds
         setTimeout(() => {
@@ -39,7 +51,7 @@ export const SuccessPage: React.FC = () => {
         setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, profile?.plan]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-base-100 p-6">
@@ -57,7 +69,9 @@ export const SuccessPage: React.FC = () => {
           {error && <p className="mt-4 text-red-400">Si è verificato un errore nel recupero delle informazioni.</p>}
           {!loading && !error && (
             <p className="mt-4 text-lg text-content-200">
-              Hai scelto il piano <strong className="text-brand-primary">{plan}</strong>.
+              {credits !== null
+                ? <>Hai ricaricato <strong className="text-brand-primary">{credits} crediti AI</strong>.</>
+                : <>Hai scelto il piano <strong className="text-brand-primary">{plan}</strong>.</>}
             </p>
           )}
 

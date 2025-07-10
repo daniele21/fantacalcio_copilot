@@ -13,6 +13,7 @@ import hashlib
 import time
 from functools import lru_cache
 import sys
+import yaml
 
 # Utility and blueprint imports
 from backend.api.utils import (
@@ -37,6 +38,7 @@ def create_app():
     app.config['STRIPE_PRICE_BASIC'] = os.getenv('STRIPE_PRICE_BASIC')
     app.config['STRIPE_PRICE_PRO'] = os.getenv('STRIPE_PRICE_PRO')
     app.config['STRIPE_PRICE_ENTERPRISE'] = os.getenv('STRIPE_PRICE_ENTERPRISE')
+    app.config['STRIPE_CREDITS'] = os.getenv('STRIPE_CREDITS')
     app.config['CORS_ORIGINS'] = [
         'http://localhost:5173',
         'http://127.0.0.1:5173',
@@ -77,33 +79,45 @@ def create_app():
             user_ref = db.collection('users').document(sub)
             user_doc = user_ref.get()
             if not user_doc.exists:
-                # Create user if not exists
-                user_ref.set({'plan': 'free', 'email': g.user_email, 'created_at': firestore.SERVER_TIMESTAMP})
                 plan = 'free'
+                # Create user if not exists
+                user_ref.set({'plan': plan, 
+                              'email': g.user_email, 
+                              'created_at': firestore.SERVER_TIMESTAMP, 
+                              'ai_credits': CREDITS_PER_PLAN[plan]}, 
+                             merge=True)
             else:
-                plan = user_doc.to_dict().get('plan', 'free')
+                user_data = user_doc.to_dict()
+                plan = user_data.get('plan', 'free')
+                ai_credits = user_data.get('ai_credits', 0)
             return jsonify_success({
                 'plan': plan,
                 'email': g.user_email,
                 'picture': g.user_picture,
-                'sub': sub
+                'sub': sub,
+                'ai_credits': ai_credits
             })
         else:
-            db.execute(
-                "INSERT INTO users (google_sub) VALUES (?) ON CONFLICT(google_sub) DO NOTHING",
-                (sub,)
-            )
-            db.commit()
-            row = db.execute(
-                "SELECT plan FROM users WHERE google_sub = ?", (sub,)
-            ).fetchone()
+            # Check if user exists
+            row = db.execute("SELECT plan, ai_credits FROM users WHERE google_sub = ?", (sub,)).fetchone()
             if not row:
-                return jsonify_error('user_not_found', 'User not found', 404)
+                plan = 'free'
+                credits = CREDITS_PER_PLAN.get(plan, 0)
+                db.execute(
+                    "INSERT INTO users (google_sub, plan, ai_credits) VALUES (?, ?, ?)",
+                    (sub, plan, credits)
+                )
+                db.commit()
+                ai_credits = credits
+            else:
+                plan = row['plan']
+                ai_credits = row['ai_credits']
             return jsonify_success({
-                'plan': row['plan'],
+                'plan': plan,
                 'email': g.user_email,
                 'picture': g.user_picture,
-                'sub': sub
+                'sub': sub,
+                'ai_credits': ai_credits
             })
 
     # --- /api/create-checkout-session ---
@@ -112,23 +126,37 @@ def create_app():
     def create_checkout_session():
         data = request.get_json() or {}
         plan = data.get('plan')
-        if plan not in ('basic', 'pro', 'enterprise'):
+        credits = data.get('credits', 0)  # Default to 30 credits if not specified
+        if plan not in ('free', 'basic', 'pro', 'enterprise'):
             return jsonify_error('invalid_plan', 'Plan must be one of basic, pro, enterprise')
         price_map = {
             'basic': app.config['STRIPE_PRICE_BASIC'],
             'pro': app.config['STRIPE_PRICE_PRO'],
-            'enterprise': app.config['STRIPE_PRICE_ENTERPRISE'],
+            'enterprise': app.config['STRIPE_PRICE_ENTERPRISE']
         }
         try:
-            session = stripe.checkout.Session.create(
-                mode='payment',
-                payment_method_types=['card'],
-                line_items=[{'price': price_map[plan], 'quantity': 1}],
-                success_url=f"{app.config['FRONTEND_URL']}/success?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=app.config['FRONTEND_URL'],
-                client_reference_id=g.user_id,
-                metadata={'plan': plan}
-            )
+            if credits > 0 :
+                # For credits, we use a different mode
+                credits_stripe = app.config['STRIPE_CREDITS']  # FIX: remove comma, should be string not tuple
+                session = stripe.checkout.Session.create(
+                    mode='payment',
+                    payment_method_types=['card'],
+                    line_items=[{'price': credits_stripe, 'quantity': credits}],
+                    success_url=f"{app.config['FRONTEND_URL']}/success?session_id={{CHECKOUT_SESSION_ID}}",
+                    cancel_url=app.config['FRONTEND_URL'],
+                    client_reference_id=g.user_id,
+                    metadata={'plan': plan, 'credits': credits}
+                )
+            else:
+                session = stripe.checkout.Session.create(
+                    mode='payment',
+                    payment_method_types=['card'],
+                    line_items=[{'price': price_map[plan], 'quantity': 1}],
+                    success_url=f"{app.config['FRONTEND_URL']}/success?session_id={{CHECKOUT_SESSION_ID}}",
+                    cancel_url=app.config['FRONTEND_URL'],
+                    client_reference_id=g.user_id,
+                    metadata={'plan': plan}
+                )
             return jsonify_success({'sessionUrl': session.url})
         except stripe.error.StripeError as e:
             app.logger.exception('Stripe error')
@@ -139,6 +167,7 @@ def create_app():
     @require_auth
     def get_checkout_session():
         session_id = request.args.get('sessionId')
+        credits = request.args.get('credits', 0)
         if not session_id:
             return jsonify_error('missing_session', 'Missing sessionId')
         try:
@@ -146,15 +175,39 @@ def create_app():
             db_type = os.getenv('DB_TYPE', 'sqlite')
             db = get_db()
             if session.payment_status in ('paid', 'complete') and session.metadata:
+                plan = session.metadata.get('plan')
+                credits = CREDITS_PER_PLAN.get(plan, 0) if credits == 0 else int(credits)
                 if db_type == 'firestore':
                     user_ref = db.collection('users').document(session.client_reference_id)
-                    user_ref.set({'plan': session.metadata.get('plan')}, merge=True)
+                    user_doc = user_ref.get()
+                    last_session_id = None
+                    current_credits = 0
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        last_session_id = user_data.get('last_session_id')
+                        current_credits = user_data.get('ai_credits', 0)
+                    if last_session_id != session.id:
+                        # If this is a topup (not a plan change), add credits to existing
+                        if plan == user_data.get('plan'):
+                            new_credits = current_credits + credits
+                        else:
+                            new_credits = credits
+                        user_ref.set({'plan': plan, 'ai_credits': new_credits, 'last_session_id': session.id}, merge=True)
                 else:
-                    db.execute(
-                        "UPDATE users SET plan = ? WHERE google_sub = ?",
-                        (session.metadata.get('plan'), session.client_reference_id)
-                    )
-                    db.commit()
+                    # processed_sessions table is always present from init.sql
+                    already_processed = db.execute(
+                        "SELECT 1 FROM processed_sessions WHERE session_id = ?", (session.id,)
+                    ).fetchone()
+                    if not already_processed:
+                        db.execute(
+                            "UPDATE users SET plan = ?, ai_credits = ai_credits + ?, last_credits_update = CURRENT_TIMESTAMP, last_session_id = ? WHERE google_sub = ?",
+                            (plan, credits, session.id, session.client_reference_id)
+                        )
+                        db.execute(
+                            "INSERT INTO processed_sessions (session_id, google_sub) VALUES (?, ?)",
+                            (session.id, session.client_reference_id)
+                        )
+                        db.commit()
             return jsonify_success({
                 'id': session.id,
                 'payment_status': session.payment_status,
@@ -169,23 +222,82 @@ def create_app():
     def post_checkout_session():
         data = request.get_json() or {}
         plan = data.get('plan')
+        credits = data.get('credits')
+        current_plan = data.get('current_plan')
         session_id = data.get('sessionId')
-        if not plan or not session_id:
-            return jsonify_error('missing_data', 'Missing plan or sessionId')
+        if not session_id or (plan is None and credits is None):
+            return jsonify_error('missing_data', 'Missing plan/credits or sessionId')
         try:
             session = stripe.checkout.Session.retrieve(session_id)
             db_type = os.getenv('DB_TYPE', 'sqlite')
             db = get_db()
-            if db_type == 'firestore':
-                user_ref = db.collection('users').document(session.client_reference_id)
-                user_ref.set({'plan': plan}, merge=True)
+            meta = session.metadata or {}
+            # If credits is present, this is a credit top-up
+            if credits is not None:
+                credits = int(credits)
+                if credits <= 0:
+                    return jsonify_error('invalid_credits', 'Credits must be > 0')
+                if db_type == 'firestore':
+                    user_ref = db.collection('users').document(session.client_reference_id)
+                    user_doc = user_ref.get()
+                    last_session_id = None
+                    current_credits = 0
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        last_session_id = user_data.get('last_session_id')
+                        current_credits = user_data.get('ai_credits', 0)
+                    if last_session_id != session.id:
+                        new_credits = current_credits + credits
+                        # Do NOT change plan, just add credits
+                        user_ref.set({'ai_credits': new_credits, 'last_session_id': session.id}, merge=True)
+                else:
+                    already_processed = db.execute(
+                        "SELECT 1 FROM processed_sessions WHERE session_id = ?", (session.id,)
+                    ).fetchone()
+                    if not already_processed:
+                        db.execute(
+                            "UPDATE users SET ai_credits = ai_credits + ?, last_credits_update = CURRENT_TIMESTAMP, last_session_id = ? WHERE google_sub = ?",
+                            (credits, session.id, session.client_reference_id)
+                        )
+                        db.execute(
+                            "INSERT INTO processed_sessions (session_id, google_sub) VALUES (?, ?)",
+                            (session.id, session.client_reference_id)
+                        )
+                        db.commit()
+                return jsonify_success({'status': 'updated', 'credits': credits, 'plan': current_plan})
+            # Otherwise, this is a plan change
             else:
-                db.execute(
-                    "UPDATE users SET plan = ? WHERE google_sub = ?",
-                    (plan, session.client_reference_id)
-                )
-                db.commit()
-            return jsonify_success({'status': 'updated', 'plan': plan})
+                credits_to_set = CREDITS_PER_PLAN.get(plan, 0)
+                if db_type == 'firestore':
+                    user_ref = db.collection('users').document(session.client_reference_id)
+                    user_doc = user_ref.get()
+                    last_session_id = None
+                    current_credits = 0
+                    if user_doc.exists:
+                        user_data = user_doc.to_dict()
+                        last_session_id = user_data.get('last_session_id')
+                        current_credits = user_data.get('ai_credits', 0)
+                    if last_session_id != session.id:
+                        if plan == user_data.get('plan'):
+                            new_credits = current_credits + credits_to_set
+                        else:
+                            new_credits = credits_to_set
+                        user_ref.set({'plan': plan, 'ai_credits': new_credits, 'last_session_id': session.id}, merge=True)
+                else:
+                    already_processed = db.execute(
+                        "SELECT 1 FROM processed_sessions WHERE session_id = ?", (session.id,)
+                    ).fetchone()
+                    if not already_processed:
+                        db.execute(
+                            "UPDATE users SET plan = ?, ai_credits = ai_credits + ?, last_credits_update = CURRENT_TIMESTAMP, last_session_id = ? WHERE google_sub = ?",
+                            (plan, credits_to_set, session.id, session.client_reference_id)
+                        )
+                        db.execute(
+                            "INSERT INTO processed_sessions (session_id, google_sub) VALUES (?, ?)",
+                            (session.id, session.client_reference_id)
+                        )
+                        db.commit()
+                return jsonify_success({'status': 'updated', 'plan': plan, 'credits': credits_to_set})
         except Exception:
             app.logger.exception('Error updating plan after checkout')
             return jsonify_error('stripe_error', 'Could not update plan', 500)
@@ -330,10 +442,64 @@ def create_app():
             return [dict(r) for r in rows]
 
     @app.route('/api/giocatori', methods=['GET'])
+    @require_auth
     def get_giocatori():
         db_type = os.getenv('DB_TYPE', 'sqlite')
         db_path = os.getenv('SQLITE_PATH', 'backend/database/fantacalcio.db')
         giocatori = get_giocatori_cached(db_type, db_path)
+        # Fetch user plan
+        plan = 'free'
+        if db_type == 'firestore':
+            db = get_db()
+            user_ref = db.collection('users').document(g.user_id)
+            user_doc = user_ref.get()
+            if user_doc.exists:
+                user_data = user_doc.to_dict()
+                plan = user_data.get('plan', 'free')
+        else:
+            db = get_db()
+            row = db.execute("SELECT plan FROM users WHERE google_sub = ?", (g.user_id,)).fetchone()
+            if row:
+                plan = row['plan']
+        # If free plan, return a stratified random sample (e.g., 30 players by recommendation)
+        if plan == 'free' and len(giocatori) > 30:
+            import random
+            from collections import defaultdict
+            # Group by recommendation (rounded to int, fallback 0)
+            groups = defaultdict(list)
+            for p in giocatori:
+                try:
+                    rec = int(round(float(p.get('fvm_recommendation', 0))))
+                except Exception:
+                    rec = 0
+                groups[rec].append(p)
+            # Define how many to sample from each group (proportional, but at least 1 if group not empty)
+            total = 30
+            rec_levels = sorted(groups.keys(), reverse=True)  # e.g., 5,4,3,2,1,0
+            group_sizes = {k: len(groups[k]) for k in rec_levels}
+            total_players = sum(group_sizes.values())
+            # Proportional allocation
+            stratified = []
+            remaining = total
+            for i, k in enumerate(rec_levels):
+                if i == len(rec_levels) - 1:
+                    n = remaining  # all remaining
+                else:
+                    n = max(1, int(round(total * group_sizes[k] / total_players)))
+                    n = min(n, group_sizes[k])
+                if n > 0:
+                    stratified.extend(random.sample(groups[k], n))
+                remaining -= n
+                if remaining <= 0:
+                    break
+            # If not enough, fill up with randoms
+            if len(stratified) < total:
+                leftovers = [p for k in rec_levels for p in groups[k] if p not in stratified]
+                needed = total - len(stratified)
+                if leftovers:
+                    stratified.extend(random.sample(leftovers, min(needed, len(leftovers))))
+            random.shuffle(stratified)
+            giocatori = stratified[:total]
         return jsonify_success({'giocatori': giocatori})
 
     # --- /api/save-auction-log ---
@@ -390,6 +556,83 @@ def create_app():
                 app.logger.exception('Error loading auction log')
                 return jsonify_error('corrupted', 'Corrupted auction log')
 
+    # --- /api/use-ai-credit ---
+    @app.route('/api/use-ai-credit', methods=['POST'])
+    @require_auth
+    def use_ai_credit():
+        sub = g.user_id
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
+        data = request.get_json() or {}
+        cost = data.get('cost', 0)
+        try:
+            cost = float(cost)
+        except Exception:
+            cost = 0
+        if db_type == 'firestore':
+            user_ref = db.collection('users').document(sub)
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                return jsonify_error('no_credits', 'Crediti AI esauriti', 403)
+            user_data = user_doc.to_dict()
+            ai_credits = user_data.get('ai_credits', 0)
+            api_cost = user_data.get('api_cost', 0)
+            spent_credits = user_data.get('spent_credits', 0)
+            if ai_credits < 1:
+                return jsonify_error('no_credits', 'Crediti AI esauriti', 403)
+            # Atomically decrement ai_credits, increment api_cost and spent_credits
+            user_ref.update({
+                'ai_credits': firestore.Increment(-1),
+                'api_cost': firestore.Increment(cost),
+                'spent_credits': firestore.Increment(1)
+            })
+            return jsonify_success({
+                'ai_credits': ai_credits - 1,
+                'api_cost': api_cost + cost,
+                'spent_credits': spent_credits + 1,
+                'call_cost': cost
+            })
+        else:
+            # Use a transaction to ensure atomicity
+            try:
+                cur = db.execute("SELECT ai_credits, api_cost, spent_credits FROM users WHERE google_sub = ?", (sub,))
+                row = cur.fetchone()
+                if not row or row['ai_credits'] < 1:
+                    return jsonify_error('no_credits', 'Crediti AI esauriti', 403)
+                db.execute("UPDATE users SET ai_credits = ai_credits - 1, api_cost = api_cost + ?, spent_credits = spent_credits + 1 WHERE google_sub = ? AND ai_credits > 0", (cost, sub))
+                db.commit()
+                return jsonify_success({
+                    'ai_credits': row['ai_credits'] - 1,
+                    'api_cost': row['api_cost'] + cost,
+                    'spent_credits': row['spent_credits'] + 1,
+                    'call_cost': cost
+                })
+            except Exception:
+                app.logger.exception('Error decrementing ai_credits or incrementing api_cost/spent_credits')
+                return jsonify_error('db_error', 'Errore nel decremento crediti o aggiornamento costi', 500)
+
+    # --- /api/check-credit ---
+    @app.route('/api/check-credit', methods=['GET'])
+    @require_auth
+    def check_credit():
+        sub = g.user_id
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
+        if db_type == 'firestore':
+            user_ref = db.collection('users').document(sub)
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                return jsonify_success({'has_credit': False, 'ai_credits': 0})
+            user_data = user_doc.to_dict()
+            ai_credits = user_data.get('ai_credits', 0)
+            return jsonify_success({'has_credit': ai_credits > 0, 'ai_credits': ai_credits})
+        else:
+            row = db.execute("SELECT ai_credits FROM users WHERE google_sub = ?", (sub,)).fetchone()
+            if not row:
+                return jsonify_success({'has_credit': False, 'ai_credits': 0})
+            ai_credits = row['ai_credits']
+            return jsonify_success({'has_credit': ai_credits > 0, 'ai_credits': ai_credits})
+
     # Register strategy blueprint
     app.register_blueprint(strategy_api, url_prefix='/api')
 
@@ -432,6 +675,20 @@ def cache_api_lru(maxsize=128, ttl=60*24):
             return result
         return wrapper
     return decorator
+
+
+def load_credits_config():
+    config_path = os.getenv('CREDITS_CONFIG_PATH', 'backend/api/credits_config.yaml')
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+            return config.get('credits_per_plan', {})
+    except Exception as e:
+        print(f"[WARN] Could not load credits config: {e}")
+        return {'free': 0, 'basic': 0, 'pro': 0, 'enterprise': 0}
+
+
+CREDITS_PER_PLAN = load_credits_config()
 
 
 if __name__ == '__main__':

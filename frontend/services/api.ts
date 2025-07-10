@@ -49,3 +49,10 @@ export const callApi = async <T>(endpoint: string, options: RequestInit = {}, to
         throw new Error('API returned non-JSON response');
     }
 };
+
+// Export a base_url for API calls
+export const base_url =
+  import.meta.env.VITE_API_BASE_URL ||
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:5000'
+    : '');

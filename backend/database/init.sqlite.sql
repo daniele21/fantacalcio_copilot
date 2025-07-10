@@ -54,6 +54,11 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   google_sub TEXT UNIQUE NOT NULL,    -- the Google “sub” claim
   plan TEXT NOT NULL DEFAULT 'free',  -- e.g. 'free' | 'basic' | 'pro' | 'enterprise'
+  ai_credits INTEGER NOT NULL DEFAULT 0, -- AI credits for the user
+  spent_credits INTEGER NOT NULL DEFAULT 0, -- Credits spent by the user
+  api_cost NUMERIC NOT NULL DEFAULT 0, -- API cost for the user
+  last_credits_update TIMESTAMP,        -- Last update timestamp for credits
+  last_session_id TEXT,                  -- Last Stripe session id for plan/credits
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -75,7 +80,7 @@ CREATE TABLE IF NOT EXISTS plans (
 --     role_budget_role_mid INTEGER,
 --     role_budget_role_fwd INTEGER,
 --     -- Target players as separate table is best, but for now, flatten a few fields for quick access
---     target_players TEXT NOT NULL, -- JSON string (for now, can be normalized later)
+--     target_players TEXT NOT NULL -- JSON string (for now, can be normalized later)
 --     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 --     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 --     FOREIGN KEY(user_id) REFERENCES users(id)
@@ -117,4 +122,10 @@ CREATE TABLE IF NOT EXISTS auction_log (
     auction_log TEXT NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(google_sub) REFERENCES users(google_sub)
+);
+
+CREATE TABLE IF NOT EXISTS processed_sessions (
+    session_id TEXT PRIMARY KEY,
+    google_sub TEXT,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

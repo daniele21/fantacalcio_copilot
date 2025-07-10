@@ -9,6 +9,7 @@ interface UserProfile {
   family_name?: string;
   plan: 'free' | 'basic' | 'pro' | 'enterprise';
   sub: string; // Add google_sub to profile
+  ai_credits: number; // <-- Add ai_credits
 }
 
 interface AuthContextType {
@@ -22,13 +23,13 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const GOOGLE_CLIENT_ID_CONST = '294925298549-35bq5mf2inki7nsuqiljrkv7g6ajfsbq.apps.googleusercontent.com';
 const BASE_URL = import.meta.env.VITE_API_URL;
 
 const featureMap: Record<UserProfile['plan'], string[]> = {
-  free: [],
+  free: ['liveAuction', 'strategyPrep', 'leagueAnalytics'],
   basic: ['liveAuction'],
   pro: ['liveAuction', 'strategyPrep'],
   enterprise: ['liveAuction', 'strategyPrep', 'leagueAnalytics'],
@@ -73,7 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: user.name || user.email,
         picture: user.picture,
         plan: user.plan,
-        sub: user.sub
+        sub: user.sub,
+        ai_credits: typeof user.ai_credits === 'number' ? user.ai_credits : 0 // <-- Add ai_credits
       });
     } catch (err) {
       throw err;
@@ -117,7 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         given_name: decoded.given_name,
         family_name: decoded.family_name,
         plan: 'free',
-        sub: decoded.sub // fallback to sub from token
+        sub: decoded.sub, // fallback to sub from token
+        ai_credits: 0 // fallback to 0 credits
       });
     });
   }, [loadProfile]);

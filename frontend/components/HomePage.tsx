@@ -43,9 +43,10 @@ const plans: Plan[] = [
     priceMonthly: 0,
     priceYearly: 0,
     features: [
-      "1 lega",
-      "Board d'asta in tempo reale",
-      "Fino a 3 partecipanti"
+      "Modalità demo: prova tutte le funzioni",
+      "Assistente Asta Live",
+      "Analisi Strategica dei Giocatori",
+      "10 Crediti AI di prova",
     ],
     cta: "Inizia gratis"
   },
@@ -55,9 +56,10 @@ const plans: Plan[] = [
     priceMonthly: 9.99,
     priceYearly: 7.99,
     features: [
-      "Leghe illimitate",
-      "AI Assistente Asta",
-      "Import CSV giocatori"
+      "Assistente Asta Live",
+      "Esplora Giocatori",
+      "Analisi base dei Giocatori",
+      "Nessun Crediti AI"
     ],
     cta: "Scegli Basic"
   },
@@ -68,9 +70,10 @@ const plans: Plan[] = [
     priceYearly: 15.99,
     recommended: true,
     features: [
-      "Tutte le funzioni Basic",
+      "Assistente Asta Live",
       "Analisi giocatore avanzata",
-      "Report strategici dinamici"
+      "Analisi Strategica dei Giocatori",
+      "50 Crediti AI"
     ],
     cta: "Vai Pro (più scelto)"
   },
@@ -80,9 +83,11 @@ const plans: Plan[] = [
     priceMonthly: 49.99,
     priceYearly: 39.99,
     features: [
-      "Funzioni Pro illimitate",
-      "Supporto dedicato",
-      "SLA 99,9% uptime"
+      "Assistente Asta Live",
+      "Analisi giocatore avanzata",
+      "Analisi Strategica dei Giocatori",
+      "Analisi AI Avanzata sui Giocatori",
+      "200 Crediti AI"
     ],
     cta: "Parla con noi"
   }

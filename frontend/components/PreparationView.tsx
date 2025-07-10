@@ -1,10 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { Player, Role, LeagueSettings, AggregatedAnalysisResult, TargetPlayer, Skill } from '../types';
 import { getAggregatedAnalysis } from '../services/geminiService';
 import { PlayerCard } from './PlayerCard';
 import { FilterChip } from './shared/FilterChip';
 import { Loader, Frown, Sparkles, Star } from 'lucide-react';
 import { ROLES_ORDER, ROLE_NAMES } from '../constants';
+import { AuthContext } from '../services/AuthContext';
+import { useApi } from '../services/useApi';
+import { base_url } from '../services/api';
+import ShowNoCreditDialog from './showNoCreditDialog';
 
 interface PlayerExplorerViewProps {
   leagueSettings: LeagueSettings;
@@ -30,6 +34,9 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<string>('recommendation');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const { profile, refreshProfile } = useContext(AuthContext);
+  const { call } = useApi();
+  const [showNoCreditDialog, setShowNoCreditDialog] = useState(false);
 
   // Compute unique skills from all loaded players
   const allSkills = useMemo(() => {
@@ -124,10 +131,25 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
 
   const handleAnalysisRequest = async () => {
     setIsAnalysisLoading(true);
-    // Pass null if 'ALL' is selected, otherwise pass the selectedRole
-    const result = await getAggregatedAnalysis(filteredPlayers, selectedRole === 'ALL' ? null : selectedRole);
-    setAggregatedAnalysis(result);
-    setIsAnalysisLoading(false);
+    try {
+      // Check credit before making Gemini call
+      const creditResp: { data: { has_credit?: boolean } } = await call(`${base_url}/api/check-credit`, { method: 'GET' });
+      if (!creditResp?.data.has_credit) {
+        setShowNoCreditDialog(true);
+        setIsAnalysisLoading(false);
+        return;
+      }
+      // Pass null if 'ALL' is selected, otherwise pass the selectedRole
+      const result = await getAggregatedAnalysis(filteredPlayers, selectedRole === 'ALL' ? null : selectedRole);
+      setAggregatedAnalysis(result.result);
+      // Only deduct credit if Gemini call was successful
+      await call(`${base_url}/api/use-ai-credit`, { method: 'POST', body: JSON.stringify({ cost: result.cost ?? 0 }), headers: { 'Content-Type': 'application/json' } });
+      await refreshProfile?.();
+    } catch (err: any) {
+      alert(err.message || 'Errore durante la generazione dell\'analisi.');
+    } finally {
+      setIsAnalysisLoading(false);
+    }
   };
 
   const FilterSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -139,6 +161,9 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
 
   return (
     <div>
+      {/* No Credit Dialog */}
+      <ShowNoCreditDialog open={showNoCreditDialog} onClose={() => setShowNoCreditDialog(false)} />
+
       <div className="bg-base-200 p-6 rounded-lg mb-8 border border-brand-primary/20">
         <button
           className="flex items-center justify-between w-full mb-3 text-xl font-bold text-brand-primary focus:outline-none"
@@ -303,6 +328,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                     <>
                       <Sparkles className="w-5 h-5 mr-2" />
                       Analizza Segmento ({filteredPlayers.length} giocatori)
+                      <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
                     </>
                   )}
                 </button>
