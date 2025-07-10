@@ -2,7 +2,7 @@
 
 **Live Auction**
 
-<video src="demo/Registrazione schermo 2025-07-10 alle 09.50.01.mov" controls width="600"></video>
+<video src="demo/Registrazione schermo 2025-07-10 alle 10.45.12.mov" controls width="600"></video>
 
 
 **Auction Preparation**
