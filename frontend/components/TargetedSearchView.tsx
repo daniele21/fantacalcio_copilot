@@ -172,7 +172,7 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
                              </div>
                              <div className="flex items-center gap-2 flex-shrink-0">
                                 <span className={`px-3 py-1 text-sm font-bold rounded-full border ${getRoleColor(selectedPlayer.role)}`}>{selectedPlayer.role}</span>
-                                <span className="px-3 py-1 text-sm font-semibold rounded-full border bg-purple-500/20 text-purple-400 border-purple-500/30">{selectedPlayer.priceTier}</span>
+                                <span className="px-3 py-1 text-sm font-semibold rounded-full border bg-purple-500/20 text-purple-400 border-purple-500/30">{selectedPlayer.team}</span>
                              </div>
                         </div>
                     </div>

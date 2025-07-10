@@ -77,13 +77,20 @@ export const getDetailedPlayerAnalysis = async (playerName: string, playerTeam: 
         contents: prompt,
         config: {
           temperature: 0.5,
-          responseMimeType: "application/json",
           tools: [{googleSearch: {}}],
         }
     });
-    const usage = (response as any).usage;
-    const inputTokens = usage?.promptTokens ?? 0;
-    const outputTokens = usage?.candidatesTokens ?? 0;
+    // Use both usageMetadata (new API) and usage (fallback for old API)
+    let inputTokens = 0, outputTokens = 0;
+    if ((response as any).usageMetadata) {
+      const usageMeta = (response as any).usageMetadata;
+      inputTokens = usageMeta?.promptTokenCount ?? 0;
+      outputTokens = usageMeta?.candidatesTokenCount ?? 0;
+    } else if ((response as any).usage) {
+      const usage = (response as any).usage;
+      inputTokens = usage?.promptTokens ?? 0;
+      outputTokens = usage?.candidatesTokens ?? 0;
+    }
     const groundingSearches = 1;
     const cost = computeGeminiCost(GEMINI_25_FLASH_LITE_PREVIEW_0617, inputTokens, outputTokens, "default", groundingSearches);
     if (!response.text || typeof response.text !== 'string') {
@@ -162,7 +169,6 @@ export const getBiddingAdvice = async (
             config: {
                 temperature: 0.8,
                 maxOutputTokens: 600,
-                responseMimeType: "application/json"
             }
         });
         // Compute cost if available
