@@ -1,5 +1,23 @@
 # Fantacalcio Auction Web App
 
+**Live Auction**
+
+<video src="demo/Registrazione%20schermo%202025-07-10%20alle%2009.50.01.mov" controls width="600"></video>
+
+
+**Auction Preparation**
+
+![Auction Preparation](demo/Screenshot%202025-07-10_alle_10.02.48.png)
+
+**GenAI Analysis on target players**
+![Auction Preparation](demo/Screenshot_2025-07-10_alle_10.03.35.png)
+
+**Setup your strategy**
+![Auction Preparation](demo/Screenshot_2025-07-10_alle_10.04.17.png)
+
+
+
+
 ## Why This App? What Can You Do Now That Was Impossible Before?
 
 This webapp revolutionizes the fantacalcio auction experience by dividing it into two main features:
