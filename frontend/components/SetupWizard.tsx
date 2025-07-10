@@ -280,28 +280,64 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
           <p className="text-content-200 mt-2 max-w-md mx-auto">Imposta i parametri base della tua lega per iniziare.</p>
         </div>
         <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-4 space-y-4 flex-grow pr-0 sm:pr-2 min-h-0 flex flex-col">
-          <div>
-            <label htmlFor="budget" className="flex items-center text-sm font-medium text-content-200 mb-2">
-              <Coins className="w-4 h-4 mr-2" />Crediti per Squadra
+          <div className="flex flex-col items-center gap-2 w-full max-w-xs mx-auto bg-base-100 rounded-xl shadow border border-base-300 p-4">
+            <label htmlFor="budget" className="flex items-center justify-center text-base font-semibold text-content-100 mb-2">
+              <Coins className="w-5 h-5 mr-2 text-brand-primary" />
+              Crediti per Squadra
             </label>
-            <input
-              type="number"
-              id="budget"
-              value={budget}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setBudget('');
-                } else {
-                  const num = parseInt(val, 10);
-                  if (!isNaN(num)) {
-                    setBudget(Math.max(0, num));
+            <div className="flex items-center gap-2 w-full justify-center">
+              <button
+                type="button"
+                aria-label="Diminuisci budget"
+                className="bg-base-300 hover:bg-base-400 text-lg rounded-l-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                onClick={() => {
+                  if (typeof budget === 'number' && budget > 50) setBudget(budget - 50);
+                }}
+                disabled={typeof budget !== 'number' || budget <= 50}
+              >
+                -
+              </button>
+              <input
+                id="budget"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={budget === '' ? '' : budget}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setBudget('');
+                  } else if (/^\d+$/.test(val)) {
+                    const num = parseInt(val, 10);
+                    if (!isNaN(num) && num >= 0) {
+                      setBudget(num);
+                    }
                   }
-                }
-              }}
-              className="w-full bg-base-100 border border-base-300 rounded-lg px-4 py-2 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition"
-              required
-            />
+                }}
+                onBlur={e => {
+                  if (e.target.value === '') {
+                    setBudget(50);
+                  }
+                }}
+                placeholder="500"
+                min="0"
+                className="w-24 text-center bg-base-100 border-2 border-base-300 text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
+                style={{ appearance: 'textfield' }}
+                required
+              />
+              <button
+                type="button"
+                aria-label="Aumenta budget"
+                className="bg-base-300 hover:bg-base-400 text-lg rounded-r-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                onClick={() => {
+                  if (typeof budget === 'number') setBudget(budget + 50);
+                }}
+                disabled={typeof budget !== 'number'}
+              >
+                +
+              </button>
+            </div>
+            <span className="text-xs text-content-200 mt-1 text-center">Imposta il budget iniziale per ogni squadra (incremento 50 crediti).</span>
           </div>
           <CollapsibleSection
             title="Partecipanti"
