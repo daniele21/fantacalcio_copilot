@@ -168,7 +168,7 @@ export const getBiddingAdvice = async (
             contents: prompt,
             config: {
                 temperature: 0.8,
-                maxOutputTokens: 600,
+                maxOutputTokens: 400,
             }
         });
         // Compute cost if available
@@ -195,7 +195,12 @@ export const getBiddingAdvice = async (
             }, cost };
         }
         let jsonStr = response.text.trim();
-        // No need to strip code fences, should always be pure JSON
+        // Strip code fences if present (Gemini may return JSON in a code block)
+        const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
+        const match = jsonStr.match(fenceRegex);
+        if (match && match[2]) {
+            jsonStr = match[2].trim();
+        }
         let result: BiddingAdviceResult;
         try {
             result = JSON.parse(jsonStr);

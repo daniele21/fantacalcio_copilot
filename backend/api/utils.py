@@ -14,7 +14,7 @@ def get_db():
     if 'db' not in g:
         db_type = os.getenv('DB_TYPE', 'sqlite')
         if db_type == 'firestore':
-            g.db = firestore.Client(project="fantacalcio-project", database='fantacalcio-db')
+            g.db = firestore.Client(project="fantacalcio-project", database='fantacopilot-db')
         elif db_type == 'postgres':
             g.db = psycopg2.connect(
                 dbname=os.getenv('POSTGRES_DB'),

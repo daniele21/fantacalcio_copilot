@@ -16,7 +16,6 @@ import { useNavigate } from "react-router-dom";
 import { AIGenerativeBadge } from "./shared/AIGenerativeBadge";
 import { PoweredByGeminiBadge } from "./shared/PoweredByGeminiBadge";
 import { VerifiedGoogleSignInBadge } from "./shared/VerifiedGoogleSignInBadge";
-import CookieConsent from "react-cookie-consent";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -89,7 +88,7 @@ const plans: Plan[] = [
       "Analisi AI Avanzata sui Giocatori",
       "200 Crediti AI"
     ],
-    cta: "Parla con noi"
+    cta: "Scegli Enterprise"
   }
 ];
 
@@ -331,6 +330,17 @@ export const HomePage: React.FC<HomePageProps> = ({
             </FeatureCard>
           </div>
         </section>
+        {/* Video below */}
+        <div className="w-[70%] mx-auto flex justify-center my-12">
+          <div className="bg-base-200 border-2 border-brand-primary/30 rounded-2xl shadow-lg w-full flex justify-center items-center aspect-[19/9] overflow-hidden">
+            <img
+              src="/asta_live_demo.gif"
+              alt="Demo Asta Live"
+              className="w-full h-full object-contain rounded-xl border border-base-300"
+              style={{ borderRadius: '1rem' }}
+            />
+          </div>
+        </div>
 
         {/* ------------------------------------------------ PRICING SECTION */}
         <section id="pricing" className="container mx-auto px-4 sm:px-6 lg:px-8 mt-32">
