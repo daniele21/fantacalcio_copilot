@@ -13,6 +13,9 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchedPlan, setFetchedPlan] = useState<string | undefined>(undefined);
+  const [creditsToBuy, setCreditsToBuy] = useState(5);
+  const creditPrice = 0.5;
+  const totalCost = (creditsToBuy * creditPrice).toFixed(2);
 
   React.useEffect(() => {
     // Log the plan prop for debugging
@@ -51,7 +54,7 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
       const resp = await call<any>(`${base_url}/api/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: effectivePlan, credits: 5 }) // Use plan from prop or fetched
+        body: JSON.stringify({ plan: effectivePlan, credits: creditsToBuy }) // Use selected credits
       });
       const sessionUrl = resp?.data?.sessionUrl;
       const apiError = resp?.error;
@@ -77,14 +80,65 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
       <div className="bg-base-100 p-8 rounded-xl shadow-2xl max-w-sm w-full border-2 border-red-400 flex flex-col items-center">
         <span className="text-4xl mb-2">💳</span>
         <h3 className="text-lg font-bold text-red-600 mb-2">Crediti AI esauriti</h3>
-        <p className="text-content-100 mb-4 text-center">Hai esaurito i crediti AI. Acquista un nuovo pacchetto per continuare a usare le funzioni avanzate.</p>
+        <p className="text-content-100 mb-4 text-center">Hai esaurito i crediti AI. Acquista nuovi crediti per continuare a usare le funzioni avanzate.</p>
+        <div className="mb-4 w-full flex flex-col items-center">
+          <label htmlFor="creditsToBuy" className="text-sm font-semibold mb-1">Quanti crediti vuoi acquistare?</label>
+          <div className="flex items-center gap-2 w-full justify-center">
+            <button
+              type="button"
+              aria-label="Diminuisci crediti"
+              className="bg-base-300 hover:bg-base-400 text-lg rounded-l-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              onClick={() => setCreditsToBuy(c => Math.max(1, c - 1))}
+              disabled={creditsToBuy <= 1 || loading}
+            >
+              -
+            </button>
+            <input
+              id="creditsToBuy"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={creditsToBuy}
+              onChange={e => {
+                const val = e.target.value;
+                if (val === '') return;
+                if (/^\d+$/.test(val)) {
+                  const num = parseInt(val, 10);
+                  if (!isNaN(num)) {
+                    setCreditsToBuy(Math.max(1, Math.min(100, num)));
+                  }
+                }
+              }}
+              className="w-24 text-center bg-base-100 border-2 border-base-300 text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
+              style={{ appearance: 'textfield' }}
+              disabled={loading}
+            />
+            <button
+              type="button"
+              aria-label="Aumenta crediti"
+              className="bg-base-300 hover:bg-base-400 text-lg rounded-r-lg px-3 py-2 border border-base-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              onClick={() => setCreditsToBuy(c => Math.min(100, c + 1))}
+              disabled={creditsToBuy >= 100 || loading}
+            >
+              +
+            </button>
+          </div>
+          <span className="text-xs text-content-200">1 credito = 0,50 €</span>
+          <span className="text-base font-semibold mt-1">Totale: <span className="text-brand-primary">{totalCost} €</span></span>
+          {effectivePlan === 'free' && (
+            <div className="mt-3 text-xs text-yellow-700 bg-yellow-100 border border-yellow-300 rounded-lg px-3 py-2 text-center">
+              <b>Demo:</b> I crediti acquistati manterranno il profilo in modalità demo, <strong>con giocatori limitati</strong>.<br />
+              Per sbloccare tutte le funzionalità e i giocatori, è necessario abbonarsi a uno dei piani disponibili.
+            </div>
+          )}
+        </div>
         {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
         <button
           onClick={handleBuyCredits}
           className="w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-lg mt-2 hover:bg-brand-secondary transition disabled:bg-gray-400"
           disabled={loading}
         >
-          {loading ? 'Attendi...' : 'Compra Crediti'}
+          {loading ? `Attendi...` : `Compra ${creditsToBuy} Crediti`}
         </button>
         <button
           onClick={onClose}

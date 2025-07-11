@@ -14,9 +14,12 @@ interface AuctionBoardProps {
 const ROLE_ICONS: Record<Role, string> = { [Role.GK]: '🧤', [Role.DEF]: '🛡️', [Role.MID]: '⚽', [Role.FWD]: '🎯' };
 
 export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog, leagueSettings, targetPlayers, onPlayerSelect }) => {
+    // Fix: Add type for auctionLog index (move this to the top before any use)
+    const getAuctionLogResult = (id: number) => (auctionLog[id as keyof typeof auctionLog] || auctionLog[String(id) as keyof typeof auctionLog]);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState<'all' | 'available' | 'taken' | 'favourite'>('all');
-    const [selectedRole, setSelectedRole] = useState<Role>(Role.GK);
+    const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
 
     const targetPlayersMap = useMemo(() => new Map(targetPlayers.map(p => [p.id, p])), [targetPlayers]);
 
@@ -43,10 +46,15 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
     // Ensure auctionLog lookup is robust (string/number)
     const filteredPlayers = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        if (!playersByRole[selectedRole]) return [];
-        return playersByRole[selectedRole].filter((p: Player) => {
+        let playersToFilter: Player[] = [];
+        if (selectedRole === 'ALL') {
+            playersToFilter = players;
+        } else {
+            playersToFilter = playersByRole[selectedRole] || [];
+        }
+        return playersToFilter.filter((p: Player) => {
             // Robustly check if player is taken
-            const isTaken = !!auctionLog[p.id] || !!auctionLog[String(p.id)];
+            const isTaken = !!getAuctionLogResult(p.id);
             const isFavourite = !!targetPlayersMap.get(p.id);
             const matchesFilter =
                 filter === 'all' ||
@@ -56,7 +64,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
             const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q);
             return matchesFilter && matchesSearch;
         });
-    }, [playersByRole, auctionLog, searchQuery, filter, selectedRole, targetPlayersMap]);
+    }, [players, playersByRole, auctionLog, searchQuery, filter, selectedRole, targetPlayersMap]);
 
     const RoleTabButton: React.FC<{role: Role}> = ({role}) => (
         <button
@@ -77,8 +85,9 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
         </button>
     );
 
+    // Fix: Only check playersByRole[selectedRole] if selectedRole !== 'ALL'
     React.useEffect(() => {
-        if (!playersByRole[selectedRole] || playersByRole[selectedRole].length === 0) {
+        if (selectedRole !== 'ALL' && (!playersByRole[selectedRole] || playersByRole[selectedRole].length === 0)) {
             const firstNonEmpty = ROLES_ORDER.find(role => playersByRole[role] && playersByRole[role].length > 0);
             if (firstNonEmpty && firstNonEmpty !== selectedRole) {
                 setSelectedRole(firstNonEmpty);
@@ -115,8 +124,8 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                 aVal = targetPlayersMap.get(a.id)?.maxBid ?? 0;
                 bVal = targetPlayersMap.get(b.id)?.maxBid ?? 0;
             } else if (sortBy === 'result') {
-                aVal = (auctionLog[a.id]?.purchasePrice ?? auctionLog[String(a.id)]?.purchasePrice) ?? 0;
-                bVal = (auctionLog[b.id]?.purchasePrice ?? auctionLog[String(b.id)]?.purchasePrice) ?? 0;
+                aVal = (getAuctionLogResult(a.id)?.purchasePrice) ?? 0;
+                bVal = (getAuctionLogResult(b.id)?.purchasePrice) ?? 0;
             }
             if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
             if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
@@ -149,6 +158,12 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
 
             {/* Role Tabs */}
             <div className="flex bg-base-100 rounded-t-lg border-b-2 border-base-300">
+                <button
+                    onClick={() => setSelectedRole('ALL')}
+                    className={`flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+                >
+                    <span className="hidden sm:inline-block mr-2">★</span>Tutti
+                </button>
                 {ROLES_ORDER.map(role => <RoleTabButton key={role} role={role} />)}
             </div>
 
@@ -161,6 +176,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                                 <th className="p-2 font-semibold text-content-200 w-2/5 cursor-pointer select-none" onClick={() => handleSort('name')}>
                                     Giocatore {sortBy === 'name' && (sortDir === 'asc' ? '▲' : '▼')}
                                 </th>
+                                <th className="p-2 font-semibold text-content-200 text-center">Ruolo</th>
                                 <th className="p-2 font-semibold text-content-200 text-center cursor-pointer select-none" title="Costo Base" onClick={() => handleSort('baseCost')}>
                                     C. Base {sortBy === 'baseCost' && (sortDir === 'asc' ? '▲' : '▼')}
                                 </th>
@@ -178,7 +194,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                         <tbody className="divide-y divide-base-300/50">
                             {sortedPlayers.map(player => {
                                 // Robustly get result and isTaken
-                                const result = auctionLog[player.id] || auctionLog[String(player.id)];
+                                const result = getAuctionLogResult(player.id);
                                 const isTaken = !!result;
                                 const targetInfo = targetPlayersMap.get(player.id);
                                 const scaleFactor = leagueSettings.budget / 500;
@@ -200,11 +216,10 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                                                 </div>
                                             </div>
                                         </td>
+                                        <td className="p-2 text-center font-mono font-bold">{player.role}</td>
                                         <td className={`p-2 text-center font-mono ${isTaken ? 'line-through' : ''}`}>{baseCost}</td>
                                         <td className={`p-2 text-center font-mono ${isTaken ? 'line-through' : ''}`}>{recommendedBid}</td>
-                                        <td className={`p-2 text-center font-mono font-bold ${isTaken ? 'line-through' : targetInfo ? 'text-brand-primary' : 'text-content-200'}`}>
-                                            {targetInfo ? targetInfo.maxBid : '-'}
-                                        </td>
+                                        <td className={`p-2 text-center font-mono font-bold ${isTaken ? 'line-through' : targetInfo ? 'text-brand-primary' : 'text-content-200'}`}> {targetInfo ? targetInfo.maxBid : '-'} </td>
                                         <td className="p-2 text-center">
                                             {result ? (
                                                 <div>

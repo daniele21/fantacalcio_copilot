@@ -55,7 +55,7 @@ def insert_giocatori_from_records(records, conn=None):
     ]
     if db_type == 'firestore':
         from google.cloud import firestore
-        db = firestore.Client(project="fantacalcio-project", database='fantacalcio-db')
+        db = firestore.Client(project="fantacalcio-project", database='fantacopilot-db')
         batch = db.batch()
         for idx, rec in enumerate(records):
             # Map input record to canonical column names
@@ -79,13 +79,18 @@ def insert_giocatori_from_records(records, conn=None):
             # Ensure skills is always a list
             skills_val = rec.get("Skills") or rec.get("skills")
             if isinstance(skills_val, str):
+                # Try to parse as Python list literal, else split by comma
                 try:
                     import ast
                     skills_list = ast.literal_eval(skills_val)
                     if not isinstance(skills_list, list):
-                        skills_list = [skills_val]
+                        raise Exception()
                 except Exception:
-                    skills_list = [skills_val]
+                    # If comma-separated, split and strip
+                    if ',' in skills_val:
+                        skills_list = [s.strip() for s in skills_val.split(',') if s.strip()]
+                    else:
+                        skills_list = [skills_val.strip()]
             elif isinstance(skills_val, list):
                 skills_list = skills_val
             else:

@@ -2,7 +2,11 @@
 
 **Live Auction**
 
+<<<<<<< HEAD
 <video src="demo/Registrazione schermo 2025-07-10 alle 10.45.12.mov" controls width="600"></video>
+=======
+<video src="demo/asta_live_demo.mp4" controls width="600"></video>
+>>>>>>> gemini_on_be
 
 
 **Auction Preparation**

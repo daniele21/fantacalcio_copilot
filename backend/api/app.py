@@ -14,6 +14,8 @@ import time
 from functools import lru_cache
 import sys
 import yaml
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Utility and blueprint imports
 from backend.api.utils import (
@@ -26,7 +28,6 @@ from backend.api.utils import (
     verify_google_token
 )
 from backend.api.strategy import strategy_api
-from backend.update_players import merge_and_update_players
 
 
 def create_app():
@@ -633,8 +634,17 @@ def create_app():
             ai_credits = row['ai_credits']
             return jsonify_success({'has_credit': ai_credits > 0, 'ai_credits': ai_credits})
 
+    # --- Flask-Limiter setup ---
+    limiter = Limiter(get_remote_address, default_limits=["20 per minute"])
+    limiter.init_app(app)
+    app.limiter = limiter  # Attach to app for blueprint access
+
     # Register strategy blueprint
     app.register_blueprint(strategy_api, url_prefix='/api')
+
+    # Register blueprints
+    from backend.api.gemini_api import gemini_api
+    app.register_blueprint(gemini_api, url_prefix='/api/gemini')
 
     # Global CORS headers
     @app.after_request

@@ -30,7 +30,7 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
     const [playerForBidding, setPlayerForBidding] = useState<Player | null>(null);
     const [currentBid, setCurrentBid] = useState<number | ''>(1);
     const biddingAssistantRef = useRef<HTMLDivElement>(null);
-    const { idToken, isLoggedIn } = useAuth();
+    const { idToken, isLoggedIn, refreshProfile } = useAuth();
     const [localTargetPlayers, setLocalTargetPlayers] = useState<TargetPlayer[]>(targetPlayers);
     const [leagueSettings, setLeagueSettings] = useState(initialLeagueSettings);
 
@@ -274,8 +274,8 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             onClearPlayer={handleClearBiddingPlayer}
                             currentBid={currentBid}
                             onCurrentBidChange={setCurrentBid}
-                            auctionLog={localAuctionLog} // <-- pass auction log
-                            allPlayers={players} // <-- pass full player pool
+                            auctionLog={localAuctionLog}
+                            allPlayers={players}
                         />
                     </div>
                     
