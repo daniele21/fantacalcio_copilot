@@ -14,6 +14,7 @@ import { useApi } from "../services/useApi";
 import { useNavigate } from "react-router-dom";
 import { PoweredByGeminiBadge } from "./shared/PoweredByGeminiBadge";
 import PlanDialog from "./PlanDialog";
+import PlanCard, { Plan } from "./PlanCard";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -23,15 +24,6 @@ const BASE_URL = import.meta.env.VITE_API_URL;
  * -----------------------------------------------------------------------------
  *  Move this to /config/plans.ts if you prefer.
  */
-interface Plan {
-  key: string;
-  name: string;
-  price: number; // one-off payment
-  features: string[];
-  recommended?: boolean;
-  cta: string;
-}
-
 const plans: Plan[] = [
   {
     key: "free",
@@ -185,52 +177,6 @@ export const HomePage: React.FC<HomePageProps> = ({
     </div>
   );
 
-  const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
-    const price = plan.price;
-    const priceLabel = price === 0 ? "Gratis" : `€${price.toFixed(2)}`;
-
-    return (
-      <div
-        className={clsx(
-          "relative bg-base-200 p-8 rounded-2xl border border-base-300 w-full max-w-xs flex flex-col",
-          plan.recommended && "ring-2 ring-brand-primary scale-105"
-        )}
-      >
-        {plan.recommended && (
-          <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-primary text-xs font-semibold tracking-wide text-white px-3 py-1 rounded-full">
-            Più scelto
-          </span>
-        )}
-        <h3 className="text-2xl font-bold text-content-100">{plan.name}</h3>
-        <p className="mt-4 text-5xl font-extrabold text-brand-primary">
-          {priceLabel}
-        </p>
-        {price !== 0 && (
-          <p className="text-content-200 text-sm">
-            Pagamento una tantum
-          </p>
-        )}
-
-        <ul className="mt-6 space-y-2 text-left flex-1">
-          {plan.features.map((f) => (
-            <li key={f} className="flex items-start">
-              <Check className="w-4 h-4 text-green-400 mt-1 mr-2" />
-              <span>{f}</span>
-            </li>
-          ))}
-        </ul>
-
-        <button
-          onClick={() => handleSubscribe(plan.key)}
-          className="mt-8 w-full bg-brand-primary hover:bg-brand-secondary text-white font-semibold py-3 rounded-lg transition-colors"
-          aria-label={`Abbonati al piano ${plan.name}`}
-        >
-          {plan.cta}
-        </button>
-      </div>
-    );
-  };
-
   // ---------------------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------------------
@@ -349,7 +295,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* Plans */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 justify-center items-stretch mt-12">
             {visiblePlans.map((plan) => (
-              <PlanCard key={plan.key} plan={plan} />
+              <PlanCard key={plan.key} plan={plan} onSelect={handleSubscribe} currentPlan={userPlan || undefined} />
             ))}
           </div>
         </section>
