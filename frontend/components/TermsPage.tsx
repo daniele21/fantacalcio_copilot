@@ -3,7 +3,6 @@ import React from "react";
 /**
  * TermsPage.tsx – Termini & Condizioni d'Uso
  * Versione 1.0 · 14 luglio 2025
- * NB: sostituire i segnaposto [ ... ] con dati reali prima del deploy.
  */
 
 const TermsPage: React.FC = () => (
@@ -34,6 +33,7 @@ const TermsPage: React.FC = () => (
       Ricevuta/fattura elettronica inviata all’e‑mail dell’Utente al momento del pagamento.<br />
       <strong>Tutti i piani e i crediti restano validi fino al 31 dicembre 2025</strong>; oltre tale data il servizio potrà
       essere dismesso o rinnovato con nuove condizioni.
+      <em>(Ai sensi dell’art. 51 §2 Codice del Consumo, prima del pagamento l’Utente visualizzerà un riepilogo dell’ordine con prezzo totale, funzionalità incluse e informazioni sul diritto di recesso.)</em>
     </p>
 
     {/* 4. Crediti AI */}
@@ -52,7 +52,7 @@ const TermsPage: React.FC = () => (
     <ul className="list-disc ml-6 space-y-2">
       <li><strong>Nessun utilizzo</strong> → rimborso totale.</li>
       <li><strong>Utilizzo parziale</strong> → rimborso proporzionale ai crediti residui; la quota di accesso (<em>access fee</em>) non è rimborsabile.</li>
-      <li><strong>Utilizzo completo</strong> o richiesta oltre il 31 dicembre 2025 → nessun rimborso (art. 59 d Codice Consumo).</li>
+      <li><strong>Utilizzo completo</strong> o richiesta oltre il 31 dicembre 2025 → nessun rimborso (art. 59 l Codice Consumo).</li>
     </ul>
     <p className="mt-2 text-sm">
       Al checkout l’Utente fornisce consenso espresso all’esecuzione immediata del contenuto digitale e riconosce di perdere il diritto di recesso una volta iniziato l’utilizzo del servizio.

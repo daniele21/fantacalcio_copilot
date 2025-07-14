@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 
 interface PlanDialogProps {
@@ -14,6 +14,7 @@ interface PlanDialogProps {
 }
 
 const PlanDialog: React.FC<PlanDialogProps> = ({ plan, onClose, onConfirm }) => {
+  const [acceptExec, setAcceptExec] = useState(false);
   const price = plan.price;
   const aiCredits = plan.features.find(f => f.toLowerCase().includes("crediti ai")) || "-";
   return (
@@ -57,13 +58,25 @@ const PlanDialog: React.FC<PlanDialogProps> = ({ plan, onClose, onConfirm }) => 
             <span className="font-bold">Una tantum</span>
           </div>
         </div>
+        <label className="flex items-start gap-2 text-xs mt-3">
+          <input type="checkbox" checked={acceptExec} onChange={e=>setAcceptExec(e.target.checked)} />
+          <span>
+            Dichiaro di voler iniziare subito l’utilizzo del contenuto digitale e di perdere il diritto di recesso
+            dopo il primo utilizzo, ai sensi dell’art. 59 lett. l) Codice Consumo.
+          </span>
+        </label>
+        <div className="text-[11px] text-content-200 mt-1 mb-2">
+          Recesso totale entro 14 gg se nessun credito usato — v. Termini § 5.
+        </div>
         <div className="flex flex-col gap-2 mb-4 text-sm text-content-200 text-center">
           <a href="/terms" target="_blank" className="underline hover:text-brand-primary transition-colors">Termini &amp; Condizioni</a>
           <a href="/privacy" target="_blank" className="underline hover:text-brand-primary transition-colors">Privacy Policy</a>
         </div>
         <button
-          className="btn btn-primary w-full mt-2 py-3 text-lg font-bold shadow-lg hover:scale-105 transition-transform"
+          className={`btn btn-primary w-full mt-2 py-3 text-lg font-bold shadow-lg hover:scale-105 transition-transform ${!acceptExec ? 'opacity-60 cursor-not-allowed' : ''}`}
           onClick={onConfirm}
+          disabled={!acceptExec}
+          aria-disabled={!acceptExec}
         >
           Conferma e paga
         </button>

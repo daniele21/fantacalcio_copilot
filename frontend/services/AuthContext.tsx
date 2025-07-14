@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" checked={acceptVex} onChange={e => setAcceptVex(e.target.checked)} />
             <span>
-              Ai sensi degli artt. 1341‑1342 c.c. approvo espressamente le clausole 6, 8, 10.
+              Ai sensi degli artt. 1341‑1342 c.c. approvo espressamente le clausole 3, 4, 5, 6, 9, 10.
             </span>
           </label>
           {error && <div className="text-red-500 text-sm mt-2">{error}</div>}

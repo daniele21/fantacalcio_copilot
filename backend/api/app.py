@@ -77,6 +77,7 @@ def create_app():
         sub = g.user_id
         db_type = os.getenv('DB_TYPE', 'sqlite')
         db = get_db()
+        tos_accepted = False
         if db_type == 'firestore':
             user_ref = db.collection('users').document(sub)
             user_doc = user_ref.get()
@@ -88,16 +89,19 @@ def create_app():
                               'created_at': firestore.SERVER_TIMESTAMP, 
                               'ai_credits': CREDITS_PER_PLAN[plan]}, 
                              merge=True)
+                tos_accepted = False
             else:
                 user_data = user_doc.to_dict()
                 plan = user_data.get('plan', 'free')
                 ai_credits = user_data.get('ai_credits', 0)
+                tos_accepted = bool(user_data.get('tos_version'))
             return jsonify_success({
                 'plan': plan,
                 'email': g.user_email,
                 'picture': g.user_picture,
                 'sub': sub,
-                'ai_credits': ai_credits
+                'ai_credits': ai_credits,
+                'tos_accepted': tos_accepted
             })
         else:
             # Check if user exists
@@ -111,15 +115,20 @@ def create_app():
                 )
                 db.commit()
                 ai_credits = credits
+                tos_accepted = False
             else:
                 plan = row['plan']
                 ai_credits = row['ai_credits']
+                # Check tos_acceptance table
+                tos_row = db.execute("SELECT version FROM tos_acceptance WHERE google_sub = ?", (sub,)).fetchone()
+                tos_accepted = bool(tos_row)
             return jsonify_success({
                 'plan': plan,
                 'email': g.user_email,
                 'picture': g.user_picture,
                 'sub': sub,
-                'ai_credits': ai_credits
+                'ai_credits': ai_credits,
+                'tos_accepted': tos_accepted
             })
 
     # --- /api/create-checkout-session ---
