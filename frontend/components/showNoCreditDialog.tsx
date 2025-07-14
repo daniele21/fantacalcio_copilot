@@ -22,7 +22,7 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
   React.useEffect(() => {
     // Log the plan prop for debugging
     // eslint-disable-next-line no-console
-    console.log('[ShowNoCreditDialog] plan prop:', plan);
+    // console.log('[ShowNoCreditDialog] plan prop:', plan);
     if (!plan) {
       // Try to fetch plan from /api/me if not provided
       (async () => {
@@ -34,7 +34,7 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
           if (data?.data?.plan) {
             setFetchedPlan(data.data.plan);
             // eslint-disable-next-line no-console
-            console.log('[ShowNoCreditDialog] fetched plan from /api/me:', data.data.plan);
+            // console.log('[ShowNoCreditDialog] fetched plan from /api/me:', data.data.plan);
           } else {
             // eslint-disable-next-line no-console
             console.error('[ShowNoCreditDialog] Could not fetch plan from /api/me');

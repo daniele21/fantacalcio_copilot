@@ -28,6 +28,7 @@ from backend.api.utils import (
     verify_google_token
 )
 from backend.api.strategy import strategy_api
+from backend.update_players import merge_and_update_players
 
 
 def create_app():

@@ -19,6 +19,7 @@ import { CookieProvider } from './services/CookieContext';
 import { CookieBanner } from './components/CookieBanner';
 import { base_url } from './services/api';
 import Footer from './components/Footer';
+import TermsPage from './components/TermsPage';
 
 // Helper to map feature keys to user-friendly names
 const FEATURE_LABELS: Record<string, string> = {
@@ -288,6 +289,7 @@ const App: React.FC = () => {
                         <Routes>
                             <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
                             <Route path="/privacy" element={<PrivacyPage />} />
+                            <Route path="/terms" element={<TermsPage />} />
                             <Route path="/success" element={<SuccessPage />} />
                             <Route path="/setup" element={<SetupWizard onConfirm={handleSetupConfirm} initialSettings={leagueSettings} />} />
                             <Route path="/preparation" element={
