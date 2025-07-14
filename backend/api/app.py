@@ -634,6 +634,36 @@ def create_app():
             ai_credits = row['ai_credits']
             return jsonify_success({'has_credit': ai_credits > 0, 'ai_credits': ai_credits})
 
+    # --- /api/accept-tos ---
+    @app.route('/api/accept-tos', methods=['POST'])
+    @require_auth
+    def accept_tos():
+        data = request.get_json() or {}
+        version = data.get('version', '1.0')
+        sub = g.user_id
+        db_type = os.getenv('DB_TYPE', 'sqlite')
+        db = get_db()
+        if db_type == 'firestore':
+            user_ref = db.collection('users').document(sub)
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                user_ref.set({'tos_version': version, 'tos_accepted_at': firestore.SERVER_TIMESTAMP}, merge=True)
+            else:
+                user_ref.update({'tos_version': version, 'tos_accepted_at': firestore.SERVER_TIMESTAMP})
+            return jsonify_success({'status': 'accepted', 'version': version})
+        else:
+            # SQLite: upsert into tos_acceptance table
+            db.execute(
+                '''
+                INSERT INTO tos_acceptance (google_sub, version, accepted_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(google_sub) DO UPDATE SET version=excluded.version, accepted_at=CURRENT_TIMESTAMP
+                ''',
+                (sub, version)
+            )
+            db.commit()
+            return jsonify_success({'status': 'accepted', 'version': version})
+
     # --- Flask-Limiter setup ---
     limiter = Limiter(get_remote_address, default_limits=["20 per minute"])
     limiter.init_app(app)

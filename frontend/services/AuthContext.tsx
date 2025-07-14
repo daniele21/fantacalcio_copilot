@@ -40,6 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [idToken, setIdToken] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isGoogleAuthReady, setIsGoogleAuthReady] = useState<boolean>(false);
+  // TOS acceptance flow
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [tosAccepted, setTosAccepted] = useState<boolean>(false);
 
   // Move handleSignOut above loadProfile to fix closure order
   const handleSignOut = useCallback(() => {
@@ -94,37 +97,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return profile != null && featureMap[profile.plan]?.includes(feature);
   }, [profile]);
 
+  // Modified handleCredentialResponse for TOS flow
   const handleCredentialResponse = useCallback((response: any) => {
-    // console.log('[AuthContext] Google credential response:', response);
     const token = response.credential;
     if (!token) {
       console.error('[AuthContext] No credential received from Google');
       return;
     }
-    localStorage.setItem('idToken', token);
-    setIdToken(token);
-    let decoded: any;
-    try {
-      decoded = jwtDecode(token);
-      // console.log('[AuthContext] Decoded Google ID token:', decoded);
-    } catch {
-      // console.error('[AuthContext] Invalid ID token');
-      return;
+    setPendingToken(token); // Wait for TOS acceptance
+  }, []);
+
+  // TOS Dialog component
+  const TosDialog: React.FC<{ token: string; onAccept: () => void }> = ({ token, onAccept }) => {
+    const [acceptTos, setAcceptTos] = useState(false);
+    const [acceptVex, setAcceptVex] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const confirm = async () => {
+      if (!(acceptTos && acceptVex)) return;
+      setLoading(true);
+      setError(null);
+      try {
+        await fetch(`${BASE_URL}/api/accept-tos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ version: "1.0" })
+        });
+        onAccept();
+      } catch (e) {
+        setError("Errore di rete. Riprova.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-base-100 p-8 rounded-xl w-full max-w-lg">
+          <h2 className="text-xl font-bold mb-4">Benvenuto!</h2>
+          <label className="flex items-start gap-2 mb-3">
+            <input type="checkbox" checked={acceptTos} onChange={e => setAcceptTos(e.target.checked)} />
+            <span>
+              Ho letto e accetto <a href="/terms" target="_blank" className="underline">Termini &amp; Condizioni</a> e
+              <a href="/privacy" target="_blank" className="underline"> Privacy Policy</a>.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={acceptVex} onChange={e => setAcceptVex(e.target.checked)} />
+            <span>
+              Ai sensi degli artt. 1341‑1342 c.c. approvo espressamente le clausole 6, 8, 10.
+            </span>
+          </label>
+          {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+          <button
+            className={`btn w-full mt-4 font-semibold transition-all duration-150 ${!(acceptTos && acceptVex) || loading ? 'btn-disabled bg-base-300 text-content-200 cursor-not-allowed' : 'btn-primary hover:scale-105'}`}
+            disabled={!(acceptTos && acceptVex) || loading}
+            onClick={confirm}
+            aria-disabled={!(acceptTos && acceptVex) || loading}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+                Attendi...
+              </span>
+            ) : (
+              <span className={!(acceptTos && acceptVex) ? 'opacity-60' : ''}>Continua</span>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // After TOS accepted, complete login
+  useEffect(() => {
+    if (tosAccepted && pendingToken) {
+      localStorage.setItem("idToken", pendingToken);
+      setIdToken(pendingToken);
+      loadProfile(pendingToken);
+      setPendingToken(null);
     }
-    loadProfile(token).catch(err => {
-      console.error('[AuthContext] Could not load user profile:', err);
-      setProfile({
-        email: decoded.email,
-        name: decoded.name,
-        picture: decoded.picture,
-        given_name: decoded.given_name,
-        family_name: decoded.family_name,
-        plan: 'free',
-        sub: decoded.sub, // fallback to sub from token
-        ai_credits: 0 // fallback to 0 credits
-      });
-    });
-  }, [loadProfile]);
+  }, [tosAccepted, pendingToken, loadProfile]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('idToken');
@@ -231,6 +285,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile, // <-- Expose setProfile
       }}
     >
+      {pendingToken && !tosAccepted && (
+        <TosDialog token={pendingToken} onAccept={() => setTosAccepted(true)} />
+      )}
       {children}
     </AuthContext.Provider>
   );
