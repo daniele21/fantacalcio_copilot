@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { base_url } from '../services/api';
 import { useApi } from '../services/useApi';
+import PlanDialog from './PlanDialog';
 
 export interface ShowNoCreditDialogProps {
   open: boolean;
@@ -14,6 +15,7 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
   const [error, setError] = useState<string | null>(null);
   const [fetchedPlan, setFetchedPlan] = useState<string | undefined>(undefined);
   const [creditsToBuy, setCreditsToBuy] = useState(5);
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
   const creditPrice = 0.5;
   const totalCost = (creditsToBuy * creditPrice).toFixed(2);
 
@@ -54,7 +56,7 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
       const resp = await call<any>(`${base_url}/api/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: effectivePlan, credits: creditsToBuy }) // Use selected credits
+        body: JSON.stringify({ plan: effectivePlan, credits: creditsToBuy })
       });
       const sessionUrl = resp?.data?.sessionUrl;
       const apiError = resp?.error;
@@ -70,13 +72,34 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
       setError(e?.message || 'Errore di rete.');
     } finally {
       setLoading(false);
+      setShowPlanDialog(false);
     }
   };
 
   if (!open) return null;
 
+  // Prepare a pseudo-plan for credits purchase
+  const creditPlan = {
+    name: `Acquisto Crediti AI`,
+    price: Number(totalCost),
+    features: [
+      `${creditsToBuy} Crediti AI`,
+      'Utilizzabili su tutte le funzioni avanzate',
+      'Pagamento una tantum',
+      'Nessun rinnovo automatico'
+    ],
+    cta: `Compra Crediti`
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      {showPlanDialog && (
+        <PlanDialog
+          plan={creditPlan}
+          onClose={() => setShowPlanDialog(false)}
+          onConfirm={handleBuyCredits}
+        />
+      )}
       <div className="bg-base-100 p-8 rounded-xl shadow-2xl max-w-sm w-full border-2 border-red-400 flex flex-col items-center">
         <span className="text-4xl mb-2">💳</span>
         <h3 className="text-lg font-bold text-red-600 mb-2">Crediti AI esauriti</h3>
@@ -134,7 +157,7 @@ export default function ShowNoCreditDialog({ open, onClose, plan }: ShowNoCredit
         </div>
         {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
         <button
-          onClick={handleBuyCredits}
+          onClick={() => setShowPlanDialog(true)}
           className="w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-lg mt-2 hover:bg-brand-secondary transition disabled:bg-gray-400"
           disabled={loading}
         >
