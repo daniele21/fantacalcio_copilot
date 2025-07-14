@@ -7,13 +7,13 @@ import {
   ArrowRight,
   Check
 } from "lucide-react";
-import { Switch } from "@headlessui/react";
 import clsx from "clsx";
 import { useAuth } from "../services/AuthContext";
 import { SuccessPage } from "./SuccessPage";
 import { useApi } from "../services/useApi";
 import { useNavigate } from "react-router-dom";
 import { PoweredByGeminiBadge } from "./shared/PoweredByGeminiBadge";
+import PlanDialog from "./PlanDialog";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -26,8 +26,7 @@ const BASE_URL = import.meta.env.VITE_API_URL;
 interface Plan {
   key: string;
   name: string;
-  priceMonthly: number;
-  priceYearly: number; // discounted price (per month)
+  price: number; // one-off payment
   features: string[];
   recommended?: boolean;
   cta: string;
@@ -37,8 +36,7 @@ const plans: Plan[] = [
   {
     key: "free",
     name: "Free",
-    priceMonthly: 0,
-    priceYearly: 0,
+    price: 0,
     features: [
       "Modalità demo: prova tutte le funzioni",
       "Assistente Asta Live",
@@ -50,8 +48,7 @@ const plans: Plan[] = [
   {
     key: "basic",
     name: "Basic",
-    priceMonthly: 9.99,
-    priceYearly: 7.99,
+    price: 9.99,
     features: [
       "Assistente Asta Live",
       "Esplora Giocatori",
@@ -63,8 +60,7 @@ const plans: Plan[] = [
   {
     key: "pro",
     name: "Pro",
-    priceMonthly: 19.99,
-    priceYearly: 15.99,
+    price: 19.99,
     recommended: true,
     features: [
       "Assistente Asta Live",
@@ -77,8 +73,7 @@ const plans: Plan[] = [
   {
     key: "enterprise",
     name: "Enterprise",
-    priceMonthly: 49.99,
-    priceYearly: 39.99,
+    price: 49.99,
     features: [
       "Assistente Asta Live",
       "Analisi giocatore avanzata",
@@ -99,21 +94,17 @@ const planOrder = ["free", "basic", "pro", "enterprise"];
 interface HomePageProps {
   onLogin: (plan?: string) => void;
   userPlan: string | null;
-  setUserPlan: (plan: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   onLogin,
-  userPlan,
-  setUserPlan
+  userPlan
 }) => {
   const { isLoggedIn, profile, isGoogleAuthReady, refreshProfile } = useAuth();
   const { call } = useApi();
   const navigate = useNavigate();
 
   const [showSuccess, setShowSuccess] = React.useState(false);
-  const [showFallbackLogin, setShowFallbackLogin] = React.useState(false);
-  const [isYearly, setIsYearly] = React.useState(false);
   const [showPlanDialog, setShowPlanDialog] = useState<Plan | null>(null);
 
   /** ------------------------------------------------
@@ -122,17 +113,6 @@ export const HomePage: React.FC<HomePageProps> = ({
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("session_id")) setShowSuccess(true);
-  }, [isLoggedIn, isGoogleAuthReady]);
-
-  /** ------------------------------------------------
-   * Fallback if GSI fails
-   * ------------------------------------------------*/
-  React.useEffect(() => {
-    if (!isLoggedIn && !isGoogleAuthReady) {
-      const timeout = setTimeout(() => setShowFallbackLogin(true), 5000);
-      return () => clearTimeout(timeout);
-    }
-    setShowFallbackLogin(false);
   }, [isLoggedIn, isGoogleAuthReady]);
 
   /** ------------------------------------------------
@@ -206,7 +186,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   );
 
   const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => {
-    const price = isYearly ? plan.priceYearly : plan.priceMonthly;
+    const price = plan.price;
     const priceLabel = price === 0 ? "Gratis" : `€${price.toFixed(2)}`;
 
     return (
@@ -227,7 +207,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </p>
         {price !== 0 && (
           <p className="text-content-200 text-sm">
-            {isYearly ? "al mese (fatturazione annuale)" : "/ mese"}
+            Pagamento una tantum
           </p>
         )}
 
@@ -247,66 +227,6 @@ export const HomePage: React.FC<HomePageProps> = ({
         >
           {plan.cta}
         </button>
-      </div>
-    );
-  };
-
-  // Add PlanDialog component
-  const PlanDialog: React.FC<{ plan: Plan; onClose: () => void; onConfirm: () => void }> = ({ plan, onClose, onConfirm }) => {
-    const price = isYearly ? plan.priceYearly : plan.priceMonthly;
-    const aiCredits = plan.features.find(f => f.toLowerCase().includes("crediti ai")) || "-";
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="bg-base-100 rounded-2xl shadow-2xl max-w-md w-full p-8 relative border-2 border-brand-primary/30 animate-fade-in">
-          <button
-            className="absolute top-3 right-3 text-content-200 hover:text-brand-primary text-2xl font-bold transition-colors"
-            onClick={onClose}
-            aria-label="Chiudi"
-          >
-            ×
-          </button>
-          <div className="flex flex-col items-center mb-6">
-            <ShieldCheck className="w-12 h-12 text-brand-primary mb-2" />
-            <h2 className="text-2xl font-extrabold mb-1 text-center text-brand-primary">Conferma il tuo acquisto</h2>
-            <p className="text-content-200 text-center text-sm">Rivedi i dettagli prima di procedere al pagamento.</p>
-          </div>
-          <div className="bg-base-200 rounded-xl p-4 mb-6 flex flex-col gap-2">
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-content-100">Piano</span>
-              <span className="font-bold text-brand-primary text-lg">{plan.name}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-content-100">Prezzo</span>
-              <span className="font-bold text-lg">{price === 0 ? "Gratis" : `€${price.toFixed(2)} IVA inclusa`}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-content-100">Crediti AI</span>
-              <span className="font-bold text-green-600">{aiCredits}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-content-100">Durata</span>
-              <span className="font-bold">Fino a dicembre 2025</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-content-100">Rinnovo</span>
-              <span className="font-bold text-orange-500">Nessun rinnovo automatico</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-content-100">Pagamento</span>
-              <span className="font-bold">Una tantum</span>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 mb-4 text-sm text-content-200 text-center">
-            <a href="/terms" target="_blank" className="underline hover:text-brand-primary transition-colors">Termini &amp; Condizioni</a>
-            <a href="/privacy" target="_blank" className="underline hover:text-brand-primary transition-colors">Privacy Policy</a>
-          </div>
-          <button
-            className="btn btn-primary w-full mt-2 py-3 text-lg font-bold shadow-lg hover:scale-105 transition-transform"
-            onClick={onConfirm}
-          >
-            Conferma e paga
-          </button>
-        </div>
       </div>
     );
   };
@@ -425,27 +345,6 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* ------------------------------------------------ PRICING SECTION */}
         <section id="pricing" className="container mx-auto px-4 sm:px-6 lg:px-8 mt-32">
           <h2 className="text-3xl font-bold text-center text-content-100">Piani & Prezzi</h2>
-
-          {/* Toggle billing */}
-          <div className="flex justify-center items-center gap-3 mt-8 select-none">
-            <span className="font-medium">Mensile</span>
-            <Switch
-              checked={isYearly}
-              onChange={setIsYearly}
-              className={clsx(
-                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                isYearly ? "bg-brand-primary" : "bg-base-300"
-              )}
-            >
-              <span
-                className={clsx(
-                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                  isYearly ? "translate-x-6" : "translate-x-1"
-                )}
-              />
-            </Switch>
-            <span className="font-medium">Annuale (-20%)</span>
-          </div>
 
           {/* Plans */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 justify-center items-stretch mt-12">
