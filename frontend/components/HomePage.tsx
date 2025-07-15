@@ -39,7 +39,7 @@ const plans: Plan[] = [
   },
   {
     key: "basic",
-    name: "Basic",
+    name: "Scout",
     price: 9.99,
     features: [
       "Assistente Asta Live",
@@ -47,11 +47,11 @@ const plans: Plan[] = [
       "Analisi base dei Giocatori",
       "Nessun Crediti AI"
     ],
-    cta: "Scegli Basic"
+    cta: "Scegli Scout"
   },
   {
     key: "pro",
-    name: "Pro",
+    name: "Coach",
     price: 19.99,
     recommended: true,
     features: [
@@ -60,11 +60,11 @@ const plans: Plan[] = [
       "Analisi Strategica dei Giocatori",
       "50 Crediti AI"
     ],
-    cta: "Vai Pro (più scelto)"
+    cta: "Vai Coach (più scelto)"
   },
   {
     key: "enterprise",
-    name: "Enterprise",
+    name: "Manager",
     price: 49.99,
     features: [
       "Assistente Asta Live",
@@ -73,7 +73,7 @@ const plans: Plan[] = [
       "Analisi AI Avanzata sui Giocatori",
       "200 Crediti AI"
     ],
-    cta: "Scegli Enterprise"
+    cta: "Scegli Manager"
   }
 ];
 

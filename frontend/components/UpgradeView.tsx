@@ -8,7 +8,7 @@ import PlanCard, { Plan } from './PlanCard';
 const plans: Plan[] = [
 	{
 		key: 'basic',
-		name: 'Basic',
+		name: 'Scout',
 		price: 9.99,
 		features: [
 			'Assistente Asta Live',
@@ -17,11 +17,11 @@ const plans: Plan[] = [
 			'Nessun Crediti AI',
 		],
 		order: 1,
-		cta: 'Scegli Basic',
+		cta: 'Scegli Scout',
 	},
 	{
 		key: 'pro',
-		name: 'Pro',
+		name: 'Coach',
 		price: 19.99,
 		features: [
 			'Assistente Asta Live',
@@ -30,11 +30,11 @@ const plans: Plan[] = [
 			'50 Crediti AI',
 		],
 		order: 2,
-		cta: 'Vai Pro (più scelto)',
+		cta: 'Vai Coach (più scelto)',
 	},
 	{
 		key: 'enterprise',
-		name: 'Enterprise',
+		name: 'Manager',
 		price: 49.99,
 		features: [
 			'Assistente Asta Live',
@@ -44,7 +44,7 @@ const plans: Plan[] = [
 			'200 Crediti AI',
 		],
 		order: 3,
-		cta: 'Scegli Enterprise',
+		cta: 'Scegli Manager',
 	},
 ];
 const planOrder: Record<string, number> = { free: 0, basic: 1, pro: 2, enterprise: 3 };
