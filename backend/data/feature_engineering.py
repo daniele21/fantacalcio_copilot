@@ -1,104 +1,240 @@
+import numpy as np
 import pandas as pd
 from scipy.stats import zscore
+from typing import List
 
-def player_features(statistics):
+# ===============================
+# 1.  Helper functions
+# ===============================
+
+def per_90(series: pd.Series, minutes: pd.Series) -> pd.Series:
+    """Scala una metrica a valore per 90′, con gestione divisioni per zero."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return series.div(minutes.replace(0, np.nan)).mul(90).fillna(0)
+
+
+# def classify_value(percentile: float) -> str:
+#     if percentile >= 0.8:
+#         return "Very High"
+#     if percentile >= 0.6:
+#         return "High"
+#     if percentile >= 0.4:
+#         return "Medium"
+#     if percentile >= 0.2:
+#         return "Low"
+#     return "Very Low"
+
+
+def map_stars(percentile: float) -> int:
+    if percentile >= 0.9:
+        return 5
+    if percentile >= 0.75:
+        return 4
+    if percentile >= 0.55:
+        return 3
+    if percentile >= 0.30:
+        return 2
+    return 1
+
+
+def role_coeff(role: str) -> float:
+    mapping = {"ATT": 1.40, "CEN": 1.10, "DIF": 0.80, "POR": 0.70}
+    return mapping.get(role, 1.0)
+
+
+def tag_rules(row: pd.Series) -> List[str]:
+    tags: List[str] = []
+    if row["performance_percentile"] >= 0.80:
+        tags.append("Fuoriclasse")
+        
+    if row["starting_rate"] >= 0.75 and row["minutes_share"] >= 0.75:
+        tags.append("Titolare")
+        
+    if row["assists_per_90"] >= 0.25 or row["key_passes_per_90"] >= 2:
+        tags.append("Assist‑Man")
+        
+    if row["goals_per_90"] >= 0.45:
+        tags.append("Bomber")
+        
+    if row["def_actions_per_90_rank"] >= 0.80 and row["position"] == "DIF":
+        tags.append("Muro Difensivo")
+        
+    # Nuova soglia: >=1 infortunio ogni 10 partite
+    if row["injury_risk"] >= 1.0:
+        tags.append("Fragile")
+        
+    if row.get("Penalties_scored", 0) >= 2 or (
+        row.get("Goals_penalties", 0) / max(row["Goals_total"], 1) >= 0.30
+    ):
+        tags.append("Rigori")
+        
+    if row["crosses_per_90"] >= 3 or row["big_chances_created_per_90"] >= 0.3:
+        tags.append("Piazzati")
+        
+    return tags[:4]
+
+
+# ===============================
+# 2.  Main pipeline
+# ===============================
+
+def add_fantacopilot_features(df: pd.DataFrame, league_budget: int = 500) -> pd.DataFrame:
+    """Arricchisce `df` con tutte le feature utili alle *player‑cards*.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Dataset grezzo con statistiche stagionali:
+        - 'Accurate Crosses_total', 'Accurate Passes Percentage_total',
+            'Accurate Passes_total', 'Aerials Won_total', 'Appearances_total',
+            'Assists_total', 'Average Points Per Game_average', 'Bench_total',
+            'Big Chances Created_total', 'Big Chances Missed_total',
+            'Blocked Shots_total', 'Captain_total', 'Cleansheets_away',
+            'Cleansheets_home', 'Cleansheets_total', 'Clearances_total',
+            'Crosses Blocked_crosses_blocked', 'Dispossessed_total',
+            'Dribble Attempts_total', 'Dribbled Past_total', 'Duels Won_total',
+            'Fouls Drawn_total', 'Fouls_total', 'Goals Conceded_total',
+            'Goals_goals', 'Goals_penalties', 'Goals_total', 'Hit Woodwork_total',
+            'Injuries_total', 'Interceptions_total', 'Key Passes_total',
+            'Lineups_total', 'Long Balls Won_total', 'Long Balls_total',
+            'Minutes Played_total', 'Offsides_total', 'Passes_total',
+            'Penalties_committed', 'Penalties_missed', 'Penalties_saved',
+            'Penalties_scored', 'Penalties_total', 'Penalties_won',
+            'Rating_average', 'Rating_highest', 'Rating_lowest',
+            'Shots Blocked_total', 'Shots Off Target_total',
+            'Shots On Target_total', 'Shots Total_total', 'Substitutions_in',
+            'Substitutions_out', 'Successful Dribbles_total', 'Tackles_total',
+            'Team Draws_total', 'Team Lost_total', 'Team Wins_total',
+            'Through Balls Won_total', 'Through Balls_total', 'Total Crosses_total',
+            'Total Duels_total', 'Yellowcards_away', 'Yellowcards_home',
+            'Yellowcards_total', 'Yellowred Cards_away', 'Yellowred Cards_home',
+            'Yellowred Cards_total', 'Error Lead To Goal_total',
+            'Saves Insidebox_total', 'Saves_total', 'Redcards_away',
+            'Redcards_home', 'Redcards_total', 'Own Goals_total',
+            'Hattricks_average', 'Hattricks_total'
+        
+    league_budget : int, default 500
+        Budget di lega di riferimento (cred). Usato per scalare i prezzi.
     """
-    Calcola tutte le feature derivate e di valore per una lista di statistiche giocatori.
-    Argomenti:
-        statistics: DataFrame o lista di dict con le statistiche raw dei giocatori
-    Ritorna:
-        DataFrame con feature raw, derivate e di valore
-    """
 
-    # Se statistics è una lista di dict, converti in DataFrame
-    if not isinstance(statistics, pd.DataFrame):
-        df = pd.DataFrame(statistics)
-    else:
-        df = statistics.copy()
+    df = df.copy()
 
-    # Funzione per calcolare feature normalizzate per 90 minuti
-    def per_90(series, minutes):
-        return series.div(minutes).mul(90)
+    # ---------------------------
+    # Core derived metrics
+    # ---------------------------
+    df["goals_per_90"] = per_90(df["Goals_total"], df["Minutes Played_total"])
+    df["assists_per_90"] = per_90(df["Assists_total"], df["Minutes Played_total"])
+    df["big_chances_created_per_90"] = per_90(
+        df["Big Chances Created_total"], df["Minutes Played_total"]
+    )
+    df["conversion_rate"] = df["Goals_total"].div(df["Shots Total_total"].replace(0, np.nan)).fillna(0)
 
-    # 1. Rendimento offensivo
-    df['goals_per_90'] = per_90(df['Goals_total'], df['Minutes Played_total'])
-    df['assists_per_90'] = per_90(df['Assists_total'], df['Minutes Played_total'])
-    df['big_chances_created_per_90'] = per_90(df['Big Chances Created_total'], df['Minutes Played_total'])
-    df['conversion_rate'] = df['Goals_total'] / df['Shots Total_total']
+    # Coinvolgimento nel gioco
+    df["key_passes_per_90"] = per_90(df["Key Passes_total"], df["Minutes Played_total"])
+    df["crosses_per_90"] = per_90(df["Total Crosses_total"], df["Minutes Played_total"])
+    df["dribble_success_rate"] = df["Successful Dribbles_total"].div(
+        df["Dribble Attempts_total"].replace(0, np.nan)
+    ).fillna(0)
+    df["aerial_duels_win_rate"] = df["Aerials Won_total"].div(
+        df["Total Duels_total"].replace(0, np.nan)
+    ).fillna(0)
 
-    # 2. Coinvolgimento nel gioco
-    df['key_passes_per_90'] = per_90(df['Key Passes_total'], df['Minutes Played_total'])
-    df['crosses_per_90'] = per_90(df['Total Crosses_total'], df['Minutes Played_total'])
-    df['dribble_success_rate'] = df['Successful Dribbles_total'] / df['Dribble Attempts_total']
-    df['aerial_duels_win_rate'] = df['Aerials Won_total'] / df['Total Duels_total']
+    # Difensivo
+    df["def_actions"] = (
+        df["Clearances_total"] + df["Interceptions_total"] + df["Shots Blocked_total"]
+    )
+    df["def_actions_per_90"] = per_90(df["def_actions"], df["Minutes Played_total"])
+    df["tackle_success_rate"] = df["Tackles_total"].div(
+        df["Total Duels_total"].replace(0, np.nan)
+    ).fillna(0)
+    df["clean_sheet_rate"] = df["Cleansheets_total"].div(
+        df["Appearances_total"].replace(0, np.nan)
+    ).fillna(0)
+    df["goals_conceded_per_90"] = per_90(df["Goals Conceded_total"], df["Minutes Played_total"])
 
-    # 3. Efficienza difensiva
-    def defensive_actions(df_in):
-        return df_in['Clearances_total'] + df_in['Interceptions_total'] + df_in['Shots Blocked_total']
-    df['def_actions_per_90'] = per_90(defensive_actions(df), df['Minutes Played_total'])
-    df['tackle_success_rate'] = df['Tackles_total'] / df['Total Duels_total']
-    df['clean_sheet_rate'] = df['Cleansheets_total'] / df['Appearances_total']
-    df['goals_conceded_per_90'] = per_90(df['Goals Conceded_total'], df['Minutes Played_total'])
+    # Affidabilità
+    df["starting_rate"] = df["Lineups_total"].div(df["Appearances_total"].replace(0, np.nan)).fillna(0)
+    df["minutes_share"] = df["Minutes Played_total"].div(
+        (df["Appearances_total"] * 90).replace(0, np.nan)
+    ).fillna(0)
+    df["bench_rate"] = df["Bench_total"].div(df["Appearances_total"].replace(0, np.nan)).fillna(0)
 
-    # 4. Affidabilità e disponibilità
-    df['starting_rate'] = df['Lineups_total'] / df['Appearances_total']
-    df['minutes_share'] = df['Minutes Played_total'] / (df['Appearances_total'] * 90)
-    df['bench_rate'] = df['Bench_total'] / df['Appearances_total']
-    df['cards_total'] = df[['Yellowcards_total','Redcards_total','Yellowred Cards_total']].fillna(0).sum(axis=1)
-    df['injury_risk'] = df['Injuries_total'] / df['Minutes Played_total'] * 1000
+    df["cards_total"] = (
+        df[["Yellowcards_total", "Redcards_total", "Yellowred Cards_total"]]
+        .fillna(0)
+        .sum(axis=1)
+    )
+    # **Nuova definizione**: infortuni ogni 10 apparizioni
+    df["injury_risk"] = df["Injuries_total"].div(df["Appearances_total"].replace(0, np.nan)).mul(10).fillna(0)
 
-    df['rating_std'] = df.groupby('player_name')['Rating_average'].transform('std')
-    df['expected_minutes'] = df['starting_rate'] * 90
+    # Volatilità rating se disponibile
+    if "Rating_average" in df.columns:
+        df["rating_std"] = df.groupby("player_name")["Rating_average"].transform("std")
+        df["volatility_index"] = df["rating_std"].div(df["Rating_average"].replace(0, np.nan)).fillna(0)
 
-    # =========================
-    # CALCOLO DEL VALORE DEL GIOCATORE (basato su performance relative)
-    # =========================
     metrics = [
-        'goals_per_90','assists_per_90','big_chances_created_per_90',
-        'key_passes_per_90','crosses_per_90','def_actions_per_90',
-        'clean_sheet_rate','tackle_success_rate'
+        "goals_per_90",
+        "assists_per_90",
+        "big_chances_created_per_90",
+        "key_passes_per_90",
+        "crosses_per_90",
+        "def_actions_per_90",
+        "clean_sheet_rate",
+        "tackle_success_rate",
     ]
-    # z-score normalizzati
-    for m in metrics:
-        df[f'{m}_z'] = zscore(df[m].fillna(0))
-    # Composite performance score e percentile
-    z_cols = [f'{m}_z' for m in metrics]
-    df['performance_score'] = df[z_cols].mean(axis=1)
-    df['performance_percentile'] = df['performance_score'].rank(pct=True)
-    # Categoria valore
-    def classify_value(pct):
-        if pct >= 0.8:
-            return 'Very High'
-        elif pct >= 0.6:
-            return 'High'
-        elif pct >= 0.4:
-            return 'Medium'
-        elif pct >= 0.2:
-            return 'Low'
-        else:
-            return 'Very Low'
-    df['value_category'] = df['performance_percentile'].apply(classify_value)
 
-    # =========================
-    # AGGREGAZIONE FINALE
-    # =========================
-    original = statistics.columns.tolist() if isinstance(statistics, pd.DataFrame) else list(statistics[0].keys())
-    derived = [
-        'goals_per_90','assists_per_90','big_chances_created_per_90','conversion_rate',
-        # 'xG_total','xA_total','xG_diff','xA_diff',
-        'key_passes_per_90','crosses_per_90','dribble_success_rate','aerial_duels_win_rate',
-        'def_actions_per_90','tackle_success_rate','clean_sheet_rate','goals_conceded_per_90',
-        'starting_rate','minutes_share','bench_rate','cards_total','injury_risk',
-        'rating_std','expected_minutes',
-        # 'next_match_difficulty','position',
-        # value metrics
-        *[f'{m}_z' for m in metrics],
-        'performance_score','performance_percentile','value_category'
+    for m in metrics:
+        df[f"{m}_z"] = zscore(df[m].fillna(0))
+
+    z_cols = [f"{m}_z" for m in metrics]
+    df["performance_score"] = df[z_cols].mean(axis=1)
+    df["performance_percentile"] = df["performance_score"].rank(pct=True)
+    # df["value_category"] = df["performance_percentile"].apply(classify_value)
+    df["def_actions_per_90_rank"] = df["def_actions_per_90"].rank(pct=True)
+
+    # Stelle & Tag
+    df["stars"] = df["performance_percentile"].apply(map_stars).astype(int)
+    df["tags"] = df.apply(tag_rules, axis=1)
+
+    # ---------------------------
+    # Price estimation
+    # ---------------------------
+    max_injury = df["injury_risk"].max() or 1
+    df["injury_scaled"] = 1 - df["injury_risk"].div(max_injury)
+    df["role_coeff"] = df["position"].apply(role_coeff)
+
+    df["price_base"] = (
+        df["performance_percentile"] * 0.60
+        + df["minutes_share"] * 0.25
+        + df["injury_scaled"] * 0.15
+    ) * df["role_coeff"]
+
+    scale_factor = league_budget / df["price_base"].sum() * df.shape[0]
+    df["price_estimate"] = df["price_base"] * scale_factor
+
+    def pct_range(s: pd.Series) -> pd.Series:
+        return pd.Series({"low": s.quantile(0.10), "high": s.quantile(0.90)})
+
+    price_ranges = df.groupby("position")["price_estimate"].apply(pct_range).unstack()
+    df = df.join(price_ranges, on="position", rsuffix="_role")
+    df.rename(columns={"low": "price_low", "high": "price_high"}, inplace=True)
+
+    price_cols = ["price_estimate", "price_low", "price_high"]
+    df[price_cols] = df[price_cols].round(0).astype(int)
+
+    percent_cols = [
+        "performance_percentile",
+        "conversion_rate",
+        "dribble_success_rate",
+        "aerial_duels_win_rate",
+        "tackle_success_rate",
+        "clean_sheet_rate",
     ]
-    cols = original + [c for c in derived if c not in original]
-    return df[cols]
+    df[percent_cols] = df[percent_cols].mul(100).round(1)
+
+    return df
 
 if __name__ == "__main__":
     statistics = pd.read_csv('/Users/moltisantid/Personal/fantacalcio/player_statistics_2025-07-21_10-07-09.csv')
-    df_features = player_features(statistics)
+    df_features = add_fantacopilot_features(statistics, league_budget=500)
     df_features
