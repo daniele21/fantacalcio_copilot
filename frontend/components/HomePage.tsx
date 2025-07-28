@@ -41,6 +41,7 @@ const plans: Plan[] = [
     key: "basic",
     name: "Scout",
     price: 9.99,
+    originalPrice: 14.90, // 9.99 / 0.7
     features: [
       "Assistente Asta Live",
       "Esplora Giocatori",
@@ -53,6 +54,7 @@ const plans: Plan[] = [
     key: "pro",
     name: "Coach",
     price: 19.99,
+    originalPrice: 34.90, // 19.99 / 0.7
     recommended: true,
     features: [
       "Assistente Asta Live",
@@ -66,6 +68,7 @@ const plans: Plan[] = [
     key: "enterprise",
     name: "Manager",
     price: 49.99,
+    originalPrice: 99.90, // 49.99 / 0.7
     features: [
       "Assistente Asta Live",
       "Analisi giocatore avanzata",

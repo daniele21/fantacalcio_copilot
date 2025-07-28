@@ -9,6 +9,7 @@ export interface Plan {
   features: string[];
   recommended?: boolean;
   cta: string;
+  originalPrice?: number; // Add optional originalPrice for discount
 }
 
 interface PlanCardProps {
@@ -21,7 +22,9 @@ const planOrder: Record<string, number> = { free: 0, basic: 1, pro: 2, enterpris
 
 const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect, currentPlan }) => {
   const price = plan.price;
+  const hasDiscount = typeof plan.originalPrice === 'number' && plan.originalPrice > price;
   const priceLabel = price === 0 ? "Gratis" : `€${price.toFixed(2)}`;
+  const originalPriceLabel = hasDiscount ? `€${plan.originalPrice!.toFixed(2)}` : null;
   const isCurrent = currentPlan && plan.key === currentPlan;
   const isDisabled = currentPlan && planOrder[plan.key] <= planOrder[currentPlan];
 
@@ -44,9 +47,29 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect, currentPlan }) => {
         </span>
       )}
       <h3 className="text-2xl font-bold text-content-100">{plan.name}</h3>
-      <p className="mt-4 text-5xl font-extrabold text-brand-primary">
-        {priceLabel}
-      </p>
+      <div className="relative mt-4 flex flex-col items-center justify-center min-h-[3.5rem]">
+        {hasDiscount && originalPriceLabel && (
+          <span className="relative inline-flex items-center px-3 py-1 mb-1 rounded-full bg-red-100 border border-red-300 text-red-600 text-2xl font-bold shadow-sm animate-fade-in old-price-slash">
+            {originalPriceLabel}
+            <span className="slash-diagonal" aria-hidden="true"></span>
+          </span>
+        )}
+        <div className="flex items-end justify-center gap-2">
+          <span className="text-5xl font-extrabold text-brand-primary">{priceLabel}</span>
+          {hasDiscount && (
+            <span className="ml-2 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-300 animate-pop-in">
+              -{Math.round(100 - (price / plan.originalPrice!) * 100)}%
+            </span>
+          )}
+        </div>
+      </div>
+      {hasDiscount && (
+        <div className="flex items-center justify-center mt-2">
+          <span className="inline-block px-3 py-1 rounded-full bg-green-500 text-white text-xs font-semibold shadow-sm animate-fade-in">
+            In offerta limitata fino al <strong>10 Agosto!</strong>
+          </span>
+        </div>
+      )}
       {price !== 0 && (
         <p className="text-content-200 text-sm">
           Pagamento una tantum
@@ -69,10 +92,30 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect, currentPlan }) => {
           isDisabled && "opacity-50 cursor-not-allowed hover:bg-brand-primary"
         )}
         aria-label={`Abbonati al piano ${plan.name}`}
-        disabled={isDisabled}
+        disabled={!!isDisabled}
       >
         {isCurrent ? "Attivo" : plan.cta}
       </button>
+      <style>{`
+        .old-price-slash {
+          position: relative;
+          overflow: visible;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .old-price-slash .slash-diagonal {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 110%;
+          height: 0;
+          border-top: 3px solid #ef4444;
+          transform: translate(-50%, -50%) rotate(-20deg);
+          pointer-events: none;
+          content: '';
+        }
+      `}</style>
     </div>
   );
 };
