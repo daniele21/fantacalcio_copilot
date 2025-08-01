@@ -2,7 +2,7 @@ import json
 import os
 from flask import Blueprint, request, make_response, g
 from google.cloud import firestore
-from backend.api.utils import get_db, require_auth, jsonify_success, jsonify_error
+from .util import get_db, require_auth, jsonify_success, jsonify_error
 
 strategy_api = Blueprint('strategy_api', __name__)
 
@@ -21,7 +21,7 @@ def strategy_board():
             return jsonify_success({'strategy_board': {'target_players': target_players}})
         else:
             rows = db.execute(
-                "SELECT player_id, max_bid FROM strategy_board_targets WHERE google_sub = ?",
+                "SELECT id, max_bid FROM strategy_board_targets WHERE google_sub = ?",
                 (google_sub,)
             ).fetchall()
             target_players = [dict(row) for row in rows]
@@ -42,7 +42,7 @@ def strategy_board():
                 doc_ref = db.collection('strategy_board_targets').document(doc_id)
                 batch.set(doc_ref, {
                     'google_sub': google_sub,
-                    'player_id': player.get('id'),
+                    'id': player.get('id'),
                     'max_bid': player.get('maxBid', 0)
                 }, merge=True)
             batch.commit()
@@ -53,9 +53,9 @@ def strategy_board():
             for player in target_players:
                 db.execute(
                     """
-                    INSERT INTO strategy_board_targets (google_sub, player_id, max_bid)
+                    INSERT INTO strategy_board_targets (google_sub, id, max_bid)
                     VALUES (?, ?, ?)
-                    ON CONFLICT(google_sub, player_id) DO UPDATE SET
+                    ON CONFLICT(google_sub, id) DO UPDATE SET
                         max_bid=excluded.max_bid
                     """,
                     (google_sub, player.get('id'), player.get('maxBid', 0))
@@ -130,3 +130,27 @@ def strategy_board_budget():
             )
             db.commit()
             return jsonify_success({'message': 'Saved'})
+
+@strategy_api.route('/strategy', methods=['DELETE'])
+@require_auth
+def delete_strategy():
+    db_type = os.getenv('DB_TYPE', 'sqlite')
+    db = get_db()
+    google_sub = g.user_id
+    # Delete all strategy board targets and budget for this user
+    if db_type == 'firestore':
+        # Delete all strategy_board_targets for this user
+        targets_ref = db.collection('strategy_board_targets').where('google_sub', '==', google_sub)
+        docs = list(targets_ref.stream())
+        batch = db.batch()
+        for doc in docs:
+            batch.delete(doc.reference)
+        # Delete strategy_board budget doc
+        budget_ref = db.collection('strategy_board').document(google_sub)
+        batch.delete(budget_ref)
+        batch.commit()
+    else:
+        db.execute("DELETE FROM strategy_board_targets WHERE google_sub = ?", (google_sub,))
+        db.execute("DELETE FROM strategy_board WHERE google_sub = ?", (google_sub,))
+        db.commit()
+    return jsonify_success({'status': 'deleted'})

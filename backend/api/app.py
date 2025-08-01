@@ -16,20 +16,21 @@ import sys
 import yaml
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import random
 
 # Utility and blueprint imports
-from backend.api.utils import (
-    get_db,
-    close_db,
-    init_db,
-    require_auth,
-    jsonify_success,
-    jsonify_error,
-    verify_google_token
-)
-from backend.api.strategy import strategy_api
-from backend.update_players import merge_and_update_players
+from .util import get_db, close_db, init_db, require_auth, jsonify_success, jsonify_error, verify_google_token
+from .strategy import strategy_api
+from .utils.cache import cache_api_lru
+from .routes.giocatori import routes_giocatori
+from .routes.auction_log import routes_auction_log
+from .routes.credit import routes_credit
+from .routes.league_settings import routes_league_settings
 
+
+# Load credits config
+with open(os.path.join(os.path.dirname(__file__), 'credits_config.yaml'), 'r') as f:
+    CREDITS_PER_PLAN = yaml.safe_load(f)
 
 def create_app():
     app = Flask(__name__)
@@ -87,7 +88,7 @@ def create_app():
                 user_ref.set({'plan': plan, 
                               'email': g.user_email, 
                               'created_at': firestore.SERVER_TIMESTAMP, 
-                              'ai_credits': CREDITS_PER_PLAN[plan]}, 
+                              'ai_credits': CREDITS_PER_PLAN['credits_per_plan'][plan]}, 
                              merge=True)
                 tos_accepted = False
             else:
@@ -430,7 +431,8 @@ def create_app():
                 return jsonify_error('corrupted', 'Corrupted data')
 
     # --- /api/giocatori ---
-    @cache_api_lru(maxsize=128, ttl=60*24)  # Cache for 24 hours
+    @cache_api_lru(maxsize=1024, ttl=60*24)  # Cache for 24 hours
+    # @cache_api_lru(maxsize=128, ttl=1)  # Cache for 24 hours
     def get_giocatori_cached(db_type, db_path):
         if db_type == 'firestore':
             db = get_db()
@@ -438,7 +440,7 @@ def create_app():
             docs = giocatori_ref.stream()
             giocatori = [doc.to_dict() | {'id': doc.id} for doc in docs if doc.id != 'init']
             if not giocatori:
-                merge_and_update_players()
+                # merge_and_update_players()
                 docs = giocatori_ref.stream()
                 giocatori = [doc.to_dict() | {'id': doc.id} for doc in docs if doc.id != 'init']
             return giocatori
@@ -447,7 +449,7 @@ def create_app():
             conn.row_factory = sqlite3.Row
             rows = conn.execute('SELECT * FROM giocatori').fetchall()
             if not rows:
-                merge_and_update_players()
+                # merge_and_update_players()
                 rows = conn.execute('SELECT * FROM giocatori').fetchall()
             conn.close()
             return [dict(r) for r in rows]
@@ -474,15 +476,14 @@ def create_app():
                 plan = row['plan']
         # If free plan, return a stratified random sample (e.g., 30 players by recommendation)
         if plan == 'free' and len(giocatori) > 30:
-            import random
             from collections import defaultdict
             # Group by recommendation (rounded to int, fallback 0)
             groups = defaultdict(list)
             for p in giocatori:
                 try:
-                    rec = int(round(float(p.get('fvm_recommendation', 0))))
+                    rec = int(round(float(p.get('stars', 1))))
                 except Exception:
-                    rec = 0
+                    rec = 1
                 groups[rec].append(p)
             # Define how many to sample from each group (proportional, but at least 1 if group not empty)
             total = 30
@@ -675,14 +676,16 @@ def create_app():
             return jsonify_success({'status': 'accepted', 'version': version})
 
     # --- Flask-Limiter setup ---
-    limiter = Limiter(get_remote_address, default_limits=["20 per minute"])
+    limiter = Limiter(get_remote_address, default_limits=["60 per minute"])
     limiter.init_app(app)
     app.limiter = limiter  # Attach to app for blueprint access
 
-    # Register strategy blueprint
-    app.register_blueprint(strategy_api, url_prefix='/api')
-
     # Register blueprints
+    app.register_blueprint(routes_giocatori)
+    app.register_blueprint(routes_auction_log)
+    app.register_blueprint(routes_credit)
+    app.register_blueprint(routes_league_settings)
+    app.register_blueprint(strategy_api, url_prefix='/api')
     from backend.api.gemini_api import gemini_api
     app.register_blueprint(gemini_api, url_prefix='/api/gemini')
 
@@ -700,46 +703,3 @@ def create_app():
         return response
 
     return app
-
-
-# --- SIMPLE LRU CACHE DECORATOR FOR API (per-process, not distributed) ---
-def cache_api_lru(maxsize=128, ttl=60*24):
-    def decorator(func):
-        cached_func = lru_cache(maxsize=maxsize)(func)
-        cache_times = {}
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            # Use function arguments as cache key
-            key = str(args) + str(kwargs)
-            key_hash = hashlib.sha256(key.encode()).hexdigest()
-            now = time.time()
-            # Check TTL
-            if key_hash in cache_times and now - cache_times[key_hash] < ttl:
-                print("\033[92m[Cache] {} served from cache_api_lru\033[0m".format(request.path), file=sys.stderr)
-                return cached_func(*args, **kwargs)
-            # Call and cache
-            result = func(*args, **kwargs)
-            cached_func.cache_clear()  # Clear LRU cache to avoid memory leak
-            cached_func(*args, **kwargs)  # Store dummy value to keep LRU logic
-            cache_times[key_hash] = now
-            return result
-        return wrapper
-    return decorator
-
-
-def load_credits_config():
-    config_path = os.getenv('CREDITS_CONFIG_PATH', 'backend/api/credits_config.yaml')
-    try:
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-            return config.get('credits_per_plan', {})
-    except Exception as e:
-        print(f"[WARN] Could not load credits config: {e}")
-        return {'free': 0, 'basic': 0, 'pro': 0, 'enterprise': 0}
-
-
-CREDITS_PER_PLAN = load_credits_config()
-
-
-if __name__ == '__main__':
-    create_app().run(debug=True)

@@ -25,16 +25,16 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
 
     const playersByRole = useMemo(() => {
         const grouped = players.reduce((acc, player) => {
-            if (!acc[player.role]) {
-                acc[player.role] = [];
+            if (!acc[player.position]) {
+                acc[player.position] = [];
             }
-            acc[player.role].push(player);
+            acc[player.position].push(player);
             return acc;
         }, {} as Record<Role, Player[]>);
 
         for (const role of ROLES_ORDER) {
             if (grouped[role]) {
-              grouped[role].sort((a, b) => a.name.localeCompare(b.name));
+              grouped[role].sort((a, b) => a.player_name.localeCompare(b.player_name));
             } else {
               grouped[role] = [];
             }
@@ -61,7 +61,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                 (filter === 'available' && !isTaken) ||
                 (filter === 'taken' && isTaken) ||
                 (filter === 'favourite' && isFavourite);
-            const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q);
+            const matchesSearch = !q || p.player_name.toLowerCase().includes(q) || p.current_team.toLowerCase().includes(q);
             return matchesFilter && matchesSearch;
         });
     }, [players, playersByRole, auctionLog, searchQuery, filter, selectedRole, targetPlayersMap]);
@@ -114,7 +114,7 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
             let aVal: any, bVal: any;
             const scaleFactor = leagueSettings.budget / 500;
             if (sortBy === 'name') {
-                aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase();
+                aVal = a.player_name.toLowerCase(); bVal = b.player_name.toLowerCase();
             } else if (sortBy === 'baseCost') {
                 aVal = a.baseCost ?? 0; bVal = b.baseCost ?? 0;
             } else if (sortBy === 'recommendedBid') {
@@ -211,12 +211,12 @@ export const AuctionBoard: React.FC<AuctionBoardProps> = ({ players, auctionLog,
                                             <div className="flex items-center">
                                                 {targetInfo && <span title="Giocatore obiettivo"><Star className="w-4 h-4 text-yellow-400 fill-yellow-400 mr-2 flex-shrink-0"/></span>}
                                                 <div>
-                                                    <p className={`font-semibold ${isTaken ? 'line-through' : 'text-content-100'}`}>{player.name}</p>
-                                                    <p className={`text-xs ${isTaken ? 'line-through' : 'text-content-200'}`}>{player.team}</p>
+                                                    <p className={`font-semibold ${isTaken ? 'line-through' : 'text-content-100'}`}>{player.player_name}</p>
+                                                    <p className={`text-xs ${isTaken ? 'line-through' : 'text-content-200'}`}>{player.current_team}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-2 text-center font-mono font-bold">{player.role}</td>
+                                        <td className="p-2 text-center font-mono font-bold">{player.position}</td>
                                         <td className={`p-2 text-center font-mono ${isTaken ? 'line-through' : ''}`}>{baseCost}</td>
                                         <td className={`p-2 text-center font-mono ${isTaken ? 'line-through' : ''}`}>{recommendedBid}</td>
                                         <td className={`p-2 text-center font-mono font-bold ${isTaken ? 'line-through' : targetInfo ? 'text-brand-primary' : 'text-content-200'}`}> {targetInfo ? targetInfo.maxBid : '-'} </td>

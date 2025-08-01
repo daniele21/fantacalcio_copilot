@@ -1,12 +1,15 @@
+import json
 import os
 import logging
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types
 from flask import Blueprint, request, current_app
-from backend.api.utils import require_auth, jsonify_success, jsonify_error
+from .util import require_auth, jsonify_success, jsonify_error
 import time
 
 # --- GEMINI AI ENDPOINTS ---
 gemini_api = Blueprint('gemini_api', __name__)
+grounding_tool = types.Tool(google_search=types.GoogleSearch())
 
 # Set up logging
 logger = logging.getLogger("gemini_api")
@@ -18,24 +21,22 @@ def get_limiter():
     except Exception:
         return None
 
-GEMINI_MODEL = "gemini-2.5-flash-lite-preview-06-17"
+# GEMINI_MODEL = "gemini-2.5-flash-lite-preview-06-17"
+GEMINI_MODEL = "gemini-2.5-flash"
 ROLE_NAMES = {
     "GK": "Portieri",
     "DEF": "Difensori",
     "MID": "Centrocampisti",
     "FWD": "Attaccanti"
 }
-
 def get_gemini_api_key():
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY environment variable not set.")
     return api_key
 
-def get_gemini_model():
-    api_key = get_gemini_api_key()
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(GEMINI_MODEL)
+api_key = get_gemini_api_key()
+genai_client = genai.Client(api_key=api_key)
 
 # --- Gemini pricing logic (ported from frontend) ---
 GEMINI_PRICING = {
@@ -93,57 +94,74 @@ def gemini_aggregated_analysis():
     data = request.get_json() or {}
     players = data.get('players', [])
     role = data.get('role')
-    if not isinstance(players, list) or not all(isinstance(p, dict) and 'name' in p for p in players):
+    if not isinstance(players, list):
         logger.warning(f"Malformed input for aggregated-analysis: {data}")
         return jsonify_error("bad_request", "Input non valido: 'players' deve essere una lista di oggetti giocatore.")
     if len(players) == 0:
         return jsonify_error("bad_request", "Nessun giocatore selezionato per l'analisi. Modifica i filtri.")
     role_name = f"del ruolo '{ROLE_NAMES.get(role, role)}'" if role else 'di tutti i ruoli'
-    player_list = ', '.join([p.get('name', '(sconosciuto)') for p in players][:15])
+    player_list = ', '.join([p for p in players])
     prompt = (
-        "Agisci come un esperto di Fantacalcio che analizza le tendenze del mercato per un'asta.\n"
-        "Usa la ricerca Google per trovare le analisi e i consigli più recenti sui giocatori di Serie A per il Fantacalcio.\n\n"
-        f"Il segmento di mercato da analizzare è: {role_name}.\n"
-        f"I giocatori in questo segmento includono: {player_list}.\n\n"
-        "Basandoti sui risultati della ricerca web, fornisci un'analisi strategica concisa che includa:\n"
-        "- Un riassunto del trend generale per questo segmento (es. 'costosi', 'sottovalutati', 'poche opzioni valide', ...).\n"
-        "- I 2-3 giocatori 'più caldi' o consigliati dalle guide online, con una breve motivazione del perché.\n"
-        "- Una potenziale 'trappola' o giocatore sopravvalutato da evitare.\n\n"
-        "Rispondi in italiano. Formatta usando Markdown. Sii diretto e strategico. Attieniti al massimo alle prime 5 fonti"
+        f"RUOLO\n"
+        f"Sei un data analyst ed esperto di Fantacalcio.\n\n"
+        f"OBIETTIVO\n"
+        f"Usa la Ricerca Google per ottenere informazioni aggiornate sui seguenti giocatori {player_list} "
+        f"({role_name}) e sintetizzarle.\n\n"
+        f"ISTRUZIONI DI RICERCA\n"
+        f"- Dai priorità a notizie/statistiche degli ultimi 90 giorni, relativamente all'ultima stagione completa (2024/2025).\n"
+        f"- Disambigua eventuali omonimi usando ruolo fornito.\n"
+        f"- Non inventare numeri: se un dato non è certo, segnala l'incertezza.\n\n"
+        f"CONSEGNA (OBBLIGATORIA)\n"
+        f"Restituisci SOLO un SINGOLO oggetto JSON **valido**. Usa sempre doppi apici per chiavi e stringhe. Rispetta esattamente questa struttura:\n"
+        f'{{{{\n'
+        f'  "trend": "brevissima descrizione di questi giocatori ",\n'
+        f'  "hot_players": ["...", "..."] # giocatori top da prendere tra quelli analizzati e per ognuno aggiungi il perche,\n'
+        f'  "trap": "..." # potenziali trappole o giocatori sopravvalutati.\n'
+        f'}}}}\n\n'
+        f"VINCOLI DI CONTENUTO\n"
+        f"- Indica sempre il periodo a cui si riferiscono i dati.\n"
+        f"- Non inserire link o citazioni nel JSON.\n\n"
+        f"LINGUA\n"
+        f"Rispondi in italiano.\n\n"
+        f"OUTPUT\n"
+        f"Genera ora esclusivamente l'oggetto JSON VALIDO richiesto per il segmento {role_name}."
     )
     try:
         start_time = time.time()
-        model = get_gemini_model()
-        response = model.generate_content(prompt, generation_config={"temperature": 0.1, "max_output_tokens": 600}, tools=[{"google_search": {}}])
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "trend": types.Schema(type=types.Type.STRING),
+                "hot_players": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+                "trap": types.Schema(type=types.Type.STRING),
+            },
+            required=["trend", "hot_players", "trap"],
+        )
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            thinking_config=types.ThinkingConfig(thinking_budget=1024),
+            # response_schema=schema,
+            temperature=0.1,
+            max_output_tokens=2048,
+        )
+        response = genai_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
         elapsed = time.time() - start_time
         logger.info(f"Gemini aggregated-analysis call time: {elapsed:.2f}s")
-        text = response.text.strip() if hasattr(response, 'text') and response.text else ""
-        # Extract sources if available
-        sources = []
-        try:
-            grounding_metadata = getattr(response, 'candidates', [{}])[0].get('grounding_metadata')
-            if grounding_metadata and 'grounding_chunks' in grounding_metadata:
-                for chunk in grounding_metadata['grounding_chunks']:
-                    web = chunk.get('web')
-                    if web and web.get('uri') and web.get('title'):
-                        sources.append({"uri": web['uri'], "title": web['title']})
-        except Exception:
-            pass
-        # Extract cost if available
-        usage_meta = getattr(response, 'usage_metadata', None)
-        input_tokens = usage_meta.prompt_token_count if usage_meta and hasattr(usage_meta, 'prompt_token_count') else 0
-        output_tokens = usage_meta.candidates_token_count if usage_meta and hasattr(usage_meta, 'candidates_token_count') else 0
+        text = response.text
+        logger.info(f"[Gemini aggregated-analysis raw response]: {text}")
+        result = json.loads(text.replace('```json', '').replace('```', '').strip())
+        if not (isinstance(result, dict) and 'trend' in result and 'hot_players' in result and 'trap' in result):
+            return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di analisi valido (chiavi mancanti).")
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
         cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
-        if not text:
-            return jsonify_error("gemini_error", "L'analisi aggregata non è disponibile: il modello non ha fornito una risposta.")
-        logger.info(f"Gemini aggregated-analysis called for role={role}, players={[p.get('name') for p in players]}")
-        return jsonify_success({
-            'result': {
-                'analysis': text,
-                'sources': sources
-            },
-            'cost': cost
-        })
+        logger.info(f"Gemini aggregated-analysis called for role={role}, players={[p for p in players]}")
+        return jsonify_success({'result': result, 'cost': cost})
     except Exception as e:
         logger.error(f"Gemini aggregated-analysis error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare l'analisi aggregata: {str(e)}")
@@ -161,54 +179,93 @@ def gemini_detailed_analysis():
     if not (isinstance(player_name, str) and isinstance(player_team, str) and isinstance(player_role, str)):
         logger.warning(f"Malformed input for detailed-analysis: {data}")
         return jsonify_error("bad_request", "Input non valido: specificare nome, squadra e ruolo del giocatore.")
+    # prompt = (
+    #     f"Sei un data analyst e un esperto di Fantacalcio di fama mondiale.\n"
+    #     f"Usa la Ricerca Google per ottenere le informazioni più aggiornate possibili (statistiche recenti, stato di forma, ultime notizie) sul giocatore {player_name} ({player_team}, {player_role}).\n\n"
+    #     "Basandoti sui dati trovati, restituisci SOLO un oggetto JSON VALIDO che segua questa interfaccia TypeScript, senza aggiungere testo o markdown:\n"
+    #     "```\ninterface DetailedAnalysisResult {\n    strengths: string[]; // Un array di 2-3 stringhe che descrivono i punti di forza chiave.\n    weaknesses: string[]; // Un array di 1-2 stringhe che descrivono i punti deboli o i rischi.\n    advice: string; // Una stringa singola con il verdetto finale e il consiglio strategico per l'asta.\n}\n```\nSii specifico, incisivo e vai dritto al punto. Evita frasi generiche. Rispondi in italiano in formato json valido."
+    # )
     prompt = (
-        f"Sei un data analyst e un esperto di Fantacalcio di fama mondiale.\n"
-        f"Usa la Ricerca Google per ottenere le informazioni più aggiornate possibili (statistiche recenti, stato di forma, ultime notizie) sul giocatore {player_name} ({player_team}, {player_role}).\n\n"
-        "Basandoti sui dati trovati, restituisci SOLO un oggetto JSON che segua questa interfaccia TypeScript, senza aggiungere testo o markdown:\n"
-        "```\ninterface DetailedAnalysisResult {\n    strengths: string[]; // Un array di 2-3 stringhe che descrivono i punti di forza chiave.\n    weaknesses: string[]; // Un array di 1-2 stringhe che descrivono i punti deboli o i rischi.\n    advice: string; // Una stringa singola con il verdetto finale e il consiglio strategico per l'asta.\n}\n```\nSii specifico, incisivo e vai dritto al punto. Evita frasi generiche. Rispondi in italiano in formato json valido."
+        f"RUOLO\n"
+        f"Sei un data analyst ed esperto di Fantacalcio.\n\n"
+
+        f"OBIETTIVO\n"
+        f"Usa la Ricerca Google per ottenere informazioni aggiornate su {player_name} "
+        f"({player_team}, {player_role}) e sintetizzarle.\n\n"
+
+        f"ISTRUZIONI DI RICERCA\n"
+        f"- Dai priorità a notizie/statistiche degli ultimi 90 giorni; in mancanza, usa l'ultima stagione completa.\n"
+        f"- Disambigua eventuali omonimi usando squadra e ruolo forniti.\n"
+        f"- Non inventare numeri: se un dato non è certo, segnala l'incertezza nella sezione weaknesses.\n\n"
+
+        f"CONSEGNA (OBBLIGATORIA)\n"
+        f"Restituisci SOLO un SINGOLO oggetto JSON **valido**, senza testo extra, senza spiegazioni, senza markdown "
+        f"e **senza backtick**. Usa sempre doppi apici per chiavi e stringhe. Rispetta esattamente questa struttura:\n"
+        f'{{{{\n'
+        f'  "strengths": ["...", "..."],\n'
+        f'  "weaknesses": ["..."],\n'
+        f'  "advice": "..." \n'
+        f'}}}}\n\n'
+
+        f"VINCOLI DI CONTENUTO\n"
+        f"- strengths: 2–3 frasi brevi e specifiche (forma recente, titolarità, infortuni recuperati, minuti, rigori, ruolo tattico, dati oggettivi come gol/assist/xG).\n"
+        f"- weaknesses: 1–2 frasi su rischi/limiti (rotazione, infortunio, calo forma, trasferimento incerto, 'dati recenti limitati/contraddittori' se necessario).\n"
+        f"- advice: una sola frase operativa e concisa per l'asta (es.: prezzi/strategia/asta, livello di rischio/ritorno atteso).\n"
+        f"- Indica sempre il periodo a cui si riferiscono i dati (es. 'ultime 10 presenze', 'stagione 2024/25').\n"
+        f"- Non inserire link o citazioni nel JSON.\n\n"
+
+        f"LINGUA\n"
+        f"Rispondi in italiano.\n\n"
+
+        f"OUTPUT\n"
+        f"Genera ora esclusivamente l'oggetto JSON VALIDO richiesto per {player_name}."
     )
     try:
         start_time = time.time()
-        model = get_gemini_model()
-        response = model.generate_content(prompt, generation_config={"temperature": 0.5}, tools=[{"google_search": {}}])
+        
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "strengths": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+                "weaknesses": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+                "advice": types.Schema(type=types.Type.STRING),
+            },
+            required=["strengths", "weaknesses", "advice"],
+        )
+        
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            # response_mime_type="application/json",
+            response_schema=schema,
+            temperature=0.5,
+        )
+        
+        response = genai_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
+        
         elapsed = time.time() - start_time
+        
         logger.info(f"Gemini detailed-analysis call time: {elapsed:.2f}s")
-        text = response.text.strip() if hasattr(response, 'text') and response.text else ""
+        text = response.text
         logger.info(f"[Gemini detailed-analysis raw response]: {text}")
-        import re
-        import json
-        # Remove code fences if present (robust extraction)
-        code_fence_pattern = r"^```(?:json)?\s*([\s\S]*?)\s*```$"
-        code_fence_match = re.match(code_fence_pattern, text.strip(), re.IGNORECASE)
-        if code_fence_match:
-            json_str = code_fence_match.group(1).strip()
-        else:
-            json_str = text
-        # Try direct JSON parse
-        try:
-            result = json.loads(json_str)
-        except Exception:
-            # Fallback: extract first JSON object with regex
-            match = re.search(r'{[\s\S]*}', json_str)
-            if match:
-                try:
-                    result = json.loads(match.group(0))
-                except Exception:
-                    return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di analisi valido (estrazione fallback fallita).")
-            else:
-                return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di analisi valido (nessun JSON trovato).")
+        
+        result = json.loads(text)
         if not (isinstance(result, dict) and 'strengths' in result and 'weaknesses' in result and 'advice' in result):
             return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di analisi valido (chiavi mancanti).")
-        # Extract cost if available
-        usage_meta = getattr(response, 'usage_metadata', None)
-        input_tokens = usage_meta.prompt_token_count if usage_meta and hasattr(usage_meta, 'prompt_token_count') else 0
-        output_tokens = usage_meta.candidates_token_count if usage_meta and hasattr(usage_meta, 'candidates_token_count') else 0
+
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
+
         cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
+
         logger.info(f"Gemini detailed-analysis called for {player_name} ({player_team}, {player_role})")
-        return jsonify_success({
-            'result': result,
-            'cost': cost
-        })
+        return jsonify_success({'result': result, 'cost': cost})
+        
+        
     except Exception as e:
         logger.error(f"Gemini detailed-analysis error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare l'analisi dettagliata: {str(e)}")
@@ -227,6 +284,9 @@ def gemini_bidding_advice():
     role_budget = data.get('roleBudget', {})
     all_players = data.get('allPlayers', [])  # Ensure always defined
     auction_log = data.get('auctionLog', {})  # Ensure always defined
+    initial_budget = data['settings']['budget']
+    participant_status = get_participants_status_by_position(auction_log, initial_budget, player['position']) 
+    
     # Validate input
     if not (isinstance(player, dict) and isinstance(my_team, list) and isinstance(settings, dict) and isinstance(role_budget, dict)):
         logger.warning(f"Malformed input for bidding-advice: {data}")
@@ -237,72 +297,128 @@ def gemini_bidding_advice():
     remaining_budget = settings.get('budget', 0) - spent_budget
     total_slots_left = sum(settings.get('roster', {}).values()) - len(my_team)
     avg_credit_per_slot = round(remaining_budget / total_slots_left) if total_slots_left > 0 else 0
-    slots_filled_for_role = len([p for p in my_team if p.get('role') == player.get('role')])
-    total_slots_for_role = settings.get('roster', {}).get(player.get('role'), 0)
+    slots_filled_for_role = len([p for p in my_team if p.get('position') == player.get('position')])
+    total_slots_for_role = settings.get('roster', {}).get(player.get('position'), 0)
     slots_left_for_role = total_slots_for_role - slots_filled_for_role
     spent_by_role = {}
     for p in my_team:
-        r = p.get('role')
+        r = p.get('position')
         spent_by_role[r] = spent_by_role.get(r, 0) + p.get('purchasePrice', 0)
-    allocated_budget_for_role = round(settings.get('budget', 0) * role_budget.get(player.get('role'), 0) / 100)
-    spent_on_role = spent_by_role.get(player.get('role'), 0)
+    allocated_budget_for_role = round(settings.get('budget', 0) * role_budget.get(player.get('position'), 0) / 100)
+    spent_on_role = spent_by_role.get(player.get('position'), 0)
     remaining_budget_for_role = allocated_budget_for_role - spent_on_role
     alternatives_list = []
     if all_players and auction_log:
         auctioned_ids = set(int(k) for k in auction_log.keys())
-        alternatives_list = [p for p in all_players if p.get('id') != player.get('id') and p.get('role') == player.get('role') and p.get('id') not in auctioned_ids]
-        alternatives_list = sorted(alternatives_list, key=lambda p: p.get('recommendation', 0), reverse=True)[:5]
-    alternatives_str = ", ".join(f"{p.get('name')} ({p.get('team')})" for p in alternatives_list) if alternatives_list else "Nessuna alternativa di rilievo"
+        alternatives_list = [p for p in all_players if p.get('id') != player.get('id') and p.get('position') == player.get('position') and p.get('id') not in auctioned_ids]
+        alternatives_list = sorted(alternatives_list, key=lambda p: p.get('stars', 0), reverse=True)[:5]
+    alternatives_str = ", ".join(f"{p.get('player_name')} ({p.get('current_team')})" for p in alternatives_list) if alternatives_list else "Nessuna alternativa di rilievo"
+
     prompt = (
-        "Sei un copilota esperto per un'asta di Fantacalcio. Devo decidere se fare un'offerta per un giocatore. "
-        "Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo, senza markdown, senza spiegazioni, senza commenti, senza blocchi di codice. "
-        "Non includere alcun testo prima o dopo il JSON. "
-        "L'oggetto JSON deve seguire questa interfaccia TypeScript:\n"
-        "interface BiddingAdviceResult {\n    roleBudgetAdvice: string;\n    roleSlotAdvice: string;\n    recommendedPriceAdvice: string;\n    opportunityAdvice: string;\n    finalAdvice: string;\n}\n"
-        f"1. GIOCATORE IN ESAME: Nome: {player.get('name', '(sconosciuto)')} ({player.get('role', '?')}, {player.get('team', '?')}) | Punteggio Copilot: {player.get('recommendation', '?')}/5\n"
-        f"2. LA MIA SITUAZIONE DI BUDGET GLOBALE: Budget Rimanente Totale: {remaining_budget} crediti. Slot da riempire: {total_slots_left}.\n"
-        f"3. IL MIO PIANO PER IL RUOLO '{ROLE_NAMES.get(player.get('role'), player.get('role'))}': Budget Allocato: {allocated_budget_for_role} crediti ({role_budget.get(player.get('role'), 0)}%). Spesa Attuale: {spent_on_role} crediti. Budget Rimanente per questo Ruolo: {remaining_budget_for_role} crediti. Slot da riempire per questo Ruolo: {slots_left_for_role}. Alternative ancora disponibili per questo ruolo: {alternatives_str}.\n"
-        f"4. OFFERTA ATTUALE: Offerta: {current_bid} crediti.\n"
-        "Analizza tutti questi dati per formulare i 5 consigli richiesti nel JSON. Per il consiglio sull'opportunità, valuta se l'offerta attuale è un affare, un prezzo giusto o un'esagerazione rispetto al valore e potenziale del giocatore. Per il verdetto finale, sii strategico, considera il trade-off tra la qualità del giocatore e la necessità di completare la squadra. Rispondi in italiano. Sii breve e conciso."
-    )
+    "CONTESTO\n"
+    "Sei un copilota esperto per un'asta di Fantacalcio. Devo decidere se fare un'offerta per un giocatore.\n\n"
+
+    "DATI\n"
+    f"Giocatore: {player['player_name']} ({ROLE_NAMES.get(player['position'], player['position'])}, {player['current_team']})\n"
+    f"Punteggio Copilot: {player['stars']}/5\n"
+    f"Budget iniziale: {initial_budget} crediti | Budget globale rimanente: {remaining_budget} crediti | Slot totali da riempire: {total_slots_left}\n"
+    f"Strategia personale di allocazione del budget per ruolo: "
+    f"'{ROLE_NAMES.get(player['position'], player['position'])}': "
+    f"previsti {allocated_budget_for_role} crediti ({role_budget.get(player['position'], 0)}%), "
+    f"spesi {spent_on_role} crediti, rimanenti {remaining_budget_for_role} crediti, "
+    f"giocatori ancora da prendere per questo ruolo: {slots_left_for_role}. "
+    f"Alternative valide ancora disponibili a parità di ruolo: {alternatives_str}\n"
+    f"Offerta attuale sul giocatore: {current_bid} crediti\n\n"
+
+    "OBIETTIVO\n"
+    "Fornire 5 consigli che permettono di capire se ha senso o no comprare questo giocatore, quindi se ha senso" +
+    "proseguire con l'offerta o se è meglio fermarsi o passare, tenendo in considerazione: budget attuale, slot ancora da riempire, opportunità costo/giocatore, prezzo consigliato di acquisto." +
+    f"Tieni in considerazione lo stato di questo reparto degli altri partecipanti: {participant_status}\n\n"
+
+    "REGOLE DI COERENZA\n"
+    "- Qualsiasi prezzo consigliato deve rispettare TUTTI i vincoli: "
+    "non superare il budget per il ruolo, lasciare ≥1 credito per ciascuno degli slot del ruolo ancora da riempire, "
+    "non superare il budget globale rimanente e non essere inferiore all'offerta attuale se consigli di proseguire.\n"
+    "- Se i vincoli non permettono rilanci sostenibili, consiglia di passare e imposta prezzo raccomandato a 0.\n"
+    "- Sii concreto: riferisciti a ruolo e team forniti. Evita numeri non giustificati.\n\n"
+
+    "FORMA DELL'OUTPUT (OBBLIGATORIA)\n"
+    "Rispondi SOLO con un UNICO oggetto JSON VALIDO, senza testo extra, senza markdown, senza spiegazioni, "
+    "senza commenti e senza blocchi di codice. Non includere nulla prima o dopo il JSON. "
+    "Usa sempre doppi apici per chiavi e stringhe; nessuna virgola finale.\n"
+    "L'oggetto JSON deve avere ESATTAMENTE queste chiavi (tutte stringhe):\n"
+    "{\n"
+    # "  roleBudgetAdvice: string;\n"
+    # "  roleSlotAdvice: string;\n"
+    # "  recommendedPriceAdvice: string;\n"
+    "  opportunityAdvice: string;\n"
+    "  participantAdvice: string;\n"
+    "  finalAdvice: string;\n"
+    "}\n\n"
+
+    "LINEE GUIDA PER I CAMPI\n"
+    # "- roleBudgetAdvice: 1 frase (≤160 caratteri) su come gestire il budget del ruolo in relazione a quanto allocato/speso/rimanente.\n"
+    # "- roleSlotAdvice: 1 frase (≤160 caratteri) su come preservare crediti per gli slot residui del ruolo.\n"
+    # "- recommendedPriceAdvice: 1 frase (≤160 caratteri) con un numero intero o range di prezzo consigliato per il giocatore in asta, considerando anche lo stato degli altri partecipanti.\n"
+    "- opportunityAdvice: INIZIA con una di queste etichette: \"Affare:\", \"Prezzo giusto:\", \"Esagerazione:\" seguita da breve motivazione (≤160 caratteri).\n"
+    "- participantAdvice: 1 frase (≤200 caratteri) sullo stato attuale del reparto degli altri partecipanti e come influisce sulla decisione.\n"
+    "- finalAdvice: INIZIA con \"Rilancia fino a X\", \"Fermati a X\" o \"Passa\"; sii strategico e conciso (≤160 caratteri)." + 
+    "esempio di finalAdvice: " +
+    "Puoi spingerti a XX Cr: resteresti con XX Cr (XX % budget) e un solo slot ATT/CEN/DIF/POR da coprire. Solo XXX e XXX possono superarti (> XX Cr di budget ruolo).\n\n"
+
+    "LINGUA\n"
+    "Rispondi in italiano.\n"
+)
     try:
         start_time = time.time()
-        model = get_gemini_model()
-        response = model.generate_content(prompt, generation_config={"temperature": 0.1, "max_output_tokens": 600})
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                # "roleBudgetAdvice": types.Schema(type=types.Type.STRING),
+                # "roleSlotAdvice": types.Schema(type=types.Type.STRING),
+                # "recommendedPriceAdvice": types.Schema(type=types.Type.STRING),
+                "opportunityAdvice": types.Schema(type=types.Type.STRING),
+                "participantAdvice": types.Schema(type=types.Type.STRING),
+                "finalAdvice": types.Schema(type=types.Type.STRING),
+            },
+            required=[
+                    # "roleBudgetAdvice", 
+                    #   "roleSlotAdvice", 
+                    #   "recommendedPriceAdvice", 
+                      "opportunityAdvice", 
+                      "participantAdvice", 
+                      "finalAdvice"],
+        )
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            thinking_config=types.ThinkingConfig(thinking_budget=256),
+            response_schema=schema,
+            temperature=0.1,
+            max_output_tokens=512,
+        )
+        response = genai_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
         elapsed = time.time() - start_time
         logger.info(f"Gemini bidding-advice call time: {elapsed:.2f}s")
-        text = response.text.strip() if hasattr(response, 'text') and response.text else ""
+        text = response.text.replace('```json', '').replace('```', '').strip()
         logger.info(f"[Gemini bidding-advice raw response]: {text}")
-        import re
-        import json
-        # Remove code fences if present
-        code_fence_pattern = r"^```(?:json)?\s*([\s\S]*?)\s*```$"
-        code_fence_match = re.match(code_fence_pattern, text.strip(), re.IGNORECASE)
-        if code_fence_match:
-            json_str = code_fence_match.group(1).strip()
-        else:
-            json_str = text
-        # Try direct JSON parse
-        try:
-            result = json.loads(json_str)
-        except Exception:
-            # Fallback: extract first JSON object with regex
-            match = re.search(r'{[\s\S]*}', json_str)
-            if match:
-                try:
-                    result = json.loads(match.group(0))
-                except Exception:
-                    return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di consiglio valido (estrazione fallback fallita).")
-            else:
-                return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di consiglio valido (nessun JSON trovato).")
-        required_keys = ["roleBudgetAdvice", "roleSlotAdvice", "recommendedPriceAdvice", "opportunityAdvice", "finalAdvice"]
+        result = json.loads(text)
+        required_keys = [
+                        # "roleBudgetAdvice", 
+                        #  "roleSlotAdvice", 
+                        #  "recommendedPriceAdvice", 
+                         "opportunityAdvice", 
+                         "participantAdvice",
+                         "finalAdvice"]
         if not (isinstance(result, dict) and all(k in result for k in required_keys)):
             return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di consiglio valido (chiavi mancanti).")
-        # Extract cost if available
         usage_meta = getattr(response, 'usage_metadata', None)
-        input_tokens = usage_meta.prompt_token_count if usage_meta and hasattr(usage_meta, 'prompt_token_count') else 0
-        output_tokens = usage_meta.candidates_token_count if usage_meta and hasattr(usage_meta, 'candidates_token_count') else 0
-        cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=0)
+        input_tokens = getattr(usage_meta, 'prompt_token_count', 0) if usage_meta else 0
+        output_tokens = getattr(usage_meta, 'candidates_token_count', 0) if usage_meta else 0
+        cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
         logger.info(f"Gemini bidding-advice called for player={player.get('name')}, bid={current_bid}")
         return jsonify_success({
             'result': result,
@@ -311,3 +427,50 @@ def gemini_bidding_advice():
     except Exception as e:
         logger.error(f"Gemini bidding-advice error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare il consiglio sull'offerta: {str(e)}")
+
+def get_participants_status_by_position(auction_log, starting_budget=500, position=None):
+    """
+    Returns a dict:
+    {
+      'Giovanni': {
+        'players': {
+          'ATT': [ {player_name, purchasePrice, position}, ... ],
+          ...
+        },
+        'remaining_budget': int
+      },
+      ...
+    }
+    Excludes 'Io' from the result.
+    """
+    participants = {}
+    for entry in auction_log.values():
+        buyer = entry['buyer']
+        if buyer.lower() == 'io':
+            continue
+        if buyer not in participants:
+            participants[buyer] = {'players': {}, 'spent': 0}
+        pos = entry['position']
+        # Always initialize the list for this position
+        if pos not in participants[buyer]['players']:
+            participants[buyer]['players'][pos] = []
+        # Only append if position matches filter (or no filter)
+        if position is None or pos == position:
+            participants[buyer]['players'][pos].append({
+                'player_name': entry['player_name'],
+                'purchasePrice': entry['purchasePrice'],
+                'position': pos
+            })
+            participants[buyer]['spent'] += entry['purchasePrice']
+
+    result = {}
+    for buyer, data in participants.items():
+        # Optionally, filter out empty lists if a position filter is used
+        players = data['players']
+        if position is not None:
+            players = {k: v for k, v in players.items() if k == position and v}
+        result[buyer] = {
+            'players': players,
+            'remaining_budget': starting_budget - data['spent']
+        }
+    return result

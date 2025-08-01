@@ -53,7 +53,7 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
 
     const rosterInfo = useMemo(() => {
         const counts = myTeam.reduce((acc, p) => {
-            acc[p.role] = (acc[p.role] || 0) + 1;
+            acc[p.position] = (acc[p.position] || 0) + 1;
             return acc;
         }, {} as Record<Role, number>);
 
@@ -75,7 +75,7 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
     const spentByRole = useMemo(() => {
         const spending: Record<Role, number> = { [Role.GK]: 0, [Role.DEF]: 0, [Role.MID]: 0, [Role.FWD]: 0 };
         myTeam.forEach(p => {
-            spending[p.role] += p.purchasePrice;
+            spending[p.position] += p.purchasePrice;
         });
         return spending;
     }, [myTeam]);
@@ -156,12 +156,12 @@ export const TeamStatus: React.FC<TeamStatusProps> = ({ myTeam, leagueSettings, 
                         {myTeam.length === 0 ? (
                             <p className="text-base text-content-200 text-center py-4">Nessun giocatore ancora acquistato.</p>
                         ) : (
-                            [...myTeam].sort((a,b) => ROLES_ORDER.indexOf(a.role) - ROLES_ORDER.indexOf(b.role) || b.purchasePrice - a.purchasePrice).map(player => (
+                            [...myTeam].sort((a,b) => ROLES_ORDER.indexOf(a.position) - ROLES_ORDER.indexOf(b.position) || b.purchasePrice - a.purchasePrice).map(player => (
                                 <div key={player.id} className="flex justify-between items-center bg-base-100 p-2 rounded-lg text-base shadow-sm hover:shadow-md transition-shadow">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-lg">{ROLE_ICONS[player.role]}</span>
-                                        <span className="font-bold">{player.name}</span>
-                                        <span className="text-xs text-content-200 ml-2">({player.team})</span>
+                                        <span className="text-lg">{ROLE_ICONS[player.position]}</span>
+                                        <span className="font-bold">{player.player_name}</span>
+                                        <span className="text-xs text-content-200 ml-2">({player.current_team})</span>
                                     </div>
                                     <span className="font-bold bg-brand-primary/20 text-brand-primary px-2 py-1 rounded">
                                         {player.purchasePrice}

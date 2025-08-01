@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { Player, MyTeamPlayer, LeagueSettings, Role, BiddingAdviceResult } from '../types';
 import { getBiddingAdvice } from '../services/geminiService';
-import { Search, Sparkles, X, Loader, AlertTriangle, Gavel, Coins, MessageSquare, Star, PiggyBank, Users, Tag, Lightbulb } from 'lucide-react';
+import { Search, Sparkles, X, Loader, AlertTriangle, Gavel, Coins, MessageSquare, Star, PiggyBank, Users, Tag, Lightbulb, MessageSquareDot } from 'lucide-react';
 import ShowNoCreditDialog from './showNoCreditDialog';
 import { useApi } from '../services/useApi';
 import { base_url } from '../services/api';
@@ -21,6 +21,7 @@ interface BiddingAssistantProps {
     onCurrentBidChange: (value: number | '') => void;
     plan: string; // Add plan prop
     refreshProfile?: () => void; // Optional prop for refreshing profile
+    auctionLog: Record<number, any>; // Add auctionLog prop
 }
 
 export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({ 
@@ -37,6 +38,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     onCurrentBidChange,
     plan, // Destructure plan prop
     refreshProfile,
+    auctionLog, // Destructure auctionLog
 }) => {
     const [query, setQuery] = useState('');
     const [finalPrice, setFinalPrice] = useState<number | ''>(1);
@@ -85,10 +87,16 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
 
     const suggestions = useMemo(() => {
         if (!query) return [];
+        // Exclude players already in myTeam or in auctionLog
+        const takenIds = new Set([
+            ...myTeam.map(p => p.id),
+            ...Object.keys(auctionLog || {}).map(Number),
+        ]);
         return availablePlayers.filter(p =>
-            p.name.toLowerCase().includes(query.toLowerCase())
+            p.player_name.toLowerCase().includes(query.toLowerCase()) &&
+            !takenIds.has(p.id)
         ).slice(0, 5);
-    }, [query, availablePlayers]);
+    }, [query, availablePlayers, myTeam, auctionLog]);
 
     const handleSelectPlayerFromSearch = (player: Player) => {
         onSelectPlayer(player);
@@ -114,7 +122,15 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                 return;
             }
             // Make Gemini call
-            const result = await getBiddingAdvice(playerForBidding, myTeam, leagueSettings, Number(currentBid) || 1, roleBudget);
+            const result = await getBiddingAdvice(
+                playerForBidding,
+                myTeam,
+                leagueSettings,
+                Number(currentBid) || 1,
+                roleBudget,
+                availablePlayers,
+                auctionLog
+            );
             console.log('[BiddingAssistant] getBiddingAdvice result:', result);
             let parsedAdvice = result.result;
             if (typeof parsedAdvice === 'string') {
@@ -155,8 +171,13 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
     };
 
     const handleAcquirePlayer = () => {
-        if (!playerForBidding || finalPrice <= 0 || !buyer) return;
-        onPlayerAuctioned(playerForBidding, finalPrice, buyer);
+        if (!playerForBidding || typeof finalPrice !== 'number' || finalPrice <= 0 || !buyer) return;
+        // Pass player_name and position to onPlayerAuctioned for full auction log entry
+        onPlayerAuctioned({
+            ...playerForBidding,
+            player_name: playerForBidding.player_name,
+            position: playerForBidding.position
+        }, finalPrice, buyer);
     };
 
     const AdviceItem: React.FC<{icon: React.ReactNode, title: string, content: string}> = ({ icon, title, content}) => (
@@ -199,8 +220,8 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                             <ul className="absolute z-10 w-full mt-1 bg-base-300 border border-base-300/50 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                                 {suggestions.map(player => (
                                     <li key={player.id} onClick={() => handleSelectPlayerFromSearch(player)} className="px-4 py-3 cursor-pointer hover:bg-brand-primary/20 flex justify-between items-center transition-colors">
-                                        <span>{player.name} <span className="text-sm text-content-200">({player.team})</span></span>
-                                        <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.role}</span>
+                                        <span>{player.player_name} <span className="text-sm text-content-200">({player.current_team})</span></span>
+                                        <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.position}</span>
                                     </li>
                                 ))}
                             </ul>
@@ -210,21 +231,27 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                     <div className="animate-fade-in-up space-y-6">
                         <div className="p-4 bg-base-100 rounded-lg flex justify-between items-center border border-base-300">
                             <div>
-                                <h3 className="text-2xl font-bold text-content-100">{playerForBidding.name}</h3>
-                                <p className="text-content-200">{playerForBidding.team}</p>
-                                {playerForBidding.skills && (
-                                    <p className="text-content-200 text-sm mt-1">{playerForBidding.skills.join(', ')}</p>
-                                )}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="text-2xl font-bold text-content-100 mb-0">{playerForBidding.player_name}</h3>
+                                  {playerForBidding.skills && playerForBidding.skills.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 ml-2">
+                                      {playerForBidding.skills.map((skill, idx) => (
+                                        <span key={idx} className="px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary font-semibold text-sm border border-brand-primary/30">{skill}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-content-200">{playerForBidding.current_team}</p>
                                 {typeof playerForBidding.recommendation === 'number' && (
                                     <div className="mt-2 inline-block bg-brand-primary/10 border border-brand-primary/30 rounded-lg px-3 py-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-brand-primary text-xs">Copilot Score</span>
+                                            <span className="font-bold text-brand-primary text-xs">FantaCopilot Score</span>
                                             <span className="flex items-center">
                                                 {Array.from({ length: 5 }).map((_, i) => (
-                                                    <span key={i} className={i < Math.round(playerForBidding.recommendation) ? 'text-yellow-400' : 'text-base-300'}>★</span>
+                                                    <span key={i} className={i < Math.round(playerForBidding.stars ?? 0) ? 'text-yellow-400' : 'text-base-300'}>★</span>
                                                 ))}
                                             </span>
-                                            <span className="ml-1 text-xs font-bold text-brand-primary">{playerForBidding.recommendation.toFixed(1)}</span>
+                                            <span className="ml-1 text-xs font-bold text-brand-primary">{(playerForBidding.stars ?? 0).toFixed(1)}</span>
                                         </div>
                                     </div>
                                 )}
@@ -320,10 +347,11 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                     <h5 className="font-bold text-lg text-brand-primary flex items-center gap-2 mb-2"><Lightbulb className="w-6 h-6"/>Verdetto Finale</h5>
                                     <p className="text-content-100 font-medium text-base">{advice.finalAdvice}</p>
                                 </div>
-                                <AdviceItem icon={<PiggyBank className="w-5 h-5 text-blue-400"/>} title="Budget Ruolo" content={advice.roleBudgetAdvice} />
-                                <AdviceItem icon={<Users className="w-5 h-5 text-yellow-400"/>} title="Slot Rosa" content={advice.roleSlotAdvice} />
-                                <AdviceItem icon={<Tag className="w-5 h-5 text-purple-400"/>} title="Prezzo Consigliato" content={advice.recommendedPriceAdvice} />
-                                <AdviceItem icon={<MessageSquare className="w-5 h-5 text-green-400"/>} title="Opportunità" content={advice.opportunityAdvice} />
+                                <AdviceItem icon={<MessageSquareDot className="w-5 h-5 text-red-400"/>} title="Opportunità" content={advice.opportunityAdvice} />
+                                <AdviceItem icon={<MessageSquare className="w-5 h-5 text-green-400"/>} title="Avversari" content={advice.participantAdvice} />
+                                {/* <AdviceItem icon={<Tag className="w-5 h-5 text-purple-400"/>} title="Prezzo Consigliato" content={advice.recommendedPriceAdvice} /> */}
+                                {/* <AdviceItem icon={<Users className="w-5 h-5 text-yellow-400"/>} title="Slot Rosa" content={advice.roleSlotAdvice} /> */}
+                                {/* <AdviceItem icon={<PiggyBank className="w-5 h-5 text-blue-400"/>} title="Budget Ruolo" content={advice.roleBudgetAdvice} /> */}
                             </div>
                         )}
                         
@@ -354,13 +382,13 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                       setFinalPrice('');
                                     } else if (/^\d+$/.test(val)) {
                                       const num = parseInt(val, 10);
-                                      if (!isNaN(num) && num >= 1) {
+                                      if (!isNaN(num) && num >= 0) {
                                         setFinalPrice(num);
                                       }
                                     }
                                   }}
                                   onBlur={e => {
-                                    if (e.target.value === '' || isNaN(Number(e.target.value)) || Number(e.target.value) < 1) {
+                                    if (e.target.value === '') {
                                       setFinalPrice(1);
                                     }
                                   }}
@@ -368,8 +396,8 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                     if (e.key === 'Enter') e.preventDefault();
                                   }}
                                   placeholder="1"
-                                  min="1"
-                                  className="w-24 text-center bg-base-100 border-2 border-base-300 text-xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
+                                  min="0"
+                                  className="w-24 text-center bg-base-100 border-2 border-base-300 text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
                                   style={{ appearance: 'textfield' }}
                                 />
                                 <button

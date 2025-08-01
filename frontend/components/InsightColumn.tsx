@@ -37,9 +37,9 @@ const CollapsibleSection: React.FC<{ title: string; icon: React.ReactNode; child
 // --- SUB-COMPONENT: ROI GAUGE (FIXED) ---
 const calculateOpportunityScore = (currentBid: number, player: Player, myTeam: MyTeamPlayer[], settings: LeagueSettings): number => {
     if (currentBid <= 0) return 50;
-    const scaleFactor = settings.budget / 100;
-    const scaledBaseCost = (player.fvm ?? 0) * scaleFactor;
-    const recommendationModifier = 1 + ((player.recommendation - 3) * 0.05);
+    const scaleFactor = settings.budget / 500;
+    const scaledBaseCost = (player.baseCost ?? 0) * scaleFactor;
+    const recommendationModifier = 1 + ((player.stars - 3) * 0.05);
     const fairValue = scaledBaseCost * recommendationModifier;
     const greatDealPrice = fairValue * 0.7;
     const overpayPrice = fairValue * 1.5;
@@ -65,21 +65,24 @@ const calculateOpportunityScore = (currentBid: number, player: Player, myTeam: M
     }
     final_score = Math.max(0, Math.min(100, Math.round(score)));
     //log final_score
-    console.log(`Calculated ROI score for ${player.name} at current bid ${currentBid}:`, final_score);
+    console.log(`Calculated ROI score for ${player.player_name} at current bid ${currentBid}:`, final_score);
     
     
     return final_score;
 };
 
-const ROIGauge: React.FC<{ score: number, currentBid: number }> = ({ score, currentBid }) => {
+const ROIGauge: React.FC<{ score: number, currentBid: number, minBid?: number, maxBid?: number }> = ({ score, currentBid, minBid, maxBid }) => {
     const angle = -90 + (Math.max(0, Math.min(100, score)) / 100) * 180;
     const getLabelStyle = (s: number) => s > 70 ? 'text-green-400' : s > 30 ? 'text-yellow-400' : 'text-red-400';
-    const getLabelText = (s: number) => s > 70 ? 'Ottimo Affare' : s > 30 ? 'Prezzo Giusto' : 'Sopravvalutato';
+    const getLabelText = (s: number) => {
+      const label = s > 70 ? 'Ottimo Affare' : s > 30 ? 'Prezzo Giusto' : 'Sopravvalutato';
+      return label;
+    };
 
     return (
         <div className="bg-base-200 rounded-lg shadow-lg p-4 flex flex-col items-center">
-            <div className="relative w-full max-w-[220px]" style={{ height: '125px' }}>
-                <svg viewBox="0 0 200 100" className="w-full h-full absolute top-0 left-0">
+            <div className="relative w-full max-w-[220px] flex flex-col items-center justify-center" style={{ height: '200px' }}>
+                <svg viewBox="0 0 200 100" className="w-full h-full absolute top-0 left-0 pointer-events-none">
                     <defs>
                         <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                             <stop offset="0%" stopColor="#ef4444" />
@@ -88,24 +91,31 @@ const ROIGauge: React.FC<{ score: number, currentBid: number }> = ({ score, curr
                         </linearGradient>
                     </defs>
                     <path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="url(#gaugeGradient)" strokeWidth="16" strokeLinecap="round" />
-                    <path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="rgba(10,10,10,0.4)" strokeWidth="18" strokeDasharray="2 4" strokeLinecap="round"/>
+                    <path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="rgba(10,10,10,0.15)" strokeWidth="18" strokeDasharray="2 4" strokeLinecap="round"/>
                 </svg>
                 {/* The Needle */}
                 <div 
-                    className="absolute bottom-[10px] left-1/2 w-0.5 h-[45%] bg-content-100 rounded-full"
+                    className="absolute left-1/2 bottom-8 w-0.5 h-[80px] bg-content-100 rounded-full z-10"
                     style={{ 
                         transform: `translateX(-50%) rotate(${angle}deg)`, 
                         transformOrigin: 'bottom center',
-                        transition: 'transform 300ms ease-out'
+                        transition: 'transform 300ms cubic-bezier(0.4,0,0.2,1)'
                     }} 
                 />
-                <div className="absolute bottom-[6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-content-100 rounded-full border-2 border-base-200"></div>
-
-                 <div className="absolute bottom-[-15px] w-full text-center">
+                <div className="absolute left-1/2 bottom-7 -translate-x-1/2 w-3 h-3 bg-content-100 rounded-full border-2 border-base-200 z-20"></div>
+                <div className="absolute left-0 right-0 bottom-10 flex flex-col items-center justify-center pointer-events-none">
                     <div className="text-3xl font-bold text-content-100">{currentBid} <span className="text-xl">Cr</span></div>
-                    <div className={`text-lg font-bold transition-colors duration-300 ${getLabelStyle(score)}`}>{getLabelText(score)}</div>
+                    <div className={`text-lg font-bold transition-colors duration-300 ${getLabelStyle(score)}`}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5em' }}>
+                        {getLabelText(score)}
+                    </div>
                 </div>
             </div>
+            {typeof minBid === 'number' && typeof maxBid === 'number' && (
+                <div className="mt-2 text-base text-content-200 font-semibold flex flex-nowrap items-center gap-1 w-full justify-center whitespace-nowrap">
+                    Range consigliato: <span className="text-brand-primary font-bold whitespace-nowrap">{minBid} - {maxBid} Cr</span>
+                </div>
+            )}
         </div>
     );
 };
@@ -113,8 +123,8 @@ const ROIGauge: React.FC<{ score: number, currentBid: number }> = ({ score, curr
 // --- SUB-COMPONENT: ROLE BUDGET IMPACT ---
 const RoleBudgetImpactBar: React.FC<{ player: Player; currentBid: number; myTeam: MyTeamPlayer[]; leagueSettings: LeagueSettings; roleBudget: Record<Role, number> }> = ({ player, currentBid, myTeam, leagueSettings, roleBudget }) => {
     const { allocated, spentOnRole, prospective, progress, isOver } = useMemo(() => {
-        const allocated = Math.round((leagueSettings.budget * roleBudget[player.role]) / 100);
-        const spentOnRole = myTeam.filter(p => p.role === player.role).reduce((sum, p) => sum + p.purchasePrice, 0);
+        const allocated = Math.round((leagueSettings.budget * roleBudget[player.position]) / 100);
+        const spentOnRole = myTeam.filter(p => p.position === player.position).reduce((sum, p) => sum + p.purchasePrice, 0);
         const prospective = spentOnRole + currentBid;
         const progress = allocated > 0 ? Math.min((prospective / allocated) * 100, 100) : 100;
         const isOver = prospective > allocated;
@@ -126,7 +136,7 @@ const RoleBudgetImpactBar: React.FC<{ player: Player; currentBid: number; myTeam
             <h3 className="text-sm font-semibold text-content-200 mb-2">
                 Impatto sul Budget del Ruolo
                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded bg-base-300 text-brand-primary font-bold text-xs align-middle">
-                    {player.role} {/* Optionally add icon: {ROLE_ICONS[player.role]} */}
+                    {player.position} {/* Optionally add icon: {ROLE_ICONS[player.position]} */}
                 </span>
             </h3>
             <div className="w-full bg-base-300 rounded-full h-5 relative overflow-hidden">
@@ -173,7 +183,7 @@ const WhatIfAnalysis: React.FC<{ myTeam: MyTeamPlayer[], leagueSettings: LeagueS
 };
 
 // --- SUB-COMPONENT: RIVALS HEATMAP ---
-const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagueSettings: LeagueSettings, currentBid: number }> = ({ auctionLog, leagueSettings, currentBid }) => {
+export const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagueSettings: LeagueSettings, currentBid: number }> = ({ auctionLog, leagueSettings, currentBid }) => {
     const rivalsData = useMemo(() => {
         const rivals = leagueSettings.participantNames.filter(name => name.toLowerCase() !== 'io');
         return rivals.map(name => {
@@ -252,7 +262,7 @@ const RoleInflationChart: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentB
                 const p = playerMap.get(Number(playerId));
                 return p ? { ...p, ...result } : null;
             })
-            .filter((p): p is Player & AuctionResult => p !== null && p.role === player.role);
+            .filter((p): p is Player & AuctionResult => p !== null && p.position === player.position);
 
         if (auctionedRolePlayers.length === 0) {
             return null;
@@ -268,7 +278,7 @@ const RoleInflationChart: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentB
 
         return totalInflationPercent / auctionedRolePlayers.length;
 
-    }, [auctionLog, player.role, players, leagueSettings.budget]);
+    }, [auctionLog, player.position, players, leagueSettings.budget]);
 
     if (averageInflation === null) {
         return <p className="text-xs text-center text-content-200 p-4">Dati insufficienti per calcolare l'inflazione per questo ruolo.</p>;
@@ -296,7 +306,7 @@ const RoleInflationChart: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentB
                     style={{ width: `${barWidth}%` }}
                 ></div>
             </div>
-            <p className="text-xs text-content-200 text-center pt-1">Sovrapprezzo medio pagato per i {player.role === 'P' ? 'portieri' : player.role === 'D' ? 'difensori' : player.role === 'C' ? 'centrocampisti' : 'attaccanti'}.</p>
+            <p className="text-xs text-content-200 text-center pt-1">Sovrapprezzo medio pagato per i {player.position === 'P' ? 'portieri' : player.position === 'D' ? 'difensori' : player.position === 'C' ? 'centrocampisti' : 'attaccanti'}.</p>
         </div>
     );
 };
@@ -319,18 +329,18 @@ const RiskFactors: React.FC<{ player: Player }> = ({ player }) => {
         const result: { key: string; icon: React.ReactNode; label: string; description: string; colorClass: string; }[] = [];
 
         // Injury Risk
-        if (stats.injuries === 'Alto rischio') {
+        if (stats.injury_risk_band === 'High') {
             result.push({ key: 'injury', icon: <HeartPulse size={20} />, label: 'Rischio Infortuni', description: 'Alto', colorClass: 'border-red-500 bg-red-500' });
-        } else if (stats.injuries === 'Medio rischio') {
+        } else if (stats.injury_risk_band === 'Medium') {
             result.push({ key: 'injury', icon: <HeartPulse size={20} />, label: 'Rischio Infortuni', description: 'Medio', colorClass: 'border-yellow-500 bg-yellow-500' });
         }
 
         // Card Risk
-        const cardScore = (stats.yellowCards || 0) + ((stats.redCards || 0) * 2.5);
-        if (cardScore > 8) {
-             result.push({ key: 'cards', icon: <RectangleHorizontal size={20} />, label: 'Malus Cartellini', description: `Tendenza alta (${stats.yellowCards}G, ${stats.redCards}R)`, colorClass: 'border-red-500 bg-red-500' });
-        } else if (cardScore > 4) {
-             result.push({ key: 'cards', icon: <RectangleHorizontal size={20} />, label: 'Malus Cartellini', description: `Tendenza moderata (${stats.yellowCards}G, ${stats.redCards}R)`, colorClass: 'border-yellow-500 bg-yellow-500' });
+        
+        if (player.malus_risk_raw <= -1) {
+             result.push({ key: 'cards', icon: <RectangleHorizontal size={20} />, label: 'Malus Cartellini', description: `Tendenza alta`, colorClass: 'border-red-500 bg-red-500' });
+        } else if (player.malus_risk_raw <= -0.5) {
+             result.push({ key: 'cards', icon: <RectangleHorizontal size={20} />, label: 'Malus Cartellini', description: `Tendenza moderata`, colorClass: 'border-yellow-500 bg-yellow-500' });
         }
 
         // Turnover/Cup Risk
@@ -376,10 +386,10 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
         ]);
         return players.filter(p => 
             p.id !== player.id &&
-            p.role === player.role &&
+            p.position === player.position &&
             !auctionedIds.has(p.id)
         )
-        .sort((a,b) => b.recommendation - a.recommendation || (b.baseCost ?? 0) - (a.baseCost ?? 0))
+        .sort((a,b) => b.stars - a.stars || (b.baseCost ?? 0) - (a.baseCost ?? 0))
         .slice(0, 5);
     }, [player, players, auctionLog]);
 
@@ -396,28 +406,28 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
                  const maxSpend = Math.round((baseCost * scaleFactor) * 1.15);
                  let badge = null;
                  if (alt.stats && typeof alt.stats.injury_score === 'number') {
-                    if (alt.recommendation > 3) {
+                    if (alt.stars > 3) {
                         badge = { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' };
                     } else if (alt.stats.injury_score >= 3) {
                         badge = { text: 'Rischio Alto', color: 'bg-red-500/20 text-red-400' };
                     }
-                 } else if (alt.recommendation > 3) {
+                 } else if (alt.stars > 3) {
                     badge = { text: 'Upside Alto', color: 'bg-green-500/20 text-green-400' };
                  }
                  // Defensive: FantaMedia
                  let fantamedia = '-';
-                 if (alt.stats && typeof alt.stats.fm1y === 'number' && isFinite(alt.stats.fm1y)) {
-                    fantamedia = alt.stats.fm1y.toFixed(2);
+                 if (alt.stats && typeof alt.rating_average === 'number' && isFinite(alt.rating_average)) {
+                    fantamedia = alt.rating_average.toFixed(2);
                  }
                 return (
                     <div key={alt.id} className="flex-shrink-0 w-40 bg-base-100 rounded-lg p-2.5 text-center border border-base-300/50">
                         <div className="flex items-center justify-center mb-1">
-                            <span className="text-xl mr-1">{ROLE_ICONS[alt.role]}</span>
-                            <p className="font-bold text-sm truncate text-content-100">{alt.name}</p>
+                            <span className="text-xl mr-1">{ROLE_ICONS[alt.position]}</span>
+                            <p className="font-bold text-sm truncate text-content-100">{alt.player_name}</p>
                         </div>
-                        <p className="text-xs truncate text-content-200">{alt.team}</p>
+                        <p className="text-xs truncate text-content-200">{alt.current_team}</p>
                         <p className="my-1 font-bold text-brand-primary">{minSpend}-{maxSpend} Cr</p>
-                        <p className="text-xs text-content-200">FantaMedia: {fantamedia}</p>
+                        <p className="text-xs text-content-200">Rating: {fantamedia}</p>
                         {badge && <span className={`mt-2 inline-block px-2 py-0.5 text-xs font-semibold rounded-full ${badge.color}`}>{badge.text}</span>}
                     </div>
                 )
@@ -429,10 +439,13 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
 // --- MAIN INSIGHT COLUMN ---
 export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid, myTeam, leagueSettings, roleBudget, auctionLog, players }) => {
     const opportunityScore = useMemo(() => calculateOpportunityScore(currentBid, player, myTeam, leagueSettings), [currentBid, player, myTeam, leagueSettings]);
+    // Defensive: fallback to 0 if undefined
+    const minBid = typeof player.suggestedBidMin === 'number' ? Math.round(player.suggestedBidMin) : undefined;
+    const maxBid = typeof player.suggestedBidMax === 'number' ? Math.round(player.suggestedBidMax) : undefined;
 
     return (
         <div className="space-y-4 animate-fade-in">
-            <ROIGauge score={opportunityScore} currentBid={currentBid} />
+            <ROIGauge score={opportunityScore} currentBid={currentBid} minBid={minBid} maxBid={maxBid} />
             <RoleBudgetImpactBar player={player} currentBid={currentBid} myTeam={myTeam} leagueSettings={leagueSettings} roleBudget={roleBudget} />
             {/* <CollapsibleSection title="Analisi 'What if...?'" icon={<TrendingUp size={20} />} defaultOpen>
                 <WhatIfAnalysis myTeam={myTeam} leagueSettings={leagueSettings} currentPrice={currentBid} />
@@ -445,10 +458,10 @@ export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid
                     leagueSettings={leagueSettings} 
                 />
             </CollapsibleSection>
-             <CollapsibleSection title="Heatmap Rivali" icon={<Users size={20} />} defaultOpen>
+            {/* <CollapsibleSection title="Heatmap Rivali" icon={<Users size={20} />} defaultOpen>
                 <RivalsHeatmap auctionLog={auctionLog} leagueSettings={leagueSettings} currentBid={currentBid} />
-            </CollapsibleSection>
-            <CollapsibleSection title="Skill Giocatore" icon={<Star size={20} />} defaultOpen>
+            </CollapsibleSection> */}
+            {/* <CollapsibleSection title="Skill Giocatore" icon={<Star size={20} />} defaultOpen>
                 <div className="flex flex-wrap gap-2">
                   {player.skills && player.skills.length > 0 ? (
                     player.skills.map((skill, idx) => (
@@ -458,7 +471,7 @@ export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid
                     <span className="text-content-200 text-sm">Nessuna skill specifica rilevata.</span>
                   )}
                 </div>
-            </CollapsibleSection>
+            </CollapsibleSection> */}
             {/* <CollapsibleSection title="Inflazione Ruolo" icon={<BarChart size={20} />}>
                  <RoleInflationChart 
                     player={player} 

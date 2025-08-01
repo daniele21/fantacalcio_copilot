@@ -95,7 +95,7 @@ def refactor_statistics(player_data, team_id):
     current_team_id = team_id
     current_team = ITALIAN_TEAMS[team_id]
     position_id = player_data['position_id']
-    position = POSITIONS[position_id] 
+    position = POSITIONS[position_id] if position_id in POSITIONS else None
     
     stats_bool = len(player_data['statistics']) > 0
     

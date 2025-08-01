@@ -49,9 +49,9 @@ export const InstantHeader: React.FC<InstantHeaderProps> = ({ player, currentPri
                     {/* Center: Player Info */}
                     <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
                         <h2 className="text-xl font-bold text-content-100 tracking-tight truncate max-w-full">
-                            {player.name}
+                            {player.player_name}
                             <span className="ml-2 text-base font-semibold text-brand-primary">
-                                – {getRoleAbbreviation(player.role)}
+                                – {getRoleAbbreviation(player.position)}
                             </span>
                         </h2>
                         <div className="flex items-baseline space-x-3 mt-1">

@@ -4,7 +4,7 @@ from rapidfuzz import fuzz
 from unidecode import unidecode
 import pandas as pd
 from backend.data.extract import run_all
-from backend.database.insert_giocatori import insert_giocatori_from_records
+from backend.database.insert_giocatori import insert_giocatori_from_csv_records, insert_giocatori_from_records
 
 # read last quote file and update giocatori table then
 def get_last_quote_file() -> str:
@@ -67,6 +67,17 @@ def get_player_data(filepath: str) -> list:
         return []
     df['Skills'] = df['Skills'].apply(parse_skills)
     return df.to_dict(orient='records')
+
+def player_processing_data_from_csv(filepath: str = '/Users/moltisantid/Personal/fantacalcio/player_statistics_2025-07-21_15-02-25_with_target_price_and_predictions.csv') -> None:
+    df = pd.read_csv(filepath, sep=',')
+    # Clean NaN/inf values for JSON serialization
+    df = df.replace([float('nan'), float('inf'), float('-inf')], None)
+    # Also, replace pandas NaN with None
+    df = df.where(pd.notnull(df), None)
+    insert_giocatori_from_csv_records(df.to_dict(orient='records'))
+    return
+    
+
 
 def merge_and_update_players(threshold: int = 85) -> None:
     from backend.database.insert_giocatori import insert_giocatori_from_records
@@ -135,4 +146,5 @@ if __name__ == "__main__":
     # asyncio.run(update_players())
     # print("Player data updated successfully.")
     
-    merge_and_update_players()
+    # merge_and_update_players()
+    player_processing_data_from_csv('/Users/moltisantid/Personal/fantacalcio/player_statistics_2025-08-01_14-01-08_with_features.csv')

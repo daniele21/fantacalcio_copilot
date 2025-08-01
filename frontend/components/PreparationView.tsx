@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react';
-import { Player, Role, LeagueSettings, AggregatedAnalysisResult, TargetPlayer, Skill } from '../types';
+import { Player, Role, LeagueSettings, TargetPlayer, Skill } from '../types';
 import { getAggregatedAnalysis } from '../services/geminiService';
 import { PlayerCard } from './PlayerCard';
 import { FilterChip } from './shared/FilterChip';
@@ -9,6 +9,12 @@ import { AuthContext } from '../services/AuthContext';
 import { useApi } from '../services/useApi';
 import { base_url } from '../services/api';
 import ShowNoCreditDialog from './showNoCreditDialog';
+
+type AggregatedAnalysisBackendResult = {
+  trend: string;
+  hot_players: string[];
+  trap: string;
+};
 
 interface PlayerExplorerViewProps {
   leagueSettings: LeagueSettings;
@@ -25,16 +31,19 @@ interface PlayerExplorerViewProps {
 export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSettings, targetPlayers, players, onAddTarget, onRemoveTarget, showFavouritesOnly, setShowFavouritesOnly, onSaveFavourites, isSavingFavourites }: PlayerExplorerViewProps) => {
   const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
-  const [aggregatedAnalysis, setAggregatedAnalysis] = useState<AggregatedAnalysisResult>({
+  const [aggregatedAnalysis, setAggregatedAnalysis] = useState<{
+    analysis: string | AggregatedAnalysisBackendResult;
+    sources: any[];
+  }>({
     analysis: "Seleziona i filtri e clicca su 'Analizza Segmento' per ottenere una valutazione strategica da Gemini.",
     sources: [],
   });
   const [isAnalysisLoading, setIsAnalysisLoading] = useState<boolean>(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortKey, setSortKey] = useState<string>('recommendation');
+  const [sortKey, setSortKey] = useState<string>('stars');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const { profile, refreshProfile } = useContext(AuthContext);
+  const { refreshProfile } = useContext(AuthContext) ?? {};
   const { call } = useApi();
   const [showNoCreditDialog, setShowNoCreditDialog] = useState(false);
 
@@ -66,7 +75,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
     }
     // Filter by role unless 'ALL' is selected
     if (selectedRole !== 'ALL') {
-      filtered = filtered.filter((player: Player) => player.role === selectedRole);
+      filtered = filtered.filter((player: Player) => player.position === selectedRole);
     }
     // Then filter by skills
     if (selectedSkills.size > 0) {
@@ -75,57 +84,19 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
     if (searchTerm.trim() !== '') {
       const lower = searchTerm.toLowerCase();
       filtered = filtered.filter((player: Player) =>
-        player.name.toLowerCase().includes(lower) ||
-        (player.team && player.team.toLowerCase().includes(lower))
+        player.player_name.toLowerCase().includes(lower) ||
+        (player.current_team && player.current_team.toLowerCase().includes(lower))
       );
     }
     // Sorting
     const sorters: Record<string, (a: Player, b: Player) => number> = {
-      recommendation: (a, b) => (parseFloat(b.recommendation ?? 0) || 0) - (parseFloat(a.recommendation ?? 0) || 0),
-      good_bet: (a, b) => {
-        // Log good_bet values for debugging
-        // console.log('good_bet a:', a.stats?.good_bet, 'good_bet b:', b.stats?.good_bet);
-        const parseScore = (val: any) => {
-          if (typeof val === 'string' && /^\d/.test(val)) return parseInt(val[0], 10);
-          if (typeof val === 'number') return val;
-          return null;
-        };
-        const bScore = parseScore(b.stats?.good_bet);
-        const aScore = parseScore(a.stats?.good_bet);
-        if (bScore === null && aScore === null) return 0;
-        if (bScore === null) return 1;
-        if (aScore === null) return -1;
-        return bScore - aScore;
-      },
-      xGoal: (a, b) => {
-        // Log xGoal values for debugging
-        // console.log('xGoal a:', a.stats.exp_goal, 'xGoal b:', b.stats.exp_goal);
-        const parseX = (val: any) => {
-          if (typeof val === 'string' && /^\d+/.test(val)) return parseInt(val.match(/^\d+/)?.[0] ?? '0', 10);
-          if (typeof val === 'number') return val;
-          return 0;
-        };
-        return parseX(b.stats.exp_goal) - parseX(a.stats.exp_goal);
-      },
-      fm2324: (a, b) => (parseFloat(b.stats.fm1y ?? 0) || 0) - (parseFloat(a.stats.fm1y ?? 0) || 0),
-      xPresenze: (a, b) => {
-        const parseX = (val: any) => {
-          if (typeof val === 'string' && /^\d+/.test(val)) return parseInt(val.match(/^\d+/)?.[0] ?? '0', 10);
-          if (typeof val === 'number') return val;
-          return 0;
-        };
-        return parseX(b.stats.exp_presenze) - parseX(a.stats.exp_presenze);
-      },
-      xAssist: (a, b) => {
-        const parseX = (val: any) => {
-          if (typeof val === 'string' && /^\d+/.test(val)) return parseInt(val.match(/^\d+/)?.[0] ?? '0', 10);
-          if (typeof val === 'number') return val;
-          return 0;
-        };
-        return parseX(b.stats.exp_assist) - parseX(a.stats.exp_assist);
-      },
+      stars: (a, b) => (Number(b.stars ?? 0) || 0) - (Number(a.stars ?? 0) || 0),
+      xBonus: (a, b) => (Number(b.xfp_per_game ?? 0) || 0) - (Number(a.xfp_per_game ?? 0) || 0),
+      titolarita: (a, b) => (Number(b.titolarita ?? 0) || 0) - (Number(a.titolarita ?? 0) || 0),
+      voto_medio: (a, b) => (Number(b.rating_average ?? 0) || 0) - (Number(a.rating_average ?? 0) || 0),
+      big_chance: (a, b) => (Number(b.big_chances_created_per_90 ?? 0) || 0) - (Number(a.big_chances_created_per_90 ?? 0) || 0),
     };
-    const sorted = filtered.sort(sorters[sortKey === 'buonInvestimento' ? 'good_bet' : sortKey] || sorters['recommendation']);
+    const sorted = filtered.sort(sorters[sortKey] || sorters['stars']);
     return sortOrder === 'asc' ? [...sorted].reverse() : sorted;
   }, [players, selectedRole, selectedSkills, showFavouritesOnly, targetPlayerIds, searchTerm, sortKey, sortOrder]);
 
@@ -139,14 +110,29 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
         setIsAnalysisLoading(false);
         return;
       }
+      // Prepare minimal player list: only player_name, MAX 20
+      const minimalPlayers = filteredPlayers.slice(0, 20).map((p: Player) => p.player_name);
+
       // Pass null if 'ALL' is selected, otherwise pass the selectedRole
-      const result = await getAggregatedAnalysis(filteredPlayers, selectedRole === 'ALL' ? null : selectedRole);
-      setAggregatedAnalysis(result.result);
+      const result = await getAggregatedAnalysis(minimalPlayers, selectedRole === 'ALL' ? null : selectedRole);
+      // Defensive: check backend result structure
+      let backendResult: any = result.result;
+      if (!backendResult || typeof backendResult !== 'object' || (!('trend' in backendResult) && typeof backendResult !== 'string')) {
+        throw new Error('Risposta backend non valida. Riprova o contatta il supporto.');
+      }
+      setAggregatedAnalysis({
+        analysis: backendResult, // Store the raw object for custom rendering
+        sources: [], // No sources from backend in new schema
+      });
       // Only deduct credit if Gemini call was successful
       await call(`${base_url}/api/use-ai-credit`, { method: 'POST', body: JSON.stringify({ cost: result.cost ?? 0 }), headers: { 'Content-Type': 'application/json' } });
       await refreshProfile?.();
     } catch (err: any) {
-      alert(err.message || 'Errore durante la generazione dell\'analisi.');
+      setAggregatedAnalysis({
+        analysis: typeof err?.message === 'string' ? err.message : 'Errore durante la generazione dell\'analisi.',
+        sources: [],
+      });
+      alert(err?.message || 'Errore durante la generazione dell\'analisi.');
     } finally {
       setIsAnalysisLoading(false);
     }
@@ -160,13 +146,14 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
   );
 
   return (
-    <div>
+    <div className="flex flex-col min-h-screen">
       {/* No Credit Dialog */}
-      <ShowNoCreditDialog open={showNoCreditDialog} onClose={() => setShowNoCreditDialog(false)} />
+      <ShowNoCreditDialog open={showNoCreditDialog} onClose={() => setShowNoCreditDialog(false)} plan={""} />
 
-      <div className="bg-base-200 p-6 rounded-lg mb-8 border border-brand-primary/20">
+      {/* Analysis & Filters Section - make compact and collapsible */}
+      <div className="bg-base-900 p-4 rounded-lg mb-2 border border-brand-primary/20" style={{maxHeight: isAnalysisOpen ? '320px' : '56px', overflow: 'auto', transition: 'max-height 0.3s'}}> 
         <button
-          className="flex items-center justify-between w-full mb-3 text-xl font-bold text-brand-primary focus:outline-none"
+          className="flex items-center justify-between w-full mb-2 text-xl font-bold text-brand-primary focus:outline-none"
           onClick={() => setIsAnalysisOpen((open) => !open)}
         >
           <span className="flex items-center">
@@ -185,7 +172,44 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
               </div>
             ) : (
               <>
-                <div className="text-content-200 whitespace-pre-wrap prose" dangerouslySetInnerHTML={{ __html: aggregatedAnalysis.analysis.replace(/\*\*(.*?)\*\*/g, '<strong class=\"text-content-100\">$1</strong>').replace(/\n/g, '<br />') }} />
+                {typeof aggregatedAnalysis.analysis === 'object' && aggregatedAnalysis.analysis !== null && 'trend' in aggregatedAnalysis.analysis ? (
+                  <div className="flex flex-col gap-6">
+                    {/* Trend Section
+                    <div className="p-4 rounded-lg bg-blue-900 border border-blue-700 flex items-start gap-3">
+                      <Sparkles className="w-6 h-6 text-blue-300 mt-1" />
+                      <div>
+                        <div className="font-bold text-blue-200 text-lg mb-1">Trend</div>
+                        <div className="text-blue-100 text-base">{(aggregatedAnalysis.analysis as AggregatedAnalysisBackendResult).trend}</div>
+                      </div>
+                    </div> */}
+                    {/* Hot Players Section */}
+                    <div className="p-4 rounded-lg bg-green-900 border border-green-700 flex items-start gap-3">
+                      <Star className="w-6 h-6 text-green-300 mt-1" />
+                      <div>
+                        <div className="font-bold text-green-200 text-lg mb-1">Hot Players</div>
+                        <div className="flex flex-wrap gap-2">
+                          {Array.isArray((aggregatedAnalysis.analysis as AggregatedAnalysisBackendResult).hot_players) && (aggregatedAnalysis.analysis as AggregatedAnalysisBackendResult).hot_players.length > 0 ? (
+                            (aggregatedAnalysis.analysis as AggregatedAnalysisBackendResult).hot_players.map((name: string, idx: number) => (
+                              <span key={idx} className="inline-block bg-green-800 text-green-100 font-semibold px-3 py-1 rounded-full text-sm shadow-sm border border-green-600">{name}</span>
+                            ))
+                          ) : (
+                            <span className="text-green-100">Nessun giocatore caldo individuato.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Trap Section */}
+                    <div className="p-4 rounded-lg bg-red-900 border border-red-700 flex items-start gap-3">
+                      <Frown className="w-6 h-6 text-red-300 mt-1" />
+                      <div>
+                        <div className="font-bold text-red-200 text-lg mb-1">Trappola</div>
+                        <div className="text-red-100 text-base">{(aggregatedAnalysis.analysis as AggregatedAnalysisBackendResult).trap}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-content-100 whitespace-pre-wrap prose" style={{ background: '#18181b', color: '#fafafa', borderRadius: '0.5rem', padding: '1rem' }} dangerouslySetInnerHTML={{ __html: aggregatedAnalysis.analysis.replace(/\*\*(.*?)\*\*/g, '<strong class=\"text-content-100\">$1</strong>').replace(/\n/g, '<br />') }} />
+                )}
                 {aggregatedAnalysis.sources.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-base-300/50">
                     <h4 className="font-semibold text-sm text-content-200 mb-2">Fonti utilizzate:</h4>
@@ -206,7 +230,8 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
         )}
       </div>
 
-      <div className="bg-base-200 rounded-lg mb-6 sticky top-[125px] z-20 backdrop-blur-sm bg-opacity-80 border border-base-300">
+      {/* Filters Section - compact */}
+      <div className="bg-base-200 rounded-lg mb-2 border border-base-300">
         {/* <div className="flex flex-col gap-2 p-2">
           <input
             type="text"
@@ -253,7 +278,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
             <button
               onClick={() => {
                 if (window.confirm('Sei sicuro di voler resettare tutti i preferiti?')) {
-                  targetPlayers.forEach(tp => onRemoveTarget(tp.id));
+                  targetPlayers.forEach(tp => onRemoveTarget(Number(tp.id)));
                 }
               }}
               className="px-3 py-1.5 text-sm font-semibold text-red-600 bg-base-200 rounded-md hover:bg-red-100 border border-red-200"
@@ -283,12 +308,11 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 onChange={e => setSortKey(e.target.value)}
                 className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
               >
-                <option value="recommendation">Stelle Copilot</option>
-                <option value="buonInvestimento">Buon investimento</option>
-                <option value="fm2324">FM23/24</option>
-                <option value="xGoal">xGoal</option>
-                <option value="xAssist">xAssist</option>
-                <option value="xPresenze">xPresenze</option>
+                <option value="stars">Stelle FantaCopilot</option>
+                <option value="xBonus">xBonus</option>
+                <option value="titolarita">Titolarità</option>
+                <option value="voto_medio">Voto Medio</option>
+                <option value="big_chance">Big Chance</option>
               </select>
               <button
                 type="button"
@@ -314,10 +338,14 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 />
               </div>
               <div className="w-full md:w-2/3">
+                <div className="mb-2">
+                  <p className="text-xs text-content-200 font-medium">Puoi analizzare un segmento di massimo 20 giocatori alla volta. Seleziona filtri o preferiti per restringere la lista.</p>
+                </div>
                 <button
                   onClick={handleAnalysisRequest}
                   disabled={isAnalysisLoading || filteredPlayers.length === 0}
                   className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                  title={filteredPlayers.length > 0 ? `Giocatori analizzati: ${filteredPlayers.slice(0, 20).map(p => p.player_name).join(', ')}${filteredPlayers.length > 20 ? ` +${filteredPlayers.length - 20} altri (solo i primi 20 verranno analizzati)` : ''}` : 'Analizza i giocatori selezionati con l’AI'}
                 >
                   {isAnalysisLoading ? (
                     <>
@@ -327,11 +355,18 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5 mr-2" />
-                      Analizza Segmento ({filteredPlayers.length} giocatori)
+                      {filteredPlayers.length > 20
+                        ? 'Analizza Segmento (primi 20 giocatori)'
+                        : `Analizza Segmento (${filteredPlayers.length} giocatori)`}
                       <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
                     </>
                   )}
                 </button>
+                {filteredPlayers.length > 20 && (
+                  <p className="mt-2 text-sm text-red-400 font-semibold">
+                    Giocatori selezionati: {filteredPlayers.length}. Seleziona massimo 20 giocatori per l'analisi aggregata.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -339,25 +374,28 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredPlayers.map((player: Player) => (
-          <PlayerCard
-            key={player.id}
-            player={player}
-            leagueSettings={leagueSettings}
-            isTarget={targetPlayerIds.has(player.id)}
-            onAddTarget={onAddTarget}
-            onRemoveTarget={onRemoveTarget}
-          />
-        ))}
-      </div>
-      {filteredPlayers.length === 0 && (
-        <div className="col-span-full flex flex-col justify-center items-center h-64 text-content-200">
-          <Frown className="w-12 h-12 mb-4" />
-          <p className="text-xl">Nessun giocatore trovato.</p>
-          <p>Prova a modificare i filtri di ricerca.</p>
+      {/* Player Card Grid - take remaining space */}
+      <div className="flex-1 overflow-auto px-2 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredPlayers.map((player: Player) => (
+            <PlayerCard
+              key={player.id}
+              player={player}
+              leagueSettings={leagueSettings}
+              isTarget={targetPlayerIds.has(player.id)}
+              onAddTarget={onAddTarget}
+              onRemoveTarget={onRemoveTarget}
+            />
+          ))}
         </div>
-      )}
+        {filteredPlayers.length === 0 && (
+          <div className="col-span-full flex flex-col justify-center items-center h-64 text-content-200">
+            <Frown className="w-12 h-12 mb-4" />
+            <p className="text-xl">Nessun giocatore trovato.</p>
+            <p>Prova a modificare i filtri di ricerca.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

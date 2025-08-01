@@ -1,4 +1,4 @@
-import { Player, Role, AggregatedAnalysisResult, GroundingSource, LeagueSettings, MyTeamPlayer, DetailedAnalysisResult, BiddingAdviceResult } from "../types";
+import { Player, Role, AggregatedAnalysisResult, LeagueSettings, MyTeamPlayer, DetailedAnalysisResult, BiddingAdviceResult } from "../types";
 import { base_url } from "./api";
 import { useContext } from "react";
 import { AuthContext } from "./AuthContext";
@@ -131,10 +131,11 @@ export const getBiddingAdvice = async (
   if (!player || !myTeam || !settings || currentBid == null || !roleBudget) {
     return {
       result: {
-        roleBudgetAdvice: "Consiglio AI non disponibile (dati mancanti).",
-        roleSlotAdvice: "",
-        recommendedPriceAdvice: "",
+        // roleBudgetAdvice: "Consiglio AI non disponibile (dati mancanti).",
+        // roleSlotAdvice: "",
+        // recommendedPriceAdvice: "",
         opportunityAdvice: "",
+        participantAdvice : "",
         finalAdvice: "",
       },
       cost: 0,
@@ -163,10 +164,11 @@ export const getBiddingAdvice = async (
     if (!resp.ok || !data.success) {
       return {
         result: {
-          roleBudgetAdvice: data.message || "Errore dal backend Gemini.",
-          roleSlotAdvice: "",
-          recommendedPriceAdvice: "",
+          // roleBudgetAdvice: data.message || "Errore dal backend Gemini.",
+          // roleSlotAdvice: "",
+          // recommendedPriceAdvice: "",
           opportunityAdvice: "",
+          participantAdvice: "",
           finalAdvice: "",
         },
         cost: 0,
@@ -176,10 +178,11 @@ export const getBiddingAdvice = async (
   } catch (error: any) {
     return {
       result: {
-        roleBudgetAdvice: "Impossibile ottenere un consiglio a causa di un errore di rete, del server o di un formato di risposta non valido.",
-        roleSlotAdvice: "",
-        recommendedPriceAdvice: "",
+        // roleBudgetAdvice: "Impossibile ottenere un consiglio a causa di un errore di rete, del server o di un formato di risposta non valido.",
+        // roleSlotAdvice: "",
+        // recommendedPriceAdvice: "",
         opportunityAdvice: "",
+        participantAdvice: "",
         finalAdvice: "",
       },
       cost: 0,

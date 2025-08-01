@@ -6,7 +6,7 @@ import { AuctionBoard } from './AuctionBoard';
 import { ChevronDown, ChevronUp, Users, Wallet, Info } from 'lucide-react';
 import { TeamsView } from './TeamsView';
 import { InstantHeader } from './InstantHeader';
-import { InsightColumn } from './InsightColumn';
+import { InsightColumn, RivalsHeatmap } from './InsightColumn';
 import { useAuth } from '../services/AuthContext';
 import { getStrategyBoard } from '../services/strategyBoardService';
 import { fetchLeagueSettings } from '../services/leagueSettingsService';
@@ -133,7 +133,13 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
         onPlayerAuctioned(player, purchasePrice, buyer);
         setLocalAuctionLog(prev => ({
             ...prev,
-            [player.id]: { playerId: player.id, purchasePrice, buyer }
+            [player.id]: {
+                playerId: player.id,
+                player_name: player.player_name,
+                position: player.position,
+                purchasePrice,
+                buyer
+            }
         }));
         handleClearBiddingPlayer();
     };
@@ -182,7 +188,7 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                     if (board && board.target_players) {
                         const validPlayers = board.target_players
                             .map((p: any) => {
-                                const player = players.find(pl => pl.id === p.player_id);
+                                const player = players.find(pl => pl.id === p.id);
                                 if (player) {
                                     return { ...player, maxBid: p.max_bid };
                                 }
@@ -275,10 +281,16 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                             currentBid={currentBid}
                             onCurrentBidChange={setCurrentBid}
                             auctionLog={localAuctionLog}
-                            allPlayers={players}
+                            plan={""}
                         />
                     </div>
-                    
+
+                    {/* Always visible Heatmap Rivali */}
+                    <div className="bg-base-200 rounded-lg shadow-lg p-4">
+                        <h2 className="text-xl font-bold text-brand-primary mb-2 flex items-center"><Users className="w-6 h-6 mr-2" />Heatmap Rivali</h2>
+                        <RivalsHeatmap auctionLog={localAuctionLog} leagueSettings={leagueSettings} currentBid={typeof currentBid === 'number' ? currentBid : 0} />
+                    </div>
+
                     {/* Collapsible Teams View Section */}
                     <div className="bg-base-200 rounded-lg shadow-lg">
                         <button

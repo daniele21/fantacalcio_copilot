@@ -43,6 +43,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // TOS acceptance flow
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [tosAccepted, setTosAccepted] = useState<boolean>(false);
+  // Add a state to control when to show the TOS dialog
+  const [showTosDialog, setShowTosDialog] = useState<boolean>(false);
 
   // Move handleSignOut above loadProfile to fix closure order
   const handleSignOut = useCallback(() => {
@@ -172,11 +174,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // After TOS accepted, complete login
   useEffect(() => {
+    // If TOS is already accepted, skip dialog
+    if (pendingToken && !tosAccepted) {
+      // Try to fetch profile with pendingToken to check tos_accepted
+      fetch(`${BASE_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${pendingToken}` }
+      })
+        .then(resp => {
+          if (!resp.ok) {
+            setPendingToken(null);
+            setShowTosDialog(false);
+            alert('Login non riuscito. Il token Google non è valido o la sessione è scaduta.');
+            return { data: null };
+          }
+          return resp.json();
+        })
+        .then(data => {
+          const user = data.data || {};
+          if (user.tos_accepted) {
+            setTosAccepted(true);
+            localStorage.setItem("idToken", pendingToken);
+            setIdToken(pendingToken);
+            loadProfile(pendingToken);
+            setPendingToken(null);
+            setShowTosDialog(false);
+          } else if (!user.tos_accepted && user.email) {
+            // Show TOS dialog only if user exists and TOS not accepted
+            setShowTosDialog(true);
+          } else {
+            setPendingToken(null);
+            setShowTosDialog(false);
+            alert('Login non riuscito. L’utente non esiste o non è stato creato.');
+          }
+        });
+    }
     if (tosAccepted && pendingToken) {
       localStorage.setItem("idToken", pendingToken);
       setIdToken(pendingToken);
       loadProfile(pendingToken);
       setPendingToken(null);
+      setShowTosDialog(false);
     }
   }, [tosAccepted, pendingToken, loadProfile]);
 
@@ -285,7 +322,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile, // <-- Expose setProfile
       }}
     >
-      {pendingToken && !tosAccepted && (
+      {showTosDialog && pendingToken && !tosAccepted && (
         <TosDialog token={pendingToken} onAccept={() => setTosAccepted(true)} />
       )}
       {children}

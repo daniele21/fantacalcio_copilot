@@ -45,19 +45,19 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
     const suggestions = useMemo(() => {
         if (!query) return [];
         return players.filter(p =>
-            p.name.toLowerCase().includes(query.toLowerCase())
+            p.player_name.toLowerCase().includes(query.toLowerCase())
         ).slice(0, 5);
     }, [query, players]);
     
     useEffect(() => {
-        if(selectedPlayer && query !== selectedPlayer.name) {
+        if(selectedPlayer && query !== selectedPlayer.player_name) {
             setSelectedPlayer(null);
             setAnalysis(null);
         }
     }, [query, selectedPlayer]);
 
     const handleSelectPlayer = (player: Player) => {
-        setQuery(player.name);
+        setQuery(player.player_name);
         setSelectedPlayer(player);
         setShowSuggestions(false);
     };
@@ -79,7 +79,7 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
                 return;
             }
             // Get analysis from Gemini
-            const result = await getDetailedPlayerAnalysis(selectedPlayer.name, selectedPlayer.team, selectedPlayer.role);
+            const result = await getDetailedPlayerAnalysis(selectedPlayer.player_name, selectedPlayer.current_team, selectedPlayer.position);
             setAnalysis(result.result);
             // Only deduct credit if Gemini call was successful
             await call(`${base_url}/api/use-ai-credit`, { method: 'POST', body: JSON.stringify({ cost: result.cost ?? 0 }), headers: { 'Content-Type': 'application/json' } });
@@ -137,8 +137,8 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
                     <ul className="absolute z-10 w-full mt-1 bg-base-300 border border-base-300/50 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                         {suggestions.map(player => (
                             <li key={player.id} onClick={() => handleSelectPlayer(player)} className="px-4 py-3 cursor-pointer hover:bg-brand-primary/20 flex justify-between items-center transition-colors">
-                                <span>{player.name} <span className="text-sm text-content-200">({player.team})</span></span>
-                                <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.role}</span>
+                                <span>{player.player_name} <span className="text-sm text-content-200">({player.current_team})</span></span>
+                                <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.position}</span>
                             </li>
                         ))}
                     </ul>
@@ -167,12 +167,12 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
                     <div className="p-6">
                         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                              <div>
-                                <h3 className="text-2xl font-bold text-content-100">{selectedPlayer.name}</h3>
-                                <p className="text-md text-content-200">{selectedPlayer.team}</p>
+                                <h3 className="text-2xl font-bold text-content-100">{selectedPlayer.player_name}</h3>
+                                <p className="text-md text-content-200">{selectedPlayer.current_team}</p>
                              </div>
                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className={`px-3 py-1 text-sm font-bold rounded-full border ${getRoleColor(selectedPlayer.role)}`}>{selectedPlayer.role}</span>
-                                <span className="px-3 py-1 text-sm font-semibold rounded-full border bg-purple-500/20 text-purple-400 border-purple-500/30">{selectedPlayer.team}</span>
+                                <span className={`px-3 py-1 text-sm font-bold rounded-full border ${getRoleColor(selectedPlayer.position)}`}>{selectedPlayer.position}</span>
+                                <span className="px-3 py-1 text-sm font-semibold rounded-full border bg-purple-500/20 text-purple-400 border-purple-500/30">{selectedPlayer.current_team}</span>
                              </div>
                         </div>
                     </div>

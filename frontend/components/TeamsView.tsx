@@ -47,8 +47,8 @@ const EditPriceModal: React.FC<EditPriceModalProps> = ({ player, participantName
                     </button>
                 </div>
                 <div className="mb-4">
-                    <p className="text-lg font-semibold">{player.name}</p>
-                    <p className="text-sm text-content-200">{player.team} - {player.role}</p>
+                    <p className="text-lg font-semibold">{player.player_name}</p>
+                    <p className="text-sm text-content-200">{player.current_team} - {player.position}</p>
                 </div>
                 <div className="mb-4">
                     <label htmlFor="edit_owner" className="flex items-center text-sm font-medium text-content-200 mb-2">
@@ -133,7 +133,7 @@ const TeamCard: React.FC<{ teamData: TeamData, leagueSettings: LeagueSettings, o
             [Role.FWD]: [],
         };
         for (const player of teamData.players) {
-            grouped[player.role].push(player);
+            grouped[player.position].push(player);
         }
         return grouped;
     }, [teamData.players]);
@@ -177,8 +177,8 @@ const TeamCard: React.FC<{ teamData: TeamData, leagueSettings: LeagueSettings, o
                                     {rolePlayers.map(player => (
                                         <div key={player.id} className="group flex justify-between items-center bg-base-100 p-2 rounded-md text-sm">
                                             <div>
-                                                <p className="font-bold text-content-100">{player.name}</p>
-                                                <p className="text-xs text-content-200">{player.team}</p>
+                                                <p className="font-bold text-content-100">{player.player_name}</p>
+                                                <p className="text-xs text-content-200">{player.current_team}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="font-bold bg-brand-primary/20 text-brand-primary px-2 py-1 rounded">
@@ -187,7 +187,7 @@ const TeamCard: React.FC<{ teamData: TeamData, leagueSettings: LeagueSettings, o
                                                 <button
                                                     onClick={() => onPlayerEdit(player)}
                                                     className="p-1 rounded-full text-content-200 opacity-0 group-hover:opacity-100 hover:bg-base-300 hover:text-content-100 transition-all duration-200 focus:opacity-100"
-                                                    aria-label={`Modifica prezzo per ${player.name}`}
+                                                    aria-label={`Modifica prezzo per ${player.player_name}`}
                                                 >
                                                     <Edit className="w-4 h-4" />
                                                 </button>
@@ -240,7 +240,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ auctionLog, players, leagu
             teamData.totalSpent = teamData.players.reduce((sum, p) => sum + p.purchasePrice, 0);
             teamData.remainingBudget = leagueSettings.budget - teamData.totalSpent;
             teamData.players.sort((a, b) => {
-                const roleComparison = ROLES_ORDER.indexOf(a.role) - ROLES_ORDER.indexOf(b.role);
+                const roleComparison = ROLES_ORDER.indexOf(a.position) - ROLES_ORDER.indexOf(b.position);
                 if (roleComparison !== 0) return roleComparison;
                 return b.purchasePrice - a.purchasePrice;
             });

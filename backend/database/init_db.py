@@ -10,7 +10,10 @@ def init_db():
     db_name = os.environ.get('CLOUDSQL_DATABASE', 'fantacalcio')
     if db_type == 'firestore':
         from google.cloud import firestore
-        db = firestore.Client(project="fantacalcio-project", database='fantacopilot-db')
+        # read the environment variable for Firestore
+        firestore_db = os.environ.get('FIRESTORE_DB_NAME', 'fantacopilot-db')
+        db = firestore.Client(project='fantacalcio-project', database=firestore_db)
+        print(f"Using Firestore database: {firestore_db}")
         # Optionally create collections with a dummy doc (Firestore is schemaless)
         collections = [
             'giocatori', 'users', 'league_settings', 'strategy_board', 'strategy_board_targets'

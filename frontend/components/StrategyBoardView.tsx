@@ -62,7 +62,7 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
     const suggestions = useMemo(() => {
         if (!query) return [];
         return players.filter(p =>
-            !targetPlayerIds.has(p.id) && p.name.toLowerCase().includes(query.toLowerCase())
+            !targetPlayerIds.has(p.id) && p.player_name.toLowerCase().includes(query.toLowerCase())
         ).slice(0, 5);
     }, [query, players, targetPlayerIds]);
 
@@ -77,17 +77,22 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
     const plannedSpendingByRole = useMemo(() => {
         const spending: Record<Role, number> = { [Role.GK]: 0, [Role.DEF]: 0, [Role.MID]: 0, [Role.FWD]: 0 };
         targetPlayers.forEach(p => {
+            // Use position as the role key
             const bid = Number(p.maxBid);
-            spending[p.role] += isNaN(bid) ? 0 : bid;
+            const role = p.position;
+            if ((role in spending) && !isNaN(bid)) {
+                spending[role as Role] += bid;
+            }
         });
         return spending;
     }, [targetPlayers]);
 
     const totalPlannedSpending = useMemo(() => {
-        return Object.values(plannedSpendingByRole).reduce((sum, spending) => sum + spending, 0);
+        return Object.values(plannedSpendingByRole).reduce((sum, spending) => sum + (isNaN(spending) ? 0 : spending), 0);
     }, [plannedSpendingByRole]);
 
-    const remainingBudget = leagueSettings.budget - totalPlannedSpending;
+    const safeBudget = Number(leagueSettings.budget);
+    const remainingBudget = !isNaN(safeBudget) ? safeBudget - totalPlannedSpending : 0;
 
     const handleSaveBudget = async () => {
         if (!isLoggedIn || !idToken) return;
@@ -102,6 +107,26 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
             saveStrategyBoardBudget(idToken, budget),
             saveStrategyBoard(idToken, targetPlayers)
         ]);
+    };
+
+    // Helper to color rows by player role
+    const getRoleRowBgClass = (role: Role | string) => {
+        switch (role) {
+            case Role.GK:
+            case 'GK':
+                return 'bg-yellow-100/40 dark:bg-yellow-900/40';
+            case Role.DEF:
+            case 'DEF':
+                return 'bg-blue-100/40 dark:bg-blue-900/40';
+            case Role.MID:
+            case 'MID':
+                return 'bg-green-100/40 dark:bg-green-900/40';
+            case Role.FWD:
+            case 'FWD':
+                return 'bg-red-100/40 dark:bg-red-900/40';
+            default:
+                return '';
+        }
     };
 
     return (
@@ -201,8 +226,8 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
                     <ul className="absolute z-10 w-full mt-1 bg-base-300 border border-base-300/50 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                         {suggestions.map(player => (
                             <li key={player.id} onClick={() => handleAddTargetAndClearQuery(player)} className="px-4 py-3 cursor-pointer hover:bg-brand-primary/20 flex justify-between items-center transition-colors">
-                                <span>{player.name} <span className="text-sm text-content-200">({player.team})</span></span>
-                                <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.role}</span>
+                                <span>{player.player_name} <span className="text-sm text-content-200">({player.current_team})</span></span>
+                                <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.position}</span>
                             </li>
                         ))}
                     </ul>
@@ -226,13 +251,13 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
                             const baseCost = Math.round((player.baseCost ?? 0) * scaleFactor);
                             const recommendedBid = Math.round(baseCost * 1.15);
                             return (
-                                <tr key={player.id} className="border-b border-base-300/50 hover:bg-base-100/50">
+                                <tr key={player.id} className={`border-b border-base-300/50 hover:bg-base-100/50 ${getRoleRowBgClass(player.position)}`}>
                                     <td className="p-3">
-                                        <p className="font-bold text-content-100">{player.name}</p>
-                                        <p className="text-sm text-content-200">{player.team}</p>
+                                        <p className="font-bold text-content-100">{player.player_name}</p>
+                                        <p className="text-sm text-content-200">{player.current_team}</p>
                                     </td>
                                     <td className="p-3 text-center">
-                                        <span className="font-mono bg-base-100 px-2 py-1 rounded">{player.role}</span>
+                                        <span className="font-mono bg-base-100 px-2 py-1 rounded">{player.position}</span>
                                     </td>
                                     <td className="p-3 text-center">
                                         <span className="font-mono bg-base-100 px-2 py-1 rounded text-content-100">{recommendedBid}</span>
@@ -241,12 +266,12 @@ export const StrategyBoardView: React.FC<StrategyBoardViewProps> = ({
                                         <input
                                             type="number"
                                             value={!isNaN(Number(player.maxBid)) ? Number(player.maxBid) : 0}
-                                            onChange={(e) => onBidChange(player.id, parseInt(e.target.value, 10) || 0)}
+                                            onChange={(e) => onBidChange(Number(player.id), parseInt(e.target.value, 10) || 0)}
                                             className="w-24 bg-base-100 border border-base-300 rounded-md p-1 text-center font-bold text-brand-primary focus:ring-1 focus:ring-brand-primary focus:border-brand-primary"
                                         />
                                     </td>
                                     <td className="p-3 text-right">
-                                        <button onClick={() => onRemoveTarget(player.id)} className="p-2 text-content-200 hover:text-red-400 rounded-full hover:bg-red-500/10">
+                                        <button onClick={() => onRemoveTarget(Number(player.id))} className="p-2 text-content-200 hover:text-red-400 rounded-full hover:bg-red-500/10">
                                             <Trash2 className="w-5 h-5" />
                                         </button>
                                     </td>

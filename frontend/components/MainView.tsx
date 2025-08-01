@@ -107,10 +107,10 @@ export const MainView: React.FC<MainViewProps> = ({
         try {
           const board = await getStrategyBoard(idToken);
           if (board && board.target_players) {
-            // board.target_players is an array of { player_id, max_bid }
+            // board.target_players is an array of { id, max_bid }
             const validPlayers = board.target_players
               .map((p: any) => {
-                const player = players.find(pl => pl.id === p.player_id);
+                const player = players.find(pl => pl.id === p.id);
                 if (player) {
                   return { ...player, maxBid: p.max_bid };
                 }
@@ -169,7 +169,7 @@ export const MainView: React.FC<MainViewProps> = ({
         if (board && board.target_players) {
           const validPlayers = board.target_players
             .map((p: any) => {
-              const player = players.find(pl => pl.id === p.player_id);
+              const player = players.find(pl => pl.id === p.id);
               if (player) {
                 return { ...player, maxBid: p.max_bid };
               }
