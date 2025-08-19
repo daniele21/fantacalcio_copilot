@@ -238,50 +238,50 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
   if (loading) return <div className="flex items-center justify-center h-96 text-lg">Caricamento impostazioni...</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-base-200 w-full max-w-2xl rounded-2xl shadow-2xl border border-base-300/50 p-2 sm:p-6 md:p-8 max-h-screen h-full flex flex-col animate-fade-in-up overflow-y-auto">
-        <div className="flex flex-col items-center text-center flex-shrink-0">
-          <ShieldCheck className="w-16 h-16 text-brand-primary mb-4" />
-          <h2 className="text-3xl font-bold text-content-100">Benvenuto in FantaCopilot</h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-1 xs:p-2 sm:p-4">
+      <div className="bg-base-200 w-full max-w-lg xs:max-w-xl sm:max-w-2xl rounded-2xl shadow-2xl border border-base-300/50 p-1 xs:p-2 sm:p-6 md:p-8 max-h-screen h-full flex flex-col animate-fade-in-up overflow-y-auto">
+        <div className="flex flex-col items-center text-center flex-shrink-0 px-2 xs:px-4">
+          <ShieldCheck className="w-14 xs:w-16 h-14 xs:h-16 text-brand-primary mb-3 xs:mb-4" />
+          <h2 className="text-2xl xs:text-3xl font-bold text-content-100">Benvenuto in FantaCopilot</h2>
           <button
             type="button"
             onClick={() => navigate('/')} 
-            className="mt-4 mb-2 px-4 py-2 bg-base-300 hover:bg-base-100 border border-base-300 rounded-lg text-content-200 text-sm font-medium transition-colors flex items-center gap-2"
+            className="mt-3 xs:mt-4 mb-2 px-3 xs:px-4 py-2 bg-base-300 hover:bg-base-100 border border-base-300 rounded-lg text-content-200 text-xs xs:text-sm font-medium transition-colors flex items-center gap-2"
           >
             <span>←</span> Torna alla Home
           </button>
         </div>
         {/* Modalità scelta sopra la configurazione */}
-        <div className="pt-4 pb-2 bg-base-200 z-10 flex-shrink-0">
-          <h3 className="text-center font-semibold text-content-100 mb-4">Scegli la modalità e inizia</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="pt-3 xs:pt-4 pb-2 bg-base-200 z-10 flex-shrink-0">
+          <h3 className="text-center font-semibold text-content-100 mb-3 xs:mb-4 text-base xs:text-lg">Scegli la modalità e inizia</h3>
+          <div className="grid grid-cols-1 gap-3 xs:gap-4 md:grid-cols-2">
             <button
               type="button"
               onClick={() => handleSubmit('preparation')}
               disabled={!isFormValid}
-              className="group flex flex-col items-center text-center p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group flex flex-col items-center text-center p-4 xs:p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Play className="w-10 h-10 text-brand-primary mb-3 transition-transform group-hover:scale-110" />
-              <h4 className="font-bold text-lg text-content-100">Preparazione Asta</h4>
-              <p className="text-sm text-content-200">Analizza giocatori e crea la tua strategia prima dell'asta.</p>
+              <Play className="w-8 xs:w-10 h-8 xs:h-10 text-brand-primary mb-2 xs:mb-3 transition-transform group-hover:scale-110" />
+              <h4 className="font-bold text-base xs:text-lg text-content-100">Preparazione Asta</h4>
+              <p className="text-xs xs:text-sm text-content-200">Analizza giocatori e crea la tua strategia prima dell'asta.</p>
             </button>
             <button
               type="button"
               onClick={() => handleSubmit('live_auction')}
               disabled={!isFormValid}
-              className="group flex flex-col items-center text-center p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group flex flex-col items-center text-center p-4 xs:p-6 bg-base-300 rounded-lg border-2 border-transparent hover:border-brand-primary hover:bg-brand-primary/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Zap className="w-10 h-10 text-brand-primary mb-3 transition-transform group-hover:scale-110" />
-              <h4 className="font-bold text-lg text-content-100">Assistente Live</h4>
-              <p className="text-sm text-content-200">Ricevi suggerimenti in tempo reale durante l'asta.</p>
+              <Zap className="w-8 xs:w-10 h-8 xs:h-10 text-brand-primary mb-2 xs:mb-3 transition-transform group-hover:scale-110" />
+              <h4 className="font-bold text-base xs:text-lg text-content-100">Assistente Live</h4>
+              <p className="text-xs xs:text-sm text-content-200">Ricevi suggerimenti in tempo reale durante l'asta.</p>
             </button>
           </div>
           <br />
-          <p className="text-content-200 mt-2 max-w-md mx-auto">Imposta i parametri base della tua lega per iniziare.</p>
+          <p className="text-content-200 mt-2 max-w-md mx-auto text-xs xs:text-sm">Imposta i parametri base della tua lega per iniziare.</p>
         </div>
-        <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-4 space-y-4 flex-grow pr-0 sm:pr-2 min-h-0 flex flex-col">
-          <div className="flex flex-col items-center gap-2 w-full max-w-xs mx-auto bg-base-100 rounded-xl shadow border border-base-300 p-4">
-            <label htmlFor="budget" className="flex items-center justify-center text-base font-semibold text-content-100 mb-2">
+        <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => e.preventDefault()} className="mt-3 xs:mt-4 space-y-4 flex-grow pr-0 sm:pr-2 min-h-0 flex flex-col">
+          <div className="flex flex-col items-center gap-2 w-full max-w-xs xs:max-w-sm mx-auto bg-base-100 rounded-xl shadow border border-base-300 p-3 xs:p-4">
+            <label htmlFor="budget" className="flex items-center justify-center text-base xs:text-lg font-semibold text-content-100 mb-2">
               <Coins className="w-5 h-5 mr-2 text-brand-primary" />
               Crediti per Squadra
             </label>
@@ -321,7 +321,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
                 }}
                 placeholder="500"
                 min="0"
-                className="w-24 text-center bg-base-100 border-2 border-base-300 text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
+                className="w-20 xs:w-24 text-center bg-base-100 border-2 border-base-300 text-xl xs:text-2xl font-bold text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition px-2 py-2"
                 style={{ appearance: 'textfield' }}
                 required
               />

@@ -278,17 +278,22 @@ const App: React.FC = () => {
                                             {/* Profile and actions (right on desktop) */}
                                             <div className="flex items-center gap-2 xs:gap-4 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0 flex-shrink-0">
                                                 {profile && (
-                                                    <div className="flex items-center gap-2 xs:gap-3 bg-base-200/60 px-2 py-1 rounded-lg shadow-sm">
-                                                        <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full border border-base-300"/>
-                                                        <div className="hidden xs:block">
-                                                            <p className="text-xs xs:text-sm font-semibold truncate max-w-[120px]">{profile.name}</p>
-                                                            <p className="text-[11px] xs:text-xs text-content-200 capitalize flex items-center gap-1 flex-wrap">
-                                                                {profile.plan || 'Free'} Plan
-                                                                {profile.plan === 'free' && (
-                                                                    <span className="ml-2 px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 font-bold text-[10px] xs:text-[11px] border border-blue-400/60 uppercase tracking-wider">DEMO</span>
-                                                                )}
-                                                                <span className={`ml-2 font-bold ${profile.ai_credits === 0 ? 'text-red-500' : 'text-green-600'}`}>• {typeof profile.ai_credits === 'number' ? profile.ai_credits : 0} Crediti AI</span>
-                                                            </p>
+                                                    <div className="flex items-center gap-2 xs:gap-3 bg-base-200/70 px-2 py-1.5 rounded-xl shadow-sm border border-base-300/60">
+                                                        <img src={profile.picture} alt={profile.name} className="w-10 h-10 rounded-full border-2 border-base-300 shadow-sm"/>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="text-xs xs:text-sm font-semibold text-content-100 leading-tight">{profile.name}</span>
+                                                            <div className="flex flex-row flex-wrap items-center gap-1 xs:gap-2 mt-0.5">
+                                                                <span className="text-[11px] xs:text-xs text-content-200 capitalize font-medium">
+                                                                    {profile.plan || 'Free'} Plan
+                                                                    {profile.plan === 'free' && (
+                                                                        <span className="ml-1 px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 font-bold text-[10px] xs:text-[11px] border border-blue-400/60 uppercase tracking-wider">DEMO</span>
+                                                                    )}
+                                                                </span>
+                                                                <span className={`text-[11px] xs:text-xs font-bold rounded px-1.5 py-0.5 ${profile.ai_credits === 0 ? 'bg-red-100 text-red-600 border border-red-300' : 'bg-green-100 text-green-700 border border-green-300'}`}
+                                                                >
+                                                                    {typeof profile.ai_credits === 'number' ? profile.ai_credits : 0} Crediti AI
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}
