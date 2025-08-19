@@ -25,7 +25,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   onAddTarget,
   onRemoveTarget,
 }) => {
-  console.log('PlayerCard injury_risk_band:', player.injury_risk_band);
+  // console.log('PlayerCard injury_risk_band:', player.injury_risk_band);
 
   const getRoleColor = (role: Role) => {
     switch (role) {
@@ -143,52 +143,47 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
 
   return (
     <article className={`flex flex-col h-full border dark:border-base-600 border-base-300 shadow-lg rounded-xl overflow-hidden ${cardBgClass}`}>
-      <header className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-2">
-          <Badge className={getRoleColor(player.position as Role)}>{player.position}</Badge>
-          <span className="text-base font-semibold text-content-200 dark:text-content-200">{player.current_team}</span>
+      <section className="px-3 xs:px-4 pt-3">
+        {/* Name and favourite star in the same row */}
+        <div className="flex flex-row items-center justify-between gap-2">
+          <h1 className="font-bold text-xl xs:text-2xl break-words flex-1 min-w-0">
+            {player.player_name}
+          </h1>
+          <button
+            onClick={toggleTarget}
+            aria-label={isTarget ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+            className="p-2 rounded-full dark:bg-base-700 bg-base-100/50 hover:dark:bg-base-600 transition-colors flex-shrink-0"
+          >
+            <Star
+              className={`w-6 h-6 transition-colors ${
+                isTarget ? 'text-yellow-300 fill-yellow-300' : 'text-gray-400 hover:text-yellow-300'
+              }`}
+            />
+          </button>
         </div>
-        <button
-          onClick={toggleTarget}
-          aria-label={isTarget ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-          className="p-2 rounded-full dark:bg-base-700 bg-base-100/50 hover:dark:bg-base-600 transition-colors"
-        >
-          <Star
-            className={`w-6 h-6 transition-colors ${
-              isTarget ? 'text-yellow-300 fill-yellow-300' : 'text-gray-400 hover:text-yellow-300'
-            }`}
-          />
-        </button>
-      </header>
-
-      <section className="px-4">
-        <h1 className="font-bold text-2xl">
-          {player.player_name}
-        </h1>
-        {/* Fix: remove player.team, use player.current_team only */}
-        {/* <p className="text-lg font-semibold dark:text-content-200 text-content-200 mb-2">{player.team}</p> */}
-
-        {/* Skills: show first 3 always, extras collapsible */}
-        {/* Skills: first 3 always visible, extras collapsible inline */}
-        {/* Skills */}
-        {/* Skills: first 3 always visible, extras collapsible */}
-        <div className="flex flex-wrap gap-1 text-sm mb-4">
+        {/* Role badge and team below name */}
+        <div className="flex flex-row items-center gap-2 mt-1">
+          <Badge className={getRoleColor(player.position as Role)}>{player.position}</Badge>
+          <span className="text-xs xs:text-base font-semibold text-content-200 dark:text-content-200">{player.current_team}</span>
+        </div>
+        {/* Skills below role/team */}
+        <div className="flex flex-wrap gap-1 text-xs xs:text-sm mt-1 mb-2">
           {(player.skills && player.skills.length > 0
             ? player.skills.slice(0, 2)
             : ['Nessuna Skill']
           ).map(skill => (
-            <Badge key={skill} className="dark:bg-base-700 bg-base-100 text-content-200 text-xs px-2 py-1">
+            <Badge key={skill} className="dark:bg-base-700 bg-base-100 text-content-200 px-2 py-1">
               {skill}
             </Badge>
           ))}
           {player.skills && player.skills.length > 2 && (
             <details className="relative">
-              <summary className="cursor-pointer text-sm text-content-600 dark:text-content-200 px-2 py-1 rounded-md hover:bg-base-100 dark:hover:bg-base-700">
+              <summary className="cursor-pointer text-xs xs:text-sm text-content-600 dark:text-content-200 px-2 py-1 rounded-md hover:bg-base-100 dark:hover:bg-base-700">
                 +{player.skills.length - 2} more
               </summary>
               <div className="absolute mt-1 bg-base-200 dark:bg-base-800 p-2 rounded shadow-lg flex flex-wrap gap-1 z-10">
                 {player.skills.slice(2).map(skill => (
-                  <Badge key={skill} className="dark:bg-base-700 bg-base-100 text-content-200 text-xs px-2 py-1">
+                  <Badge key={skill} className="dark:bg-base-700 bg-base-100 text-content-200 px-2 py-1">
                     {skill}
                   </Badge>
                 ))}
@@ -198,42 +193,42 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         </div>
       </section>
 
-      <section className="px-4">
-        <div className="dark:bg-base-700 bg-base-100/50 p-3 rounded-md text-center mb-4">
-          <p className="text-s dark:text-content-200 text-content-200 mb-1">Range di spesa suggerito</p>
-          <p className="text-lg font-bold dark:text-brand-primary text-brand-primary tracking-wide">
+      <section className="px-3 xs:px-4">
+        <div className="dark:bg-base-700 bg-base-100/50 p-2 xs:p-3 rounded-md text-center mb-4">
+          <p className="text-xs xs:text-s dark:text-content-200 text-content-200 mb-1">Range di spesa suggerito</p>
+          <p className="text-base xs:text-lg font-bold dark:text-brand-primary text-brand-primary tracking-wide">
             {min} - {max} <span className="text-m">Cr</span>
           </p>
         </div>
       </section>
 
-      <section className="px-4 flex items-center gap-2 mb-4">
+      <section className="px-3 xs:px-4 flex items-center gap-1 xs:gap-2 mb-4">
         {[...Array(5)].map((_, i) => (
           <Star
             key={i}
-            className={`w-6 h-6 ${
+            className={`w-5 xs:w-6 h-5 xs:h-6 ${
               player.stars && i < player.stars
                 ? 'text-yellow-300 fill-yellow-300'
                 : 'text-gray-600 dark:text-gray-400'
             }`}
           />
         ))}
-        <span className="text-sm font-medium dark:text-content-200 text-content-200">
+        <span className="text-xs xs:text-sm font-medium dark:text-content-200 text-content-200">
           {player.stars && player.stars >= 4 ? 'Top Pick' : `${player.stars ?? 0}/5`}
         </span>
       </section>
 
-      <details className="mt-auto px-4 pb-4 dark:border-t dark:border-base-600 border-t border-base-300" open>
-        <summary className="flex items-center justify-between cursor-pointer py-2 text-sm font-semibold dark:text-content-200 text-content-200">
+      <details className="mt-auto px-3 xs:px-4 pb-4 dark:border-t dark:border-base-600 border-t border-base-300" open>
+        <summary className="flex items-center justify-between cursor-pointer py-2 text-xs xs:text-sm font-semibold dark:text-content-200 text-content-200">
           <div className="flex items-center gap-1">
             <BarChart2 className="w-4 h-4" />
-            <span className="text-lg font-bold">Statistiche Chiave</span>
+            <span className="text-base xs:text-lg font-bold">Statistiche Chiave</span>
           </div>
           <span aria-hidden>▾</span>
         </summary>
         {/* Bonus a partita container */}
         <div className="mb-2">
-          <div className="font-extrabold text-lg text-brand-primary dark:text-yellow-300 mb-1 tracking-wide uppercase">Bonus a partita</div>
+          <div className="font-extrabold text-base xs:text-lg text-brand-primary dark:text-yellow-300 mb-1 tracking-wide uppercase">Bonus a partita</div>
           <div className="grid grid-cols-1 gap-2">
             {bonusStats.map(({ label, icon: Icon, value }) => {
               let displayValue = '-';
@@ -267,13 +262,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               return (
                 <div
                   key={label}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-lg shadow-sm border min-w-0 ${bgClass}`}
+                  className={`flex flex-row items-center justify-between gap-2 p-2 rounded-lg shadow-sm border min-w-0 ${bgClass}`}
                 >
-                  <div className={`flex items-center gap-2 text-base font-bold min-w-0 ${textClass}`}>
-                    {Icon && <Icon className="w-5 h-5 shrink-0" />}
-                    <span className="uppercase tracking-wide truncate max-w-[120px] sm:max-w-[160px]">{label}</span>
+                  <div className={`flex items-center gap-2 text-sm xs:text-base font-bold min-w-0 ${textClass}`}>
+                    {Icon && <Icon className="w-4 xs:w-5 h-4 xs:h-5 shrink-0" />}
+                    <span className="uppercase tracking-wide truncate max-w-[150px] xs:max-w-[160px]">{label}</span>
                   </div>
-                  <span className={`font-mono text-xl font-extrabold break-words mt-1 sm:mt-0 ${textClass}`}>
+                  <span className={`font-mono text-base xs:text-xl font-extrabold break-words ${textClass}`}>
                     {displayValue}
                   </span>
                 </div>
@@ -282,12 +277,12 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
           </div>
         </div>
         {/* Other stats */}
-        <div className="font-semibold text-content-200 dark:text-content-200 mb-1">Altre statistiche</div>
+        <div className="font-semibold text-xs xs:text-sm text-content-200 dark:text-content-200 mb-1">Altre statistiche</div>
         <div className="grid grid-cols-2 gap-2 pt-2">
           {otherStats.map(({ label, icon: Icon, value }) => {
             let displayValue = '-';
             if (label === 'Rischio Infortuni') {
-              console.log('Rischio Infortuni for', player.player_name, ':', value);
+              // console.log('Rischio Infortuni for', player.player_name, ':', value);
               if (value !== undefined && value !== null && value !== '') {
                 displayValue = String(value);
               }
@@ -301,10 +296,10 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             return (
               <div
                 key={label}
-                className="flex items-center justify-between p-2 rounded-lg dark:bg-base-700"
+                className="flex flex-row items-center justify-between gap-2 p-2 rounded-lg dark:bg-base-700"
               >
-                <div className="flex items-center gap-1 text-sm dark:text-content-300 text-content-600">
-                  {Icon && <Icon className={`w-4 h-4 ${getIconColor(label)}`} />}
+                <div className="flex items-center gap-1 text-xs xs:text-sm dark:text-content-300 text-content-600">
+                  {Icon && <Icon className={`w-4 xs:w-4 h-4 xs:h-4 ${getIconColor(label)}`} />}
                   <span>{label}</span>
                 </div>
                 <span className={` ${label.startsWith('x') ? 'font-normal' : 'font-mono font-semibold'} dark:text-content-50 text-content-100`}>
