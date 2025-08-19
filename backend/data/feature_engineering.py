@@ -130,8 +130,8 @@ def classify_value(p: float) -> str:
     return "Very Low"
 
 
-def map_stars(p: float) -> int:
-    return 5 if p >= 0.9 else 4 if p >= 0.75 else 3 if p >= 0.55 else 2 if p >= 0.30 else 1
+# def map_stars(p: float) -> int:
+#     return 5 if p >= 0.9 else 4 if p >= 0.75 else 3 if p >= 0.55 else 2 if p >= 0.30 else 1
 
 
 def role_coeff(role: str) -> float:
@@ -288,6 +288,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
     # ------------------------------------------------------------------
     # Base per‑90 / percent rates
     # ------------------------------------------------------------------
+    df['titolarita'] = 100 * df['Appearances_total'] / 38
+    
     df['Accurate Passes Percentage_total'] = df['Accurate Passes Percentage_total']/100
     
     df["goals_per_90"] = per_90(df["Goals_total"], df["Minutes Played_total"])
@@ -367,7 +369,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "conversion_rate": 0.10,
             "dribble_success_rate": 0.05,
             "Rating_average": 0.3,
-            "injury_risk": 0.05
+            "injury_risk": 0.05,
+            "titolarita": 0.1
         },
         {
             "goals_per_90": 0.15,
@@ -380,7 +383,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "conversion_rate": 0.10,
             "dribble_success_rate": 0.05,
             "Rating_average": 0.3,
-            "injury_risk": 0.05
+            "injury_risk": 0.05,
+            "titolarita": 0.1
         },
         {
             "def_actions_per_90": 0.20,
@@ -393,7 +397,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "assists_per_90": 0.05,
             "minutes_share": 0.05,
             "Rating_average": 0.3,
-            "injury_risk": 0.05
+            "injury_risk": 0.05,
+            "titolarita": 0.1
         },
         {
             "clean_sheet_rate": 0.20,
@@ -404,7 +409,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "starting_rate": 0.10,
             "cards_per_90": 0.05,
             "injury_risk": 0.05,
-            "Rating_average": 0.3
+            "Rating_average": 0.3,
+            "titolarita": 0.1
         }
     ]:
         METRIC_LIST.update(metrics.keys())
@@ -427,7 +433,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "conversion_rate_z": 0.09,
             "dribble_success_rate_z": 0.02,
             "Rating_average_z": 0.13,
-            "injury_risk_z": -0.1
+            "injury_risk_z": -0.1,
+            "titolarita_z": 0.1
         },
         "CEN": {  # Centrocampisti
             "goals_per_90_z": 0.14,
@@ -440,7 +447,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "conversion_rate_z": 0.05,
             "dribble_success_rate_z": 0.02,
             "Rating_average_z": 0.14,
-            "injury_risk_z": -0.05
+            "injury_risk_z": -0.05,
+            "titolarita_z": 0.1
         },
         "DIF": {  # Difensori
             "def_actions_per_90_z": 0.10,
@@ -453,7 +461,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "assists_per_90_z": 0.03,
             "minutes_share_z": 0.15,
             "Rating_average_z": 0.15,
-            "injury_risk_z": -0.05
+            "injury_risk_z": -0.05,
+            "titolarita_z": 0.1
         },
         "POR": {  # Portieri
             "clean_sheet_rate_z": 0.09,
@@ -465,7 +474,8 @@ def add_fantacopilot_features(df: pd.DataFrame,
             "minutes_share_z": 0.17,
             "cards_per_90_z": 0.02,
             "injury_risk_z": -0.02,
-            "Rating_average_z": 0.17
+            "Rating_average_z": 0.17,
+            "titolarita_z": 0.1
         },
     }
     
@@ -489,7 +499,7 @@ def add_fantacopilot_features(df: pd.DataFrame,
         if bin in [5,6,7]: return 3
         if bin in [8,9]: return 2
         return 1
-    df["stars"] = bins.map(star_map)
+    # df["stars"] = bins.map(star_map)
     df["skills"] = df.apply(tag_rules, axis=1)
 
 
@@ -511,10 +521,10 @@ def add_fantacopilot_features(df: pd.DataFrame,
     df['own_goals_per_90'] = per_90(df['Own Goals_total'], df['Minutes Played_total'])
     df['penalties_saved_per_90'] = per_90(df['Penalties_saved'], df['Minutes Played_total'])
 
-    df['gol_bonus'] = df.apply(lambda row: (row['goals_per_90'] * GOAL_POINTS.get(row['position'], 3)) + (safe_div(row.get('Penalties_scored', 0), max(row.get('Penalties_total', 1), 1)) * GOAL_POINTS.get(row['position'], 3)), axis=1)
+    df['gol_bonus'] = df.apply(lambda row: (row['goals_per_90'] * GOAL_POINTS.get(row['position'], 3)), axis=1)
     df['assist_bonus'] = df['assists_per_90'] * ASSIST_POINTS + df['big_chances_created_per_90']
     df['clean_sheet_bonus'] = df.apply(lambda row: row['clean_sheet_rate'] * CS_POINTS.get(row['position'], 0) if row['position'] in CS_POINTS else 0, axis=1)
-    df['titolarita'] = df['minutes_share'] * 100
+    
     df['malus_risk_raw'] = -(
         df['yellowcards_per_90'] * MALUS_YELLOW +
         df['redcards_per_90'] * MALUS_RED +
@@ -522,17 +532,21 @@ def add_fantacopilot_features(df: pd.DataFrame,
         df.apply(lambda row: row['goals_conceded_per_90'] * MALUS_GC if row['position'] in ['POR', 'DIF'] else 0, axis=1)
     )
     df['pen_save_bonus'] = df['pen_save_rate'] * PEN_SAVE_POINTS
-
+    df['rating_bonus'] = (df['Rating_average'] - 6).clip(lower=0)
+    
     def calc_xfp90(row):
-        val = (
-            row['gol_bonus'] +
-            row['assist_bonus'] +
-            row['clean_sheet_bonus'] +
-            (row['pen_save_bonus'] if row['position'] == 'POR' else 0) +
-            row['malus_risk_raw']
-        )
-        return val
+        if row['position'] == 'POR':
+            return row['rating_bonus'] + row['clean_sheet_bonus'] \
+                + row['pen_save_bonus'] + row['malus_risk_raw']
+        else:
+            return (
+                row['gol_bonus'] + row['assist_bonus']
+                + row['malus_risk_raw'] + row['rating_bonus']
+            )
+    
+    
     df['xfp_90'] = df.apply(calc_xfp90, axis=1)
+    df["xfp_90_clipped"] = df["xfp_90"].clip(lower=0)
     df['xfp_per_game'] = df['xfp_90'] * df['minutes_share']
 
     for col in ['gol_bonus', 'assist_bonus', 'clean_sheet_bonus', 'titolarita', 'malus_risk_raw', 'xfp_90', 'xfp_per_game']:
@@ -540,10 +554,11 @@ def add_fantacopilot_features(df: pd.DataFrame,
             mask = df['position'] == role
             df.loc[mask, f'{col}_pct'] = percentile_rank(df.loc[mask, col]) * 100
 
-    df['stars'] = pd.qcut(df['xfp_90_pct'], 5, labels=[1,2,3,4,5])
-    df['stars'] = df['stars'].cat.add_categories([0]).fillna(0).astype(int)
+    df["availability"] = df["Appearances_total"].clip(upper=38) / 38
 
-    df["xfp_season"] = df["xfp_90"] * df["minutes_share"] * 38
+    # df["xfp_season"] = df["xfp_90"] * df["minutes_share"] * 38
+    df["xfp_season"] = df["xfp_90_clipped"] * df["minutes_share"] * 38 * df['availability']
+
 
     # ----------------------------------------------------------------------
     # 2. Budget e valore per fantapunto nel singolo ruolo
@@ -551,29 +566,39 @@ def add_fantacopilot_features(df: pd.DataFrame,
     C_tot = league_budget * num_teams                      # crediti totali nella lega
     price_per_xfp = {}
 
+    # for role, q in quota_tit.items():
+    #     top_n = q * num_teams                              # titolari “teorici”
+    #     top_players = (
+    #         df[df["position"] == role]
+    #         # .nlargest(top_n, "xfp_season", keep="all")
+    #     )
+    #     sum_xfp_role = top_players["xfp_season"].sum()
+
+    #     # quota di budget destinata al ruolo (pesi storici / configurabili)
+    #     budget_role = C_tot * role_budget_weight[role]
+
+    #     # valore monetario di 1 fantapunto stagionale nel ruolo
+    #     price_per_xfp[role] = (
+    #         budget_role / sum_xfp_role if sum_xfp_role > 0 else 0
+    #     )
     for role, q in quota_tit.items():
-        top_n = q * num_teams                              # titolari “teorici”
-        top_players = (
-            df[df["position"] == role]
-            .nlargest(top_n, "xfp_season", keep="all")
-        )
+        mask = (df["position"] == role) & (df["Appearances_total"] >= 10)
+        top_players = df.loc[mask].nlargest(q * num_teams, "xfp_season")
         sum_xfp_role = top_players["xfp_season"].sum()
-
-        # quota di budget destinata al ruolo (pesi storici / configurabili)
         budget_role = C_tot * role_budget_weight[role]
-
-        # valore monetario di 1 fantapunto stagionale nel ruolo
         price_per_xfp[role] = (
-            budget_role / sum_xfp_role if sum_xfp_role > 0 else 0
-        )
+            budget_role / sum_xfp_role if sum_xfp_role > 0 else 1
+    )
 
     # ----------------------------------------------------------------------
     # 3. Prezzo atteso grezzo per ogni giocatore
     # ----------------------------------------------------------------------
     df["price_expected"] = df.apply(
-        lambda r: max(r["xfp_90"], 1) * r["minutes_share"] * 38 * price_per_xfp.get(r["position"], 1), axis=1
+        lambda r: r["xfp_season"] * price_per_xfp.get(r["position"], 0), axis=1
     )
-
+    df["price_expected"] = df["price_expected"].round()
+    df["price_expected"] = df["price_expected"].astype(int)
+    df.loc[df["price_expected"] < 1, "price_expected"] = 1
     # ----------------------------------------------------------------------
     # 4. Coefficienti di aggiustamento: rischio & hype
     # ----------------------------------------------------------------------
@@ -582,19 +607,29 @@ def add_fantacopilot_features(df: pd.DataFrame,
         (df["injury_risk"] / 10) + (1 - df["minutes_share"]), 0, 0.15
     )
 
-    # • Hype: stelle alte, nuovo top club, ecc. (qui semplificato) → max 20 %
-    df["hype_coeff"] = np.where(df["stars"] >= 4, 0.10, 0)   # 10 % solo per 4-5 stelle
-
     # ----------------------------------------------------------------------
     # 5. Range d’asta FCP: −5 % “cuscinetto” +/− rischio/hype
     # ----------------------------------------------------------------------
     df["range_low"]  = (
-        df["price_expected"] * (1 - 0.05 - df["risk_coeff"])
+        df["price_expected"] * (1 - 0.05)
     ).round().astype(int)
 
     df["range_high"] = (
-        df["price_expected"] * (1 + 0.05 + df["hype_coeff"])
+        df["price_expected"] * (1 + 0.05)
     ).round().astype(int)
+
+
+
+    # # add stars feature basing on price expected dividing in 5 ranges differencing by role
+    # df['stars'] = df.groupby('position')['price_expected'].transform(
+    #     lambda x: pd.qcut(x, 5, labels=[1,2,3,4,5])
+    # )
+    # df['stars'] = df['stars'].cat.add_categories([0]).fillna(0).astype(int)
+
+    # # • Hype: stelle alte, nuovo top club, ecc. (qui semplificato) → max 20 %
+    # df["hype_coeff"] = np.where(df["stars"] >= 4, 0.10, 0)   # 10 % solo per 4-5 stelle
+
+    
 
     # ----------------------------------------------------------------------
     # 6. Pulizia finale: evita range negativi e colonne intermedie opzionali
@@ -615,14 +650,45 @@ def add_fantacopilot_features(df: pd.DataFrame,
             ], ignore_index=True)
             df_role_with_weights.to_excel(writer, sheet_name=role, index=False)
 
+    # Add stars feature: divide price_expected into 5 quantile-based bins per position, with robust label assignment
+    def safe_qcut(x):
+        try:
+            qcut_result, bins = pd.qcut(x, 5, retbins=True, duplicates='drop')
+            n_bins = len(bins) - 1
+            if n_bins < 2:
+                # Not enough unique values for even 2 bins
+                return pd.Series([0]*len(x), index=x.index, dtype='int')
+            labels = list(range(1, n_bins))  # labels must be one fewer than bin edges
+            return pd.qcut(x, q=n_bins, labels=labels, duplicates='drop')
+        except Exception:
+            return pd.Series([0]*len(x), index=x.index, dtype='int')
+    df['stars'] = df.groupby('position')['price_expected'].transform(safe_qcut)
+    # Ensure 'stars' is categorical before using .cat, otherwise fallback to int
+    if pd.api.types.is_categorical_dtype(df['stars']):
+        df['stars'] = df['stars'].cat.add_categories([0]).fillna(0).astype(int)
+    else:
+        df['stars'] = df['stars'].fillna(0).astype(int)
+
     return df
 
 
 
 if __name__ == "__main__":
-    statistics = pd.read_csv('/Users/moltisantid/Personal/fantacalcio/player_statistics_2025-08-01_14-01-08.csv')
+    # Automatically select the latest player_statistics_*.csv file
+    import glob
+    import os
+    base_dir = '/Users/moltisantid/Personal/fantacalcio'
+    stat_files = glob.glob(os.path.join(base_dir, 'player_statistics_*.csv'))
+    stat_files = [f for f in stat_files if '_with_features' not in f and '_with_target_price' not in f and '_with_target_price_and_predictions' not in f]
+    if not stat_files:
+        raise FileNotFoundError('No player_statistics_*.csv files found!')
+    latest_file = max(stat_files, key=os.path.getmtime)
+    print(f"Using latest statistics file: {latest_file}")
+    statistics = pd.read_csv(latest_file)
     df_features = add_fantacopilot_features(statistics, league_budget=500)
-    df_features.to_csv('/Users/moltisantid/Personal/fantacalcio/player_statistics_2025-08-01_14-01-08_with_features.csv')
+    out_file = latest_file.replace('.csv', '_with_features.csv')
+    df_features.to_csv(out_file, index=False)
+    print(f"Features saved to: {out_file}")
     # final_quotes = compute_initial_quotations(df_features, min_credit=1, max_credit=50, age_bonus=True)
     # a = final_quotes[['player_name', 'position', 'Quotazione', 'raw_score', 'bonus_norm', 'rating_norm', 'crediti']]
     # df_features

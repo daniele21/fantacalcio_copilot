@@ -9,7 +9,7 @@ import random
 
 routes_giocatori = Blueprint('routes_giocatori', __name__)
 
-@cache_api_lru(maxsize=1024, ttl=60*24)
+@cache_api_lru(maxsize=1024, ttl=60)  # Cache for 1 hour (60 minutes)
 def get_giocatori_cached(db_type, db_path):
     if db_type == 'firestore':
         db = get_db()

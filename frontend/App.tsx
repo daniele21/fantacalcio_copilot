@@ -39,8 +39,8 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     const [targetPlayers, setTargetPlayers] = useState<TargetPlayer[]>([]);
-    const [roleBudget, setRoleBudget] = useState<Record<Role, number>>({ [Role.GK]: 10, [Role.DEF]: 20, [Role.MID]: 35, [Role.FWD]: 35 });
-    
+    const [roleBudget, setRoleBudget] = useState<Record<Role, number>>({ [Role.GK]: 8, [Role.DEF]: 12, [Role.MID]: 30, [Role.FWD]: 50 });
+
     // Live Auction State
     const [myTeam, setMyTeam] = useState<MyTeamPlayer[]>([]);
     const [auctionLog, setAuctionLog] = useState<Record<number, AuctionResult>>({});

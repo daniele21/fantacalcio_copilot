@@ -54,8 +54,18 @@ def create_app():
     # Handle CORS preflight for /api/*
     @app.before_request
     def handle_global_options():
-        if request.method == 'OPTIONS' and request.path.startswith('/api/'):
-            return make_response('', 204)
+        if request.method == 'OPTIONS':
+            response = make_response('', 204)
+            origin = request.headers.get('Origin')
+            if origin and origin in app.config['CORS_ORIGINS']:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Vary'] = 'Origin'
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.headers['Access-Control-Allow-Headers'] = request.headers.get(
+                    'Access-Control-Request-Headers', 'Authorization,Content-Type'
+                )
+                response.headers['Access-Control-Allow-Methods'] = 'GET,POST,DELETE,OPTIONS'
+            return response
 
     # Teardown DB
     app.teardown_appcontext(close_db)
@@ -693,13 +703,14 @@ def create_app():
     @app.after_request
     def add_cors_headers(response):
         origin = request.headers.get('Origin')
-        if origin in app.config['CORS_ORIGINS']:
+        if origin and origin in app.config['CORS_ORIGINS']:
             response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = request.headers.get(
-            'Access-Control-Request-Headers', 'Authorization,Content-Type'
-        )
-        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,DELETE,OPTIONS'
+            response.headers['Vary'] = 'Origin'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = request.headers.get(
+                'Access-Control-Request-Headers', 'Authorization,Content-Type'
+            )
+            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,DELETE,OPTIONS'
         return response
 
     return app

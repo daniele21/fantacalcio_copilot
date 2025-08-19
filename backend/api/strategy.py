@@ -78,10 +78,10 @@ def strategy_board_budget():
                 role_budget = doc.to_dict()
             else:
                 role_budget = {
-                    'role_budget_gk': 10,
-                    'role_budget_def': 20,
-                    'role_budget_mid': 35,
-                    'role_budget_fwd': 35
+                    'role_budget_gk': 8,
+                    'role_budget_def': 12,
+                    'role_budget_mid': 30,
+                    'role_budget_fwd': 50
                 }
             return jsonify_success({'strategy_board': {'role_budget': role_budget}})
         else:
@@ -93,19 +93,19 @@ def strategy_board_budget():
                 role_budget = dict(row)
             else:
                 role_budget = {
-                    'role_budget_gk': 10,
-                    'role_budget_def': 20,
-                    'role_budget_mid': 35,
-                    'role_budget_fwd': 35
+                    'role_budget_gk': 8,
+                    'role_budget_def': 12,
+                    'role_budget_mid': 30,
+                    'role_budget_fwd': 50
                 }
             return jsonify_success({'strategy_board': {'role_budget': role_budget}})
 
     if request.method == 'POST':
         data = request.get_json() or {}
-        gk = data.get('role_budget_gk', 10)
-        d = data.get('role_budget_def', 20)
-        m = data.get('role_budget_mid', 35)
-        f = data.get('role_budget_fwd', 35)
+        gk = data.get('role_budget_gk', 8)
+        d = data.get('role_budget_def', 12)
+        m = data.get('role_budget_mid', 30)
+        f = data.get('role_budget_fwd', 50)
         if db_type == 'firestore':
             doc_ref = db.collection('strategy_board').document(google_sub)
             doc_ref.set({

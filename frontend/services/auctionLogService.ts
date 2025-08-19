@@ -12,12 +12,20 @@ export const getAuctionLog = async (token: string): Promise<Record<number, Aucti
   return resp.data.auctionLog || {};
 };
 
-export const saveAuctionLog = async (token: string, auctionLog: Record<number, AuctionResult>) => {
+/**
+ * Save auction logs for all participants.
+ * @param token Auth token
+ * @param allAuctionLogs Object mapping userId to their auction log
+ */
+export const saveAuctionLog = async (
+  token: string,
+  allAuctionLogs: Record<string, Record<number, AuctionResult>>
+) => {
   await callApi(
     BASE_URL + '/api/save-auction-log',
     {
       method: 'POST',
-      body: JSON.stringify({ auctionLog })
+      body: JSON.stringify({ allAuctionLogs })
     },
     token
   );
