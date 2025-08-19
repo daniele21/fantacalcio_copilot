@@ -5,9 +5,7 @@ import {
   Zap,
   ClipboardList,
   ArrowRight,
-  Check
 } from "lucide-react";
-import clsx from "clsx";
 import { useAuth } from "../services/AuthContext";
 import { SuccessPage } from "./SuccessPage";
 import { useApi } from "../services/useApi";
@@ -218,30 +216,27 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* ------------------------------------------------ MAIN CONTENT */}
       <main className="flex-1">
-        <section className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32 text-center max-w-5xl">
-
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500">
-        <span className="block">Punta meglio.</span>
-        <span className="block">Rilancia più veloce.</span>
+        <section className="container mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 text-center max-w-5xl flex flex-col items-center">
+          <h1 className="text-3xl xs:text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500 leading-tight">
+            <span className="block">Punta meglio.</span>
+            <span className="block">Rilancia più veloce.</span>
           </h1>
-            <h2 className="text-6xl leading-[1.15] md:text-8xl md:leading-[1.15] font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-200 to-green-600">
-              Vinci la tua lega.
-            </h2>
-          <br></br>
-          <div className="flex justify-center mb-4">
+          <h2 className="text-4xl xs:text-5xl leading-[1.15] md:text-8xl md:leading-[1.15] font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-200 to-green-600 mt-2">
+            Vinci la tua lega.
+          </h2>
+          <div className="flex justify-center mb-4 mt-4">
             <PoweredByGeminiBadge />
           </div>
-          <div className="h-8" />
-          <p className="mt-6 text-lg md:text-2xl font-semibold text-content-200">
+          <div className="h-6 md:h-8" />
+          <p className="mt-4 text-base xs:text-lg md:text-2xl font-semibold text-content-200 px-2 md:px-0">
             FantaCopilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
           </p>
-
-          <div className="mt-10 flex flex-col items-center gap-2">
+          <div className="mt-8 flex flex-col items-center gap-2 w-full">
             {!isLoggedIn ? (
               <>
                 <button
                   onClick={() => handleSubscribe("free")}
-                  className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300"
+                  className="w-full max-w-xs bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300 shadow-md"
                 >
                   Prova gratis. Accedi con Google
                 </button>
@@ -254,7 +249,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   onLogin(profile?.plan || undefined);
                   navigate("/setup");
                 }}
-                className="bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300 flex items-center justify-center gap-2"
+                className="w-full max-w-xs bg-brand-primary text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-brand-secondary transition-all duration-300 flex items-center justify-center gap-2 shadow-md"
               >
                 Entra nell'App <ArrowRight className="w-5 h-5" />
               </button>
@@ -263,8 +258,8 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
 
         {/* ------------------------------------------------ FEATURE SECTION */}
-        <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <section className="container mx-auto px-2 xs:px-4 sm:px-6 lg:px-8 mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
             <FeatureCard icon={<Zap className="w-6 h-6 text-brand-primary" />} title="Vinci ogni rilancio">
               Consigli in tempo reale su chi comprare e a che prezzo in base al budget rimanente.
             </FeatureCard>
@@ -280,8 +275,8 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </section>
         {/* Video below */}
-        <div className="w-[70%] mx-auto flex justify-center my-12">
-          <div className="bg-base-200 border-2 border-brand-primary/30 rounded-2xl shadow-lg w-full flex justify-center items-center aspect-[19/9] overflow-hidden">
+        <div className="w-full px-2 xs:px-4 flex justify-center my-8 md:my-12">
+          <div className="bg-base-200 border-2 border-brand-primary/30 rounded-2xl shadow-lg w-full max-w-2xl md:max-w-4xl flex justify-center items-center aspect-[19/9] overflow-hidden">
             <img
               src="/asta_live_demo.gif"
               alt="Demo Asta Live"
@@ -292,18 +287,22 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
 
         {/* ------------------------------------------------ PRICING SECTION */}
-        <section id="pricing" className="container mx-auto px-4 sm:px-6 lg:px-8 mt-32">
-          <h2 className="text-3xl font-bold text-center text-content-100">Piani & Prezzi</h2>
+        <section id="pricing" className="container mx-auto px-2 xs:px-4 sm:px-6 lg:px-8 mt-20 md:mt-32">
+          <h2 className="text-2xl xs:text-3xl font-bold text-center text-content-100">Piani & Prezzi</h2>
 
           {/* Plans */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 justify-center items-stretch mt-12">
-            {visiblePlans.map((plan) => (
-              <PlanCard key={plan.key} plan={plan} onSelect={handleSubscribe} currentPlan={userPlan || undefined} />
-            ))}
+          <div className="w-full mt-8">
+            <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 justify-center items-stretch">
+              {visiblePlans.map((plan) => (
+                <div key={plan.key} className="flex w-full">
+                  <PlanCard plan={plan} onSelect={handleSubscribe} currentPlan={userPlan || undefined} />
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       </main>
-      <div className="h-32" />
+      <div className="h-24 md:h-32" />
     </div>
   );
 };

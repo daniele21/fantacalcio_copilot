@@ -1,3 +1,4 @@
+// ...existing code...
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { HomePage } from './components/HomePage';
@@ -16,8 +17,6 @@ import { SuccessPage } from './components/SuccessPage';
 import { AIGenerativeBadge } from './components/shared/AIGenerativeBadge';
 import PrivacyPage from './components/PrivacyPage';
 import { CookieProvider } from './services/CookieContext';
-import { CookieBanner } from './components/CookieBanner';
-import { base_url } from './services/api';
 import Footer from './components/Footer';
 import TermsPage from './components/TermsPage';
 
@@ -29,6 +28,29 @@ const FEATURE_LABELS: Record<string, string> = {
 };
 
 const App: React.FC = () => {
+    // State for mobile header visibility
+    const [showHeader, setShowHeader] = useState(true);
+    const lastScrollY = useRef(0);
+
+    // Hide header on scroll down, show on scroll up (mobile only)
+    useEffect(() => {
+        const handleScroll = () => {
+            if (window.innerWidth >= 768) {
+                setShowHeader(true);
+                return;
+            }
+            const currentScrollY = window.scrollY;
+            if (currentScrollY > lastScrollY.current && currentScrollY > 40) {
+                setShowHeader(false); // scrolling down
+            } else {
+                setShowHeader(true); // scrolling up
+            }
+            lastScrollY.current = currentScrollY;
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
     const { isLoggedIn, idToken, profile, handleSignOut, isGoogleAuthReady } = useAuth();
     const { fetchPlayers } = usePlayerApi();
     const [view, setView] = useState<'home' | 'app'>('home');
@@ -226,56 +248,63 @@ const App: React.FC = () => {
         <CookieProvider>
           <BrowserRouter>
             <div>
-                {/* Header - always visible */}
-                <header className="bg-base-100 shadow-sm sticky top-0 z-40">
-                  <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <ShieldCheck className="w-7 h-7 text-brand-primary" />
-                      <button
-                        type="button"
-                        onClick={() => window.location.href = '/'}
-                        className="font-extrabold text-xl tracking-tight text-content-100 hover:text-brand-primary focus:outline-none bg-transparent border-none p-0 m-0 cursor-pointer"
-                        style={{ background: 'none', border: 'none' }}
-                        aria-label="Vai alla Home"
-                      >
-                        FantaCopilot
-                      </button>
-                      <div className="text-brand-primary text-lg font-semibold tracking-wide text-center md:text-center">
-                        La tua asta, potenziata dall’<strong>AI</strong>
-                      </div>
-                      <AIGenerativeBadge className="ml-2" />
-                    </div>
-                    <div className="flex items-center gap-4">
-                       {profile && (
-                            <div className="flex items-center gap-3">
-                                <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full"/>
-                                <div className="hidden sm:block">
-                                    <p className="text-sm font-semibold">{profile.name}</p>
-                                    <p className="text-xs text-content-200 capitalize flex items-center gap-1">
-                                      {profile.plan || 'Free'} Plan
-                                      {profile.plan === 'free' && (
-                                        <span className="ml-2 px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 font-bold text-[11px] border border-blue-400/60 uppercase tracking-wider">DEMO</span>
-                                      )}
-                                      <span className={`ml-2 font-bold ${profile.ai_credits === 0 ? 'text-red-500' : 'text-green-600'}`}>• {typeof profile.ai_credits === 'number' ? profile.ai_credits : 0} Crediti AI</span>
-                                    </p>
-                                </div>
-                            </div>
-                       )}
-                       {/* Show Google Sign-In badge if not logged in */}
-                       {!isLoggedIn && (
-                           <div ref={googleSignInRef}></div>
-                       )}
-                       {/* Settings and logout only if logged in */}
-                       {isLoggedIn && (
-                         <>
-                           <button onClick={() => { handleSignOut(); window.location.reload(); }} className="px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300">
-                               <LogOut className="w-4 h-4"/>
-                           </button>
-                         </>
-                       )}
-                    </div>
-                  </div>
-                </header>
+                                {/* Header - always visible */}
+                                                <header
+                                                    className={`bg-base-100 sticky top-0 z-40 w-full shadow-[0_2px_8px_0_rgba(0,0,0,0.04)] border-b border-base-200 transition-transform duration-300 ${showHeader ? 'translate-y-0' : '-translate-y-full'}`}
+                                                    style={{ willChange: 'transform' }}
+                                                >
+                                        <div className="container mx-auto px-2 xs:px-4 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col sm:flex-row items-center sm:items-stretch gap-2 sm:gap-0 w-full">
+                                            {/* Logo and tagline (always centered) */}
+                                            <div className="flex flex-col xs:flex-row items-center gap-2 xs:gap-4 w-full justify-center sm:justify-start text-center sm:text-left">
+                                                <div className="flex items-center gap-2 xs:gap-3 w-full justify-center sm:justify-start">
+                                                    <span className="bg-brand-primary/10 rounded-full p-1 flex items-center justify-center">
+                                                        <ShieldCheck className="w-7 h-7 text-brand-primary" />
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.location.href = '/'}
+                                                        className="font-extrabold text-xl xs:text-2xl tracking-tight text-content-100 hover:text-brand-primary focus:outline-none bg-transparent border-none p-0 m-0 cursor-pointer"
+                                                        style={{ background: 'none', border: 'none' }}
+                                                        aria-label="Vai alla Home"
+                                                    >
+                                                        FantaPilot
+                                                    </button>
+                                                    <AIGenerativeBadge className="ml-1 xs:ml-2" />
+                                                </div>
+                                                <div className="text-brand-primary text-base xs:text-lg sm:text-xl font-semibold tracking-wide text-center sm:text-left w-full">
+                                                                                                    La tua asta, potenziata dall’<strong>AI</strong>
+                                                </div>
+                                            </div>
+                                            {/* Profile and actions (right on desktop) */}
+                                            <div className="flex items-center gap-2 xs:gap-4 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0 flex-shrink-0">
+                                                {profile && (
+                                                    <div className="flex items-center gap-2 xs:gap-3 bg-base-200/60 px-2 py-1 rounded-lg shadow-sm">
+                                                        <img src={profile.picture} alt={profile.name} className="w-8 h-8 rounded-full border border-base-300"/>
+                                                        <div className="hidden xs:block">
+                                                            <p className="text-xs xs:text-sm font-semibold truncate max-w-[120px]">{profile.name}</p>
+                                                            <p className="text-[11px] xs:text-xs text-content-200 capitalize flex items-center gap-1 flex-wrap">
+                                                                {profile.plan || 'Free'} Plan
+                                                                {profile.plan === 'free' && (
+                                                                    <span className="ml-2 px-2 py-0.5 rounded bg-blue-500/20 text-blue-700 font-bold text-[10px] xs:text-[11px] border border-blue-400/60 uppercase tracking-wider">DEMO</span>
+                                                                )}
+                                                                <span className={`ml-2 font-bold ${profile.ai_credits === 0 ? 'text-red-500' : 'text-green-600'}`}>• {typeof profile.ai_credits === 'number' ? profile.ai_credits : 0} Crediti AI</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {/* Show Google Sign-In badge if not logged in */}
+                                                {!isLoggedIn && (
+                                                    <div ref={googleSignInRef}></div>
+                                                )}
+                                                {/* Settings and logout only if logged in */}
+                                                {isLoggedIn && (
+                                                    <button onClick={() => { handleSignOut(); window.location.reload(); }} className="px-2 xs:px-3 py-1.5 text-xs xs:text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300 shadow-sm">
+                                                        <LogOut className="w-4 h-4"/>
+                                                    </button>
+                                                )}
+                                            </div>
+                                    </div>
+                                </header>
                 <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     {/* Loading and error states */}
                     {isLoading ? (
@@ -287,7 +316,7 @@ const App: React.FC = () => {
                         <div className="text-center text-red-500 py-20">{error}</div>
                     ) : (
                         <Routes>
-                            <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} setUserPlan={setUserPlan}/>} />
+                            <Route path="/" element={<HomePage onLogin={handleLogin} userPlan={userPlan} />} />
                             <Route path="/privacy" element={<PrivacyPage />} />
                             <Route path="/terms" element={<TermsPage />} />
                             <Route path="/success" element={<SuccessPage />} />

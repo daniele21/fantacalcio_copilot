@@ -31,7 +31,7 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect, currentPlan }) => {
   return (
     <div
       className={clsx(
-        "relative bg-base-200 p-8 rounded-2xl border border-base-300 w-full max-w-xs flex flex-col",
+        "relative bg-base-200 p-4 xs:p-5 sm:p-8 rounded-2xl border w-full flex flex-col transition-shadow duration-200 hover:shadow-lg",
         plan.recommended && "ring-2 ring-brand-primary scale-105",
         isCurrent && "opacity-80"
       )}
@@ -46,18 +46,18 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect, currentPlan }) => {
           Il tuo piano attuale
         </span>
       )}
-      <h3 className="text-2xl font-bold text-content-100">{plan.name}</h3>
-      <div className="relative mt-4 flex flex-col items-center justify-center min-h-[3.5rem]">
+  <h3 className="text-lg xs:text-xl sm:text-2xl font-bold text-content-100 text-center break-words leading-tight">{plan.name}</h3>
+  <div className="relative mt-2 xs:mt-3 sm:mt-4 flex flex-col items-center justify-center min-h-[3.5rem]">
         {hasDiscount && originalPriceLabel && (
           <span className="relative inline-flex items-center px-3 py-1 mb-1 rounded-full bg-red-100 border border-red-300 text-red-600 text-2xl font-bold shadow-sm animate-fade-in old-price-slash">
             {originalPriceLabel}
             <span className="slash-diagonal" aria-hidden="true"></span>
           </span>
         )}
-        <div className="flex items-end justify-center gap-2">
-          <span className="text-5xl font-extrabold text-brand-primary">{priceLabel}</span>
+        <div className="flex items-end justify-center gap-2 flex-wrap">
+          <span className="text-3xl xs:text-4xl sm:text-5xl font-extrabold text-brand-primary">{priceLabel}</span>
           {hasDiscount && (
-            <span className="ml-2 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-300 animate-pop-in">
+            <span className="ml-2 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-300 animate-pop-in whitespace-nowrap">
               -{Math.round(100 - (price / plan.originalPrice!) * 100)}%
             </span>
           )}
@@ -76,11 +76,11 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, onSelect, currentPlan }) => {
         </p>
       )}
 
-      <ul className="mt-6 space-y-2 text-left flex-1">
+      <ul className="mt-4 xs:mt-5 sm:mt-6 space-y-2 text-left flex-1 min-w-0">
         {plan.features.map((f) => (
-          <li key={f} className="flex items-start">
-            <Check className="w-4 h-4 text-green-400 mt-1 mr-2" />
-            <span>{f}</span>
+          <li key={f} className="flex items-start text-xs xs:text-sm sm:text-sm gap-2">
+            <Check className="w-4 h-4 text-green-400 mt-0.5 mr-1 flex-shrink-0" />
+            <span className="break-words min-w-0">{f}</span>
           </li>
         ))}
       </ul>

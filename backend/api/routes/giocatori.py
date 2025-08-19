@@ -4,7 +4,6 @@ from flask import Blueprint, request, jsonify, g
 from tqdm import tqdm
 from ..util import get_db, jsonify_success, require_auth
 from backend.api.utils.cache import cache_api_lru
-from backend.update_players import merge_and_update_players
 import random
 
 routes_giocatori = Blueprint('routes_giocatori', __name__)
