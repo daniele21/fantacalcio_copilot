@@ -244,36 +244,47 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
 
           />
         </div> */}
-        <div className="flex flex-wrap bg-base-100 rounded-t-lg border-b-2 border-base-300 items-center gap-2 px-2 py-1">
+        <div className="flex flex-wrap bg-base-100 rounded-t-lg border-b-2 border-base-300 items-center gap-1 xs:gap-2 px-1 xs:px-2 py-1">
           {ROLES_ORDER.map(role => (
             <button
               key={role}
               onClick={() => setSelectedRole(role)}
-              className={`min-w-[100px] flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+              className={`flex flex-col items-center justify-center min-w-[36px] xs:min-w-[60px] sm:min-w-[100px] flex-1 text-center font-bold p-2 xs:p-3 text-xs xs:text-sm transition-colors duration-200 border-b-4 ${selectedRole === role ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
             >
-              {ROLE_NAMES[role]}
+              <span className="block sm:hidden">
+                {/* Use a role icon here if available, fallback to first letter */}
+                {role === Role.GK ? '🧤' : role === Role.DEF ? '🛡️' : role === Role.MID ? '🎯' : role === Role.FWD ? '⚡' : role[0]}
+              </span>
+              <span className="hidden sm:block">{ROLE_NAMES[role]}</span>
             </button>
           ))}
           <button
             key="ALL"
             onClick={() => setSelectedRole('ALL')}
-            className={`min-w-[100px] flex-1 text-center font-bold p-3 transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
+            className={`flex flex-col items-center justify-center min-w-[36px] xs:min-w-[60px] sm:min-w-[100px] flex-1 text-center font-bold p-2 xs:p-3 text-xs xs:text-sm transition-colors duration-200 border-b-4 ${selectedRole === 'ALL' ? 'text-brand-primary border-brand-primary' : 'text-content-200 border-transparent hover:bg-base-300/50'}`}
           >
-            Tutti
+            <span className="block sm:hidden">🔄</span>
+            <span className="hidden sm:block">Tutti</span>
           </button>
-          <div className="flex items-center gap-2 ml-2">
+          <div className="flex items-center gap-1 xs:gap-2 ml-1 xs:ml-2">
             <FilterChip
               key="favourites"
-              label={<Star className="w-5 h-5" />}
+              label={
+                <>
+                  <span className="block sm:hidden"><Star className="w-5 h-5" /></span>
+                  <span className="hidden sm:inline-flex items-center"><Star className="w-5 h-5 mr-1" /> Preferiti</span>
+                </>
+              }
               isActive={showFavouritesOnly}
               onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
             />
             <button
               onClick={onSaveFavourites}
               disabled={isSavingFavourites}
-              className="px-3 py-1.5 text-sm font-semibold text-brand-primary bg-base-200 rounded-md hover:bg-brand-primary/10 border border-brand-primary/30 disabled:opacity-60"
+              className="px-2 xs:px-3 py-1 text-xs xs:text-sm font-semibold text-brand-primary bg-base-200 rounded-md hover:bg-brand-primary/10 border border-brand-primary/30 disabled:opacity-60"
             >
-              {isSavingFavourites ? 'Salvataggio...' : 'Salva Preferiti'}
+              <span className="block sm:hidden">💾</span>
+              <span className="hidden sm:inline">{isSavingFavourites ? 'Salvataggio...' : 'Salva Preferiti'}</span>
             </button>
             <button
               onClick={() => {
@@ -281,32 +292,38 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                   targetPlayers.forEach(tp => onRemoveTarget(Number(tp.id)));
                 }
               }}
-              className="px-3 py-1.5 text-sm font-semibold text-red-600 bg-base-200 rounded-md hover:bg-red-100 border border-red-200"
+              className="px-2 xs:px-3 py-1 text-xs xs:text-sm font-semibold text-red-600 bg-base-200 rounded-md hover:bg-red-100 border border-red-200"
             >
-              Reset Preferiti
+              <span className="block sm:hidden">🗑️</span>
+              <span className="hidden sm:inline">Reset Preferiti</span>
             </button>
           </div>
         </div>
-        <div className="p-4">
-          <FilterSection title="Filtra per Skill">
-            {allSkills.map((skill: string) => (
-              <FilterChip
-                key={skill}
-                label={skill}
-                isActive={selectedSkills.has(skill)}
-                onClick={() => handleSkillToggle(skill)}
-              />
-            ))}
-          </FilterSection>
-          {/* Sorting and search row */}
-          <div className="flex flex-wrap items-center gap-4 mb-4">
-            <div className="flex items-center gap-2">
+        <div className="p-2 sm:p-4">
+          {/* Skill filter chips: horizontal scroll on mobile */}
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-content-200 mb-3">Filtra per Skill</h3>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {allSkills.map((skill: string) => (
+                <FilterChip
+                  key={skill}
+                  label={skill}
+                  isActive={selectedSkills.has(skill)}
+                  onClick={() => handleSkillToggle(skill)}
+                />
+              ))}
+            </div>
+          </div>
+          {/* Sorting and search row, mobile responsive */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4 mb-4">
+            {/* Sort controls */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <label htmlFor="sortKey" className="font-medium text-content-200 whitespace-nowrap">Ordina per:</label>
               <select
                 id="sortKey"
                 value={sortKey}
                 onChange={e => setSortKey(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+                className="px-2 py-1 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm"
               >
                 <option value="stars">Stelle FantaCopilot</option>
                 <option value="xBonus">xBonus</option>
@@ -318,7 +335,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 type="button"
                 aria-label={sortOrder === 'desc' ? 'Ordine discendente' : 'Ordine ascendente'}
                 onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-                className="ml-1 px-2 py-2 rounded border border-base-300 bg-base-100 text-content-100 hover:bg-base-200 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary"
+                className="ml-1 px-2 py-1 rounded border border-base-300 bg-base-100 text-content-100 hover:bg-base-200 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm"
               >
                 {sortOrder === 'desc' ? (
                   <span title="Ordine discendente" className="inline-block">↓</span>
@@ -327,43 +344,43 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 )}
               </button>
             </div>
-            <div className="flex-1 flex flex-col md:flex-row items-center gap-4">
-              <div className="w-full md:w-1/3">
-                <input
-                  type="text"
-                  placeholder="Digita nome giocatore…"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out"
-                />
-              </div>
-              <div className="w-full md:w-2/3">
-                <div className="mb-2">
-                  <p className="text-xs text-content-200 font-medium">Puoi analizzare un segmento di massimo 20 giocatori alla volta. Seleziona filtri o preferiti per restringere la lista.</p>
-                </div>
-                <button
-                  onClick={handleAnalysisRequest}
-                  disabled={isAnalysisLoading || filteredPlayers.length === 0}
-                  className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                  title={filteredPlayers.length > 0 ? `Giocatori analizzati: ${filteredPlayers.slice(0, 20).map(p => p.player_name).join(', ')}${filteredPlayers.length > 20 ? ` +${filteredPlayers.length - 20} altri (solo i primi 20 verranno analizzati)` : ''}` : 'Analizza i giocatori selezionati con l’AI'}
-                >
-                  {isAnalysisLoading ? (
-                    <>
-                      <Loader className="w-5 h-5 mr-2 animate-spin" />
-                      Analisi in corso...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5 mr-2" />
-                      {filteredPlayers.length > 20
-                        ? 'Analizza Segmento (primi 20 giocatori)'
-                        : `Analizza Segmento (${filteredPlayers.length} giocatori)`}
-                      <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
-                    </>
-                  )}
-                </button>
+            {/* Search input */}
+            <div className="w-full sm:w-1/3">
+              <input
+                type="text"
+                placeholder="Digita nome giocatore…"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out text-sm"
+              />
+            </div>
+            {/* Analyze button and info */}
+            <div className="w-full sm:w-1/2 flex flex-col gap-1">
+              <button
+                onClick={handleAnalysisRequest}
+                disabled={isAnalysisLoading || filteredPlayers.length === 0}
+                className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-base sm:text-base"
+                title={filteredPlayers.length > 0 ? `Giocatori analizzati: ${filteredPlayers.slice(0, 20).map(p => p.player_name).join(', ')}${filteredPlayers.length > 20 ? ` +${filteredPlayers.length - 20} altri (solo i primi 20 verranno analizzati)` : ''}` : 'Analizza i giocatori selezionati con l’AI'}
+              >
+                {isAnalysisLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 mr-2 animate-spin" />
+                    Analisi in corso...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    {filteredPlayers.length > 20
+                      ? 'Analizza (primi 20)'
+                      : `Analizza (${filteredPlayers.length})`}
+                    <span className="ml-2 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white hidden xs:inline">1 Credito AI</span>
+                  </>
+                )}
+              </button>
+              <div className="mb-1 mt-1">
+                <p className="text-xs text-content-200 font-medium leading-tight">Puoi analizzare un segmento di massimo 20 giocatori alla volta. Seleziona filtri o preferiti per restringere la lista.</p>
                 {filteredPlayers.length > 20 && (
-                  <p className="mt-2 text-sm text-red-400 font-semibold">
+                  <p className="mt-1 text-xs text-red-400 font-semibold">
                     Giocatori selezionati: {filteredPlayers.length}. Seleziona massimo 20 giocatori per l'analisi aggregata.
                   </p>
                 )}

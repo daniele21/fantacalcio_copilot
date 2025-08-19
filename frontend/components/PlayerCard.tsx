@@ -141,6 +141,18 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     }
   })();
 
+  // Responsive: collapsed by default on mobile, expanded on desktop
+  const [detailsOpen, setDetailsOpen] = React.useState(true);
+  React.useEffect(() => {
+    const check = () => {
+      if (window.innerWidth < 640) setDetailsOpen(false); // sm breakpoint
+      else setDetailsOpen(true);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   return (
     <article className={`flex flex-col h-full border dark:border-base-600 border-base-300 shadow-lg rounded-xl overflow-hidden ${cardBgClass}`}>
       <section className="px-3 xs:px-4 pt-3">
@@ -218,7 +230,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         </span>
       </section>
 
-      <details className="mt-auto px-3 xs:px-4 pb-4 dark:border-t dark:border-base-600 border-t border-base-300" open>
+      <details
+        className="mt-auto px-3 xs:px-4 pb-4 dark:border-t dark:border-base-600 border-t border-base-300"
+        open={detailsOpen}
+        onToggle={e => setDetailsOpen((e.target as HTMLDetailsElement).open)}
+      >
         <summary className="flex items-center justify-between cursor-pointer py-2 text-xs xs:text-sm font-semibold dark:text-content-200 text-content-200">
           <div className="flex items-center gap-1">
             <BarChart2 className="w-4 h-4" />

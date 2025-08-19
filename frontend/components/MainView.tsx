@@ -71,15 +71,15 @@ export const MainView: React.FC<MainViewProps> = ({
   }> = ({ label, icon, isActive, onClick }) => (
     <button
       onClick={onClick}
-      className={`flex items-center justify-center w-full px-4 py-3 font-semibold text-base md:text-lg rounded-t-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+      className={`flex items-center justify-center w-full px-3 sm:px-4 py-2 sm:py-3 font-semibold text-base md:text-lg rounded-t-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
         ${
           isActive
             ? 'bg-base-200 text-brand-primary'
             : 'bg-transparent text-content-200 hover:bg-base-300/50'
         }`}
     >
-      {icon}
-      <span className="ml-2 md:ml-3">{label}</span>
+      <span className="block sm:hidden">{icon}</span>
+      <span className="hidden sm:flex items-center">{icon}<span className="ml-2 md:ml-3">{label}</span></span>
     </button>
   );
 
@@ -207,41 +207,44 @@ export const MainView: React.FC<MainViewProps> = ({
   }, [targetPlayers]);
 
   return (
-    <div>
-      <div className="border-b border-base-300 mb-6 sticky top-[65px] z-20 bg-base-100/80 backdrop-blur-lg">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0">
-            <button
-              onClick={() => navigate('/setup')}
-              className="mb-2 sm:mb-0 sm:mr-4 px-3 py-1.5 text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
-            >
-              ← Setup
-            </button>
-            <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center">
-              <TabButton
-                label="Esplora Giocatori"
-                icon={<Compass className="w-5 h-5 md:w-6 md:h-6" />}
-                isActive={activeView === 'explorer'}
-                onClick={() => handleTabClick('explorer')}
-              />
-              <TabButton
-                label="Tavolo Strategia"
-                icon={<ClipboardList className="w-5 h-5 md:w-6 md:h-6" />}
-                isActive={activeView === 'strategy'}
-                onClick={() => handleTabClick('strategy')}
-              />
-              <TabButton
-                label="Ricerca Mirata"
-                icon={<Search className="w-5 h-5 md:w-6 md:h-6" />}
-                isActive={activeView === 'search'}
-                onClick={() => handleTabClick('search')}
-              />
-            </div>
+    <div className="min-h-screen bg-base-100">
+      {/* Sticky header with horizontal scroll for tab bar on mobile */}
+  <div className="border-b border-base-300 mb-4 sticky top-0 z-20 bg-base-100/95 backdrop-blur-lg">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-0 px-2 sm:px-0 py-2">
+          <button
+            onClick={() => navigate('/setup')}
+            className="mb-1 sm:mb-0 sm:mr-4 px-2 py-1 text-xs sm:text-sm font-semibold text-content-200 bg-base-200 rounded-md hover:bg-base-300"
+          >
+            ← Setup
+          </button>
+          {/* Tab bar: horizontal scroll on mobile, row on desktop */}
+          <div className="flex flex-row sm:flex-row flex-1 items-stretch sm:items-center overflow-x-auto scrollbar-hide gap-1 sm:gap-0">
+            <TabButton
+              label="Esplora Giocatori"
+              icon={<Compass className="w-5 h-5 md:w-6 md:h-6" />} 
+              isActive={activeView === 'explorer'}
+              onClick={() => handleTabClick('explorer')}
+            />
+            <TabButton
+              label="Tavolo Strategia"
+              icon={<ClipboardList className="w-5 h-5 md:w-6 md:h-6" />} 
+              isActive={activeView === 'strategy'}
+              onClick={() => handleTabClick('strategy')}
+            />
+            <TabButton
+              label="Ricerca Mirata"
+              icon={<Search className="w-5 h-5 md:w-6 md:h-6" />} 
+              isActive={activeView === 'search'}
+              onClick={() => handleTabClick('search')}
+            />
           </div>
+        </div>
       </div>
 
-
-      <div>
-        {activeView === 'explorer' && <PlayerExplorerView 
+      {/* Main content area, padding for mobile */}
+      <div className="px-1 sm:px-0">
+        {activeView === 'explorer' && (
+          <PlayerExplorerView 
             leagueSettings={leagueSettings} 
             players={players} 
             targetPlayers={dedupedTargetPlayers}
@@ -251,9 +254,11 @@ export const MainView: React.FC<MainViewProps> = ({
             setShowFavouritesOnly={setShowFavouritesOnly}
             onSaveFavourites={handleSaveFavourites}
             isSavingFavourites={isSavingFavourites}
-        />}
+          />
+        )}
         {activeView === 'search' && <TargetedSearchView players={players} />}
-        {activeView === 'strategy' && <StrategyBoardView 
+        {activeView === 'strategy' && (
+          <StrategyBoardView 
             players={players} 
             leagueSettings={leagueSettings} 
             roleBudget={roleBudget}
@@ -265,7 +270,8 @@ export const MainView: React.FC<MainViewProps> = ({
             onSaveChanges={onSaveChanges}
             onResetChanges={onResetChanges}
             isSaving={isSaving}
-        />}
+          />
+        )}
       </div>
     </div>
   );
