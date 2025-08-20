@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Player, MyTeamPlayer, LeagueSettings, Role, AuctionResult, TargetPlayer } from '../types';
 import { BiddingAssistant } from './BiddingAssistant';
 import { TeamStatus } from './TeamStatus';
+import { CollapsibleTeamStatus } from './CollapsibleTeamStatus';
 import { AuctionBoard } from './AuctionBoard';
 import { ChevronDown, ChevronUp, Users, Wallet, Info } from 'lucide-react';
 import { TeamsView } from './TeamsView';
@@ -27,9 +28,13 @@ interface LiveAuctionViewProps {
 export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTeam: myTeamProp, auctionLog, onPlayerAuctioned, leagueSettings: initialLeagueSettings, roleBudget, targetPlayers, onUpdateAuctionResult, onMyTeamUpdate }) => {
     const [isAuctionBoardExpanded, setIsAuctionBoardExpanded] = useState(true);
     const [isTeamsViewExpanded, setIsTeamsViewExpanded] = useState(false);
+    const [showHeatmap, setShowHeatmap] = useState(true);
     const [playerForBidding, setPlayerForBidding] = useState<Player | null>(null);
     const [currentBid, setCurrentBid] = useState<number | ''>(1);
     const biddingAssistantRef = useRef<HTMLDivElement>(null);
+    // Ref and state for InstantHeader height
+    const instantHeaderRef = React.useRef<HTMLDivElement>(null);
+    const [headerHeight, setHeaderHeight] = React.useState(0);
     const { idToken, isLoggedIn, refreshProfile } = useAuth();
     const [localTargetPlayers, setLocalTargetPlayers] = useState<TargetPlayer[]>(targetPlayers);
     const [leagueSettings, setLeagueSettings] = useState(initialLeagueSettings);
@@ -158,6 +163,22 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
 
     const isInstantHeaderVisible = playerForBidding && (Number(currentBid) || 0) > 0;
 
+    // Update headerHeight when header is visible or window resizes
+    React.useEffect(() => {
+        if (!isInstantHeaderVisible) {
+            setHeaderHeight(0);
+            return;
+        }
+        const updateHeight = () => {
+            if (instantHeaderRef.current) {
+                setHeaderHeight(instantHeaderRef.current.offsetHeight);
+            }
+        };
+        updateHeight();
+        window.addEventListener('resize', updateHeight);
+        return () => window.removeEventListener('resize', updateHeight);
+    }, [isInstantHeaderVisible, playerForBidding, currentBid]);
+
     // Always reload league settings on mount
     useEffect(() => {
         (async () => {
@@ -259,14 +280,14 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                     currentPrice={Number(currentBid)}
                     myTeam={localMyTeam}
                     leagueSettings={leagueSettings}
+                    ref={instantHeaderRef}
                 />
             )}
-             {/* This spacer pushes down the content by the height of the header, preventing overlap */}
-            {isInstantHeaderVisible && <div className="h-16" />}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-                {/* Left/Main Column */}
-                <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+            {/* Responsive flex: column on mobile, row on desktop */}
+            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 w-full">
+                {/* Main/BiddingAssistant + InsightColumn stacked on mobile, side by side on desktop */}
+                <div className="w-full lg:w-2/3 xl:w-3/4 space-y-6">
                     <div ref={biddingAssistantRef} className="scroll-mt-32">
                         <BiddingAssistant 
                             availablePlayers={availablePlayers}
@@ -285,10 +306,48 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                         />
                     </div>
 
+                    {/* On mobile, show InsightColumn below BiddingAssistant */}
+                    <div className="block lg:hidden">
+                        {playerForBidding ? (
+                            <InsightColumn
+                                player={playerForBidding}
+                                currentBid={Number(currentBid) || 0}
+                                myTeam={localMyTeam}
+                                leagueSettings={leagueSettings}
+                                roleBudget={roleBudget}
+                                auctionLog={localAuctionLog}
+                                players={players}
+                            />
+                        ) : null}
+                    </div>
+
+                    {/* CollapsibleTeamStatus: visible only on mobile, collapsed by default */}
+                    <div className="block lg:hidden">
+                        <CollapsibleTeamStatus
+                            myTeam={localMyTeam}
+                            leagueSettings={leagueSettings}
+                            roleBudget={roleBudget}
+                            defaultOpen={false}
+                        />
+                    </div>
+
                     {/* Always visible Heatmap Rivali */}
-                    <div className="bg-base-200 rounded-lg shadow-lg p-4">
-                        <h2 className="text-xl font-bold text-brand-primary mb-2 flex items-center"><Users className="w-6 h-6 mr-2" />Heatmap Rivali</h2>
-                        <RivalsHeatmap auctionLog={localAuctionLog} leagueSettings={leagueSettings} currentBid={typeof currentBid === 'number' ? currentBid : 0} />
+                    <div className="bg-base-200 rounded-lg shadow-lg">
+                        <button
+                            type="button"
+                            onClick={() => setShowHeatmap(prev => !prev)}
+                            className="w-full flex justify-between items-center p-4 text-left rounded-t-lg hover:bg-base-300/50 transition-colors"
+                            aria-expanded={showHeatmap}
+                            aria-controls="heatmap-rivali-content"
+                        >
+                            <h2 className="text-xl font-bold text-brand-primary flex items-center"><Users className="w-6 h-6 mr-2" />Heatmap Rivali</h2>
+                            {showHeatmap ? <ChevronUp className="w-6 h-6 text-content-200" /> : <ChevronDown className="w-6 h-6 text-content-200" />}
+                        </button>
+                        {showHeatmap && (
+                            <div id="heatmap-rivali-content" className="p-4 pt-0 transition-all duration-300 ease-in-out">
+                                <RivalsHeatmap auctionLog={localAuctionLog} leagueSettings={leagueSettings} currentBid={typeof currentBid === 'number' ? currentBid : 0} />
+                            </div>
+                        )}
                     </div>
 
                     {/* Collapsible Teams View Section */}
@@ -346,9 +405,9 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                     </div>
                 </div>
 
-                {/* Right/Sticky Column */}
-                <div className="lg:col-span-5 xl:col-span-4">
-                     <div className="sticky top-36 space-y-6">
+                {/* Right/Sticky Column: only visible on desktop */}
+                <div className="hidden lg:block lg:w-1/3 xl:w-1/4">
+                    <div className="sticky top-36 space-y-6">
                         {playerForBidding ? (
                             <InsightColumn
                                 player={playerForBidding}
@@ -366,10 +425,11 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                                 <p className="mt-2 text-sm">Seleziona un giocatore dal tabellone o cercalo nell'assistente offerte per visualizzare qui le analisi e i consigli in tempo reale.</p>
                             </div>
                         )}
-                         <TeamStatus 
+                        <CollapsibleTeamStatus
                             myTeam={localMyTeam}
                             leagueSettings={leagueSettings}
                             roleBudget={roleBudget}
+                            defaultOpen={true}
                         />
                     </div>
                 </div>

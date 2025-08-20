@@ -1,7 +1,7 @@
 import { Player, Role, Skill } from './types';
 
 export const ROLES_ORDER: Role[] = [Role.GK, Role.DEF, Role.MID, Role.FWD];
-export const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'Portieri', [Role.DEF]: 'Difensori', [Role.MID]: 'Centrocampisti', [Role.FWD]: 'Attaccanti' };
+export const ROLE_NAMES: Record<Role, string> = { [Role.GK]: 'POR', [Role.DEF]: 'DIF', [Role.MID]: 'CEN', [Role.FWD]: 'ATT' };
 
 
 export const MOCK_PLAYERS: Player[] = [

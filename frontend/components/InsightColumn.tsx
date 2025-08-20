@@ -78,19 +78,21 @@ const ROIGauge: React.FC<{ score: number, currentBid: number, minBid?: number, m
       const label = s > 70 ? 'Ottimo Affare' : s > 30 ? 'Prezzo Giusto' : 'Sopravvalutato';
       return label;
     };
+    const uniqueId = typeof React.useId === 'function' ? React.useId() : Math.random().toString(36).slice(2, 10);
+    const gradientId = `gaugeGradient-${uniqueId}`;
 
     return (
         <div className="bg-base-200 rounded-lg shadow-lg p-4 flex flex-col items-center">
-            <div className="relative w-full max-w-[220px] flex flex-col items-center justify-center" style={{ height: '200px' }}>
-                <svg viewBox="0 0 200 100" className="w-full h-full absolute top-0 left-0 pointer-events-none">
+            <div className="relative w-full max-w-[220px] flex flex-col items-center justify-center overflow-visible" style={{ height: '200px', background: 'transparent' }}>
+                <svg viewBox="0 0 200 100" className="w-full h-full block" style={{ zIndex: 20, background: 'transparent' }}>
                     <defs>
-                        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
                             <stop offset="0%" stopColor="#ef4444" />
                             <stop offset="50%" stopColor="#facc15" />
                             <stop offset="100%" stopColor="#4ade80" />
                         </linearGradient>
                     </defs>
-                    <path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="url(#gaugeGradient)" strokeWidth="16" strokeLinecap="round" />
+                    <path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke={`url(#${gradientId})`} strokeWidth="16" strokeLinecap="round" />
                     <path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="rgba(10,10,10,0.15)" strokeWidth="18" strokeDasharray="2 4" strokeLinecap="round"/>
                 </svg>
                 {/* The Needle */}
@@ -153,34 +155,34 @@ const RoleBudgetImpactBar: React.FC<{ player: Player; currentBid: number; myTeam
 };
 
 // --- SUB-COMPONENT: WHAT-IF ANALYSIS ---
-const WhatIfAnalysis: React.FC<{ myTeam: MyTeamPlayer[], leagueSettings: LeagueSettings, currentPrice: number }> = ({ myTeam, leagueSettings, currentPrice }) => {
-    const { budgetAfterWin, slotsAfterWin, avgCreditPerSlotAfterWin, flash } = useMemo(() => {
-        const currentSpent = myTeam.reduce((sum, p) => sum + p.purchasePrice, 0);
-        const totalSlots = Object.values(leagueSettings.roster).reduce((sum, count) => sum + count, 0);
-        const budgetAfterWin = leagueSettings.budget - currentSpent - currentPrice;
-        const slotsAfterWin = totalSlots - myTeam.length - 1;
-        const avgCreditPerSlotAfterWin = slotsAfterWin > 0 ? Math.round(budgetAfterWin / slotsAfterWin) : 0;
-        const flash = avgCreditPerSlotAfterWin < 8 && avgCreditPerSlotAfterWin >= 0;
-        return { budgetAfterWin, slotsAfterWin, avgCreditPerSlotAfterWin, flash };
-    }, [myTeam, leagueSettings, currentPrice]);
+// const WhatIfAnalysis: React.FC<{ myTeam: MyTeamPlayer[], leagueSettings: LeagueSettings, currentPrice: number }> = ({ myTeam, leagueSettings, currentPrice }) => {
+//     const { budgetAfterWin, slotsAfterWin, avgCreditPerSlotAfterWin, flash } = useMemo(() => {
+//         const currentSpent = myTeam.reduce((sum, p) => sum + p.purchasePrice, 0);
+//         const totalSlots = Object.values(leagueSettings.roster).reduce((sum, count) => sum + count, 0);
+//         const budgetAfterWin = leagueSettings.budget - currentSpent - currentPrice;
+//         const slotsAfterWin = totalSlots - myTeam.length - 1;
+//         const avgCreditPerSlotAfterWin = slotsAfterWin > 0 ? Math.round(budgetAfterWin / slotsAfterWin) : 0;
+//         const flash = avgCreditPerSlotAfterWin < 8 && avgCreditPerSlotAfterWin >= 0;
+//         return { budgetAfterWin, slotsAfterWin, avgCreditPerSlotAfterWin, flash };
+//     }, [myTeam, leagueSettings, currentPrice]);
 
-    const [shouldFlash, setShouldFlash] = useState(false);
-    useEffect(() => {
-        if(flash) {
-            setShouldFlash(true);
-            const timer = setTimeout(() => setShouldFlash(false), 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [flash, currentPrice]);
+//     const [shouldFlash, setShouldFlash] = useState(false);
+//     useEffect(() => {
+//         if(flash) {
+//             setShouldFlash(true);
+//             const timer = setTimeout(() => setShouldFlash(false), 1000);
+//             return () => clearTimeout(timer);
+//         }
+//     }, [flash, currentPrice]);
     
-    return(
-        <div className="space-y-2 text-sm">
-            <div className="flex justify-between items-center bg-base-100 p-2 rounded"><span>Budget Rimanente Post-Acquisto</span> <strong className={`font-bold ${budgetAfterWin < 0 ? 'text-red-400' : 'text-green-400'}`}>{budgetAfterWin} Cr</strong></div>
-            <div className="flex justify-between items-center bg-base-100 p-2 rounded"><span>Slot Rimanenti Post-Acquisto</span> <strong className="font-bold">{slotsAfterWin}</strong></div>
-            <div className={`flex justify-between items-center p-2 rounded transition-all duration-200 ${shouldFlash ? 'bg-red-500/30 animate-pulse' : 'bg-base-100'}`}><span>Media Crediti/Slot Futura</span> <strong className={`font-bold ${avgCreditPerSlotAfterWin < 0 ? 'text-red-400' : ''}`}>{avgCreditPerSlotAfterWin} Cr</strong></div>
-        </div>
-    );
-};
+//     return(
+//         <div className="space-y-2 text-sm">
+//             <div className="flex justify-between items-center bg-base-100 p-2 rounded"><span>Budget Rimanente Post-Acquisto</span> <strong className={`font-bold ${budgetAfterWin < 0 ? 'text-red-400' : 'text-green-400'}`}>{budgetAfterWin} Cr</strong></div>
+//             <div className="flex justify-between items-center bg-base-100 p-2 rounded"><span>Slot Rimanenti Post-Acquisto</span> <strong className="font-bold">{slotsAfterWin}</strong></div>
+//             <div className={`flex justify-between items-center p-2 rounded transition-all duration-200 ${shouldFlash ? 'bg-red-500/30 animate-pulse' : 'bg-base-100'}`}><span>Media Crediti/Slot Futura</span> <strong className={`font-bold ${avgCreditPerSlotAfterWin < 0 ? 'text-red-400' : ''}`}>{avgCreditPerSlotAfterWin} Cr</strong></div>
+//         </div>
+//     );
+// };
 
 // --- SUB-COMPONENT: RIVALS HEATMAP ---
 export const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>, leagueSettings: LeagueSettings, currentBid: number }> = ({ auctionLog, leagueSettings, currentBid }) => {
@@ -252,64 +254,64 @@ export const RivalsHeatmap: React.FC<{ auctionLog: Record<number, AuctionResult>
 }
 
 // --- SUB-COMPONENT: ROLE INFLATION CHART ---
-const RoleInflationChart: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentBid' | 'roleBudget'>> = ({ player, auctionLog, players, leagueSettings }) => {
-    const averageInflation = useMemo(() => {
-        const playerMap = new Map(players.map(p => [p.id, p]));
-        const scaleFactor = leagueSettings.budget / 500;
+// const RoleInflationChart: React.FC<Omit<InsightColumnProps, 'myTeam' | 'currentBid' | 'roleBudget'>> = ({ player, auctionLog, players, leagueSettings }) => {
+//     const averageInflation = useMemo(() => {
+//         const playerMap = new Map(players.map(p => [p.id, p]));
+//         const scaleFactor = leagueSettings.budget / 500;
         
-        const auctionedRolePlayers = Object.entries(auctionLog)
-            .map(([playerId, result]) => {
-                const p = playerMap.get(Number(playerId));
-                return p ? { ...p, ...result } : null;
-            })
-            .filter((p): p is Player & AuctionResult => p !== null && p.position === player.position);
+//         const auctionedRolePlayers = Object.entries(auctionLog)
+//             .map(([playerId, result]) => {
+//                 const p = playerMap.get(Number(playerId));
+//                 return p ? { ...p, ...result } : null;
+//             })
+//             .filter((p): p is Player & AuctionResult => p !== null && p.position === player.position);
 
-        if (auctionedRolePlayers.length === 0) {
-            return null;
-        }
+//         if (auctionedRolePlayers.length === 0) {
+//             return null;
+//         }
 
-        const totalInflationPercent = auctionedRolePlayers.reduce((sum, p) => {
-            if (!p.baseCost) return sum;
-            const scaledBaseCost = p.baseCost * scaleFactor;
-            if (scaledBaseCost === 0) return sum; // Avoid division by zero
-            const inflation = ((p.purchasePrice - scaledBaseCost) / scaledBaseCost) * 100;
-            return sum + inflation;
-        }, 0);
+//         const totalInflationPercent = auctionedRolePlayers.reduce((sum, p) => {
+//             if (!p.baseCost) return sum;
+//             const scaledBaseCost = p.baseCost * scaleFactor;
+//             if (scaledBaseCost === 0) return sum; // Avoid division by zero
+//             const inflation = ((p.purchasePrice - scaledBaseCost) / scaledBaseCost) * 100;
+//             return sum + inflation;
+//         }, 0);
 
-        return totalInflationPercent / auctionedRolePlayers.length;
+//         return totalInflationPercent / auctionedRolePlayers.length;
 
-    }, [auctionLog, player.position, players, leagueSettings.budget]);
+//     }, [auctionLog, player.position, players, leagueSettings.budget]);
 
-    if (averageInflation === null) {
-        return <p className="text-xs text-center text-content-200 p-4">Dati insufficienti per calcolare l'inflazione per questo ruolo.</p>;
-    }
+//     if (averageInflation === null) {
+//         return <p className="text-xs text-center text-content-200 p-4">Dati insufficienti per calcolare l'inflazione per questo ruolo.</p>;
+//     }
 
-    const { colorClass, bgColorClass, label } = useMemo(() => {
-        if (averageInflation > 15) return { colorClass: 'text-red-400', bgColorClass: 'bg-red-500/80', label: 'Molto Alta' };
-        if (averageInflation > 10) return { colorClass: 'text-yellow-400', bgColorClass: 'bg-yellow-500/80', label: 'Alta' };
-        if (averageInflation > -5) return { colorClass: 'text-brand-primary', bgColorClass: 'bg-brand-primary', label: 'Nella Media' };
-        return { colorClass: 'text-green-400', bgColorClass: 'bg-green-500', label: 'Conveniente' };
-    }, [averageInflation]);
+//     const { colorClass, bgColorClass, label } = useMemo(() => {
+//         if (averageInflation > 15) return { colorClass: 'text-red-400', bgColorClass: 'bg-red-500/80', label: 'Molto Alta' };
+//         if (averageInflation > 10) return { colorClass: 'text-yellow-400', bgColorClass: 'bg-yellow-500/80', label: 'Alta' };
+//         if (averageInflation > -5) return { colorClass: 'text-brand-primary', bgColorClass: 'bg-brand-primary', label: 'Nella Media' };
+//         return { colorClass: 'text-green-400', bgColorClass: 'bg-green-500', label: 'Conveniente' };
+//     }, [averageInflation]);
 
-    const displayValue = `${averageInflation > 0 ? '+' : ''}${averageInflation.toFixed(1)}%`;
-    const barWidth = Math.min(100, (Math.abs(averageInflation) / 30) * 100); // Visual clamp at 30% inflation/deflation
+//     const displayValue = `${averageInflation > 0 ? '+' : ''}${averageInflation.toFixed(1)}%`;
+//     const barWidth = Math.min(100, (Math.abs(averageInflation) / 30) * 100); // Visual clamp at 30% inflation/deflation
 
-    return (
-        <div className="space-y-2">
-            <div className="flex justify-between items-baseline">
-                <span className={`font-bold text-xl ${colorClass}`}>{displayValue}</span>
-                <span className="text-xs font-semibold">{label}</span>
-            </div>
-            <div className="w-full bg-base-100 h-2.5 rounded-full">
-                <div 
-                    className={`h-full rounded-full transition-all duration-300 ${bgColorClass}`}
-                    style={{ width: `${barWidth}%` }}
-                ></div>
-            </div>
-            <p className="text-xs text-content-200 text-center pt-1">Sovrapprezzo medio pagato per i {player.position === 'P' ? 'portieri' : player.position === 'D' ? 'difensori' : player.position === 'C' ? 'centrocampisti' : 'attaccanti'}.</p>
-        </div>
-    );
-};
+//     return (
+//         <div className="space-y-2">
+//             <div className="flex justify-between items-baseline">
+//                 <span className={`font-bold text-xl ${colorClass}`}>{displayValue}</span>
+//                 <span className="text-xs font-semibold">{label}</span>
+//             </div>
+//             <div className="w-full bg-base-100 h-2.5 rounded-full">
+//                 <div 
+//                     className={`h-full rounded-full transition-all duration-300 ${bgColorClass}`}
+//                     style={{ width: `${barWidth}%` }}
+//                 ></div>
+//             </div>
+//             <p className="text-xs text-content-200 text-center pt-1">Sovrapprezzo medio pagato per i {player.position === 'P' ? 'POR' : player.position === 'D' ? 'DIF' : player.position === 'C' ? 'CEN' : 'ATT'}.</p>
+//         </div>
+//     );
+// };
 
 // --- SUB-COMPONENT: RISK FACTORS (IMPROVED) ---
 const RiskItem: React.FC<{ icon: React.ReactNode; label: string; description: string; colorClass: string; }> = ({ icon, label, description, colorClass }) => (
@@ -439,49 +441,47 @@ const AlternativesCarousel: React.FC<Omit<InsightColumnProps, 'myTeam' | 'curren
 // --- MAIN INSIGHT COLUMN ---
 export const InsightColumn: React.FC<InsightColumnProps> = ({ player, currentBid, myTeam, leagueSettings, roleBudget, auctionLog, players }) => {
     const opportunityScore = useMemo(() => calculateOpportunityScore(currentBid, player, myTeam, leagueSettings), [currentBid, player, myTeam, leagueSettings]);
-    // Defensive: fallback to 0 if undefined
     const minBid = typeof player.suggestedBidMin === 'number' ? Math.round(player.suggestedBidMin) : undefined;
     const maxBid = typeof player.suggestedBidMax === 'number' ? Math.round(player.suggestedBidMax) : undefined;
 
     return (
-        <div className="space-y-4 animate-fade-in">
-            <ROIGauge score={opportunityScore} currentBid={currentBid} minBid={minBid} maxBid={maxBid} />
-            <RoleBudgetImpactBar player={player} currentBid={currentBid} myTeam={myTeam} leagueSettings={leagueSettings} roleBudget={roleBudget} />
-            {/* <CollapsibleSection title="Analisi 'What if...?'" icon={<TrendingUp size={20} />} defaultOpen>
-                <WhatIfAnalysis myTeam={myTeam} leagueSettings={leagueSettings} currentPrice={currentBid} />
-            </CollapsibleSection> */}
-            <CollapsibleSection title="Alternative" icon={<FileText size={20} />} defaultOpen>
-                <AlternativesCarousel 
-                    player={player} 
-                    players={players} 
-                    auctionLog={auctionLog} 
-                    leagueSettings={leagueSettings} 
-                />
-            </CollapsibleSection>
-            {/* <CollapsibleSection title="Heatmap Rivali" icon={<Users size={20} />} defaultOpen>
-                <RivalsHeatmap auctionLog={auctionLog} leagueSettings={leagueSettings} currentBid={currentBid} />
-            </CollapsibleSection> */}
-            {/* <CollapsibleSection title="Skill Giocatore" icon={<Star size={20} />} defaultOpen>
-                <div className="flex flex-wrap gap-2">
-                  {player.skills && player.skills.length > 0 ? (
-                    player.skills.map((skill, idx) => (
-                      <span key={idx} className="px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary font-semibold text-sm border border-brand-primary/30">{skill}</span>
-                    ))
-                  ) : (
-                    <span className="text-content-200 text-sm">Nessuna skill specifica rilevata.</span>
-                  )}
+        <div className="space-y-6 animate-fade-in">
+            {/* ROI Gauge Section */}
+            <div className="bg-base-200 rounded-xl shadow-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-100 text-green-600">💹</span>
+                    <h3 className="text-lg font-bold text-content-100">ROI & Opportunità</h3>
                 </div>
-            </CollapsibleSection> */}
-            {/* <CollapsibleSection title="Inflazione Ruolo" icon={<BarChart size={20} />}>
-                 <RoleInflationChart 
-                    player={player} 
-                    auctionLog={auctionLog}
-                    players={players}
-                    leagueSettings={leagueSettings}
-                 />
-            </CollapsibleSection> */}
-             
-            
+                <ROIGauge score={opportunityScore} currentBid={currentBid} minBid={minBid} maxBid={maxBid} />
+            </div>
+
+            {/* Role Budget Impact Section */}
+            <div className="bg-base-200 rounded-xl shadow-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-600">💰</span>
+                    <h3 className="text-lg font-bold text-content-100">Impatto Budget Ruolo</h3>
+                </div>
+                <RoleBudgetImpactBar player={player} currentBid={currentBid} myTeam={myTeam} leagueSettings={leagueSettings} roleBudget={roleBudget} />
+            </div>
+
+            {/* Alternatives Carousel Section */}
+            <div className="bg-base-200 rounded-xl shadow-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-600">�</span>
+                    <h3 className="text-lg font-bold text-content-100">Alternative nel Ruolo</h3>
+                </div>
+                <AlternativesCarousel player={player} players={players} auctionLog={auctionLog} leagueSettings={leagueSettings} />
+            </div>
+
+            {/* Risk Factors Section */}
+            <div className="bg-base-200 rounded-xl shadow-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600">⚠️</span>
+                    <h3 className="text-lg font-bold text-content-100">Fattori di Rischio</h3>
+                </div>
+                <RiskFactors player={player} />
+            </div>
+
             <style>{`
                 @keyframes fade-in {
                     from { opacity: 0; transform: translateX(10px); }
