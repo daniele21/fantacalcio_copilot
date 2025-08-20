@@ -111,15 +111,15 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
     };
 
     return (
-        <div className="bg-base-200 p-4 md:p-6 rounded-lg shadow-lg">
-            <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-2xl font-bold text-brand-primary">Ricerca Mirata & Analisi On-Demand</h2>
+        <div className="bg-base-200 p-2 sm:p-4 md:p-6 rounded-lg shadow-lg max-w-2xl mx-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2 sm:mb-3">
+                <h2 className="text-xl sm:text-2xl font-bold text-brand-primary flex-1">Ricerca Mirata & Analisi On-Demand</h2>
                 <AIGenerativeBadge />
             </div>
-            
-            <p className="text-content-200 mb-6">Trova un giocatore e ottieni un'analisi dettagliata generata da Gemini e aggiornata con dati web.</p>
+            <p className="text-content-200 mb-3 sm:mb-6 text-sm sm:text-base">Trova un giocatore e ottieni un'analisi dettagliata generata da Gemini e aggiornata con dati web.</p>
 
-            <div className="relative mb-4">
+            {/* Sticky search bar on mobile */}
+            <div className="relative mb-4 sticky top-2 z-20">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-content-200" />
                     <input
@@ -129,15 +129,16 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
                         onFocus={() => setShowSuggestions(true)}
                         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                         placeholder="Es. Lautaro Martínez"
-                        className="w-full bg-base-100 border border-base-300 rounded-lg pl-10 pr-10 py-3 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition"
+                        className="w-full bg-base-100 border border-base-300 rounded-lg pl-10 pr-10 py-2 sm:py-3 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition text-sm sm:text-base"
+                        autoComplete="off"
                     />
-                     {query && <button onClick={handleClear} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-content-200 hover:text-content-100" aria-label="Pulisci ricerca"><X className="w-5 h-5" /></button>}
+                    {query && <button onClick={handleClear} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-content-200 hover:text-content-100" aria-label="Pulisci ricerca"><X className="w-5 h-5" /></button>}
                 </div>
-                 {showSuggestions && suggestions.length > 0 && (
-                    <ul className="absolute z-10 w-full mt-1 bg-base-300 border border-base-300/50 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                {showSuggestions && suggestions.length > 0 && (
+                    <ul className="absolute z-30 w-full mt-1 bg-base-300 border border-base-300/50 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                         {suggestions.map(player => (
-                            <li key={player.id} onClick={() => handleSelectPlayer(player)} className="px-4 py-3 cursor-pointer hover:bg-brand-primary/20 flex justify-between items-center transition-colors">
-                                <span>{player.player_name} <span className="text-sm text-content-200">({player.current_team})</span></span>
+                            <li key={player.id} onClick={() => handleSelectPlayer(player)} className="px-4 py-2 sm:py-3 cursor-pointer hover:bg-brand-primary/20 flex justify-between items-center transition-colors text-sm sm:text-base">
+                                <span className="truncate max-w-[60vw] sm:max-w-xs">{player.player_name} <span className="text-xs sm:text-sm text-content-200">({player.current_team})</span></span>
                                 <span className="text-xs font-bold bg-base-100 px-2 py-1 rounded-md">{player.position}</span>
                             </li>
                         ))}
@@ -145,58 +146,58 @@ export const TargetedSearchView: React.FC<TargetedSearchViewProps> = ({ players 
                 )}
             </div>
 
-            <button onClick={handleAnalyze} disabled={!selectedPlayer || isLoading} className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">
+            <button
+                onClick={handleAnalyze}
+                disabled={!selectedPlayer || isLoading}
+                className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-2 sm:py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-sm sm:text-base mb-2 sm:mb-4"
+            >
                 {isLoading ? (
-                  <>
-                    <Loader className="w-5 h-5 mr-2 animate-spin" />Analisi in corso...
-                  </>
+                    <>
+                        <Loader className="w-5 h-5 mr-2 animate-spin" />Analisi in corso...
+                    </>
                 ) : (
-                  <>
-                    <Sparkles className="w-5 h-5 mr-2" />Genera Analisi con Gemini
-                    <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
-                  </>
+                    <>
+                        <Sparkles className="w-5 h-5 mr-2" />Genera Analisi con Gemini
+                        <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
+                    </>
                 )}
             </button>
 
-            {error && <div className="mt-6 p-4 bg-red-500/10 text-red-400 rounded-lg flex items-center"><AlertTriangle className="w-5 h-5 mr-3 flex-shrink-0"/><p>{error}</p></div>}
-            
+            {error && <div className="mt-4 p-3 sm:p-4 bg-red-500/10 text-red-400 rounded-lg flex items-center text-xs sm:text-sm"><AlertTriangle className="w-5 h-5 mr-3 flex-shrink-0"/><p>{error}</p></div>}
+
             {isLoading && <AnalysisSkeleton />}
 
             {analysis && selectedPlayer && (
-                <div className="mt-6 bg-base-100 rounded-lg border border-base-300/50 animate-fade-in-up">
-                    <div className="p-6">
-                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                             <div>
-                                <h3 className="text-2xl font-bold text-content-100">{selectedPlayer.player_name}</h3>
-                                <p className="text-md text-content-200">{selectedPlayer.current_team}</p>
-                             </div>
-                             <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className={`px-3 py-1 text-sm font-bold rounded-full border ${getRoleColor(selectedPlayer.position)}`}>{selectedPlayer.position}</span>
-                                <span className="px-3 py-1 text-sm font-semibold rounded-full border bg-purple-500/20 text-purple-400 border-purple-500/30">{selectedPlayer.current_team}</span>
-                             </div>
+                <div className="mt-4 sm:mt-6 bg-base-100 rounded-lg border border-base-300/50 animate-fade-in-up overflow-hidden">
+                    <div className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-lg sm:text-2xl font-bold text-content-100 truncate">{selectedPlayer.player_name}</h3>
+                            <p className="text-xs sm:text-md text-content-200 truncate">{selectedPlayer.current_team}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`px-3 py-1 text-xs sm:text-sm font-bold rounded-full border ${getRoleColor(selectedPlayer.position)}`}>{selectedPlayer.position}</span>
+                            <span className="px-3 py-1 text-xs sm:text-sm font-semibold rounded-full border bg-purple-500/20 text-purple-400 border-purple-500/30">{selectedPlayer.current_team}</span>
                         </div>
                     </div>
-                    
-                    <div className="border-t border-base-300/50 px-6 py-5">
-                       <h4 className="font-semibold text-lg text-green-400 mb-3 flex items-center"><ThumbsUp className="w-5 h-5 mr-3"/>Punti di Forza</h4>
-                       <ul className="list-disc list-inside space-y-1 text-content-200">
-                           {analysis.strengths.map((s, i) => <li key={i}>{s}</li>)}
-                       </ul>
+                    <div className="border-t border-base-300/50 px-4 sm:px-6 py-4 sm:py-5">
+                        <h4 className="font-semibold text-base sm:text-lg text-green-400 mb-2 sm:mb-3 flex items-center"><ThumbsUp className="w-5 h-5 mr-2 sm:mr-3"/>Punti di Forza</h4>
+                        <ul className="list-disc list-inside space-y-1 text-content-200 text-xs sm:text-base">
+                            {analysis.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
                     </div>
-                    <div className="border-t border-base-300/50 px-6 py-5">
-                       <h4 className="font-semibold text-lg text-red-400 mb-3 flex items-center"><ThumbsDown className="w-5 h-5 mr-3"/>Punti Deboli</h4>
-                       <ul className="list-disc list-inside space-y-1 text-content-200">
-                           {analysis.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
-                       </ul>
+                    <div className="border-t border-base-300/50 px-4 sm:px-6 py-4 sm:py-5">
+                        <h4 className="font-semibold text-base sm:text-lg text-red-400 mb-2 sm:mb-3 flex items-center"><ThumbsDown className="w-5 h-5 mr-2 sm:mr-3"/>Punti Deboli</h4>
+                        <ul className="list-disc list-inside space-y-1 text-content-200 text-xs sm:text-base">
+                            {analysis.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                        </ul>
                     </div>
-                     <div className="border-t border-base-300/50 bg-brand-primary/5 px-6 py-5 rounded-b-lg">
-                       <h4 className="font-semibold text-lg text-brand-primary mb-3 flex items-center"><Lightbulb className="w-5 h-5 mr-3"/>Consiglio per l'Asta</h4>
-                       <p className="text-content-200">{analysis.advice}</p>
+                    <div className="border-t border-base-300/50 bg-brand-primary/5 px-4 sm:px-6 py-4 sm:py-5 rounded-b-lg">
+                        <h4 className="font-semibold text-base sm:text-lg text-brand-primary mb-2 sm:mb-3 flex items-center"><Lightbulb className="w-5 h-5 mr-2 sm:mr-3"/>Consiglio per l'Asta</h4>
+                        <p className="text-content-200 text-xs sm:text-base">{analysis.advice}</p>
                     </div>
-
                 </div>
             )}
-             <style>{`
+            <style>{`
                 @keyframes fade-in-up {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }
