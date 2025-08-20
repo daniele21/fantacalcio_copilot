@@ -302,87 +302,132 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
         <div className="p-2 sm:p-4">
           {/* Skill filter chips: horizontal scroll on mobile */}
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-content-200 mb-3">Filtra per Skill</h3>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-              {allSkills.map((skill: string) => (
-                <FilterChip
-                  key={skill}
-                  label={skill}
-                  isActive={selectedSkills.has(skill)}
-                  onClick={() => handleSkillToggle(skill)}
-                />
-              ))}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-content-200">Filtra per Skill</h3>
+              {selectedSkills.size > 0 && (
+                <button
+                  className="ml-2 px-3 py-1 rounded-full bg-base-300 text-content-200 text-xs font-semibold hover:bg-red-100 hover:text-red-600 border border-base-300 transition-all duration-150"
+                  onClick={() => setSelectedSkills(new Set())}
+                  title="Azzera filtri skill"
+                >
+                  Azzera
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              {/* Horizontal scrollable chips with fade edges on mobile */}
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 px-1 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                {allSkills.map((skill: string) => (
+                  <FilterChip
+                    key={skill}
+                    label={skill}
+                    isActive={selectedSkills.has(skill)}
+                    onClick={() => handleSkillToggle(skill)}
+                  />
+                ))}
+              </div>
+              {/* Fade effect for scrollable area on mobile */}
+              <div className="pointer-events-none absolute top-0 left-0 h-full w-6 bg-gradient-to-r from-base-200 via-base-200/80 to-transparent sm:hidden" />
+              <div className="pointer-events-none absolute top-0 right-0 h-full w-6 bg-gradient-to-l from-base-200 via-base-200/80 to-transparent sm:hidden" />
             </div>
           </div>
           {/* Sorting and search row, mobile responsive */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4 mb-4">
-            {/* Sort controls */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label htmlFor="sortKey" className="font-medium text-content-200 whitespace-nowrap">Ordina per:</label>
-              <select
-                id="sortKey"
-                value={sortKey}
-                onChange={e => setSortKey(e.target.value)}
-                className="px-2 py-1 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm"
-              >
-                <option value="stars">Stelle FantaPilot</option>
-                <option value="xBonus">xBonus</option>
-                <option value="titolarita">Titolarità</option>
-                <option value="voto_medio">Voto Medio</option>
-                <option value="big_chance">Big Chance</option>
-              </select>
-              <button
-                type="button"
-                aria-label={sortOrder === 'desc' ? 'Ordine discendente' : 'Ordine ascendente'}
-                onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-                className="ml-1 px-2 py-1 rounded border border-base-300 bg-base-100 text-content-100 hover:bg-base-200 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm"
-              >
-                {sortOrder === 'desc' ? (
-                  <span title="Ordine discendente" className="inline-block">↓</span>
-                ) : (
-                  <span title="Ordine ascendente" className="inline-block">↑</span>
-                )}
-              </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mb-4 sm:items-stretch">
+            {/* Sort controls - increased width */}
+            <div className="flex items-center gap-2 w-full sm:w-[300px] bg-base-100 rounded-lg border border-base-300 px-2 py-2 relative">
+              <div className="flex items-center w-full">
+                <select
+                  id="sortKey"
+                  value={sortKey}
+                  onChange={e => setSortKey(e.target.value)}
+                  className="w-full px-2 py-1 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm appearance-none pr-8"
+                  aria-label="Ordina per"
+                >
+                  <option value="stars">Stelle FantaPilot</option>
+                  <option value="xBonus">xBonus</option>
+                  <option value="titolarita">Titolarità</option>
+                  <option value="voto_medio">Voto Medio</option>
+                  <option value="big_chance">Big Chance</option>
+                </select>
+                {/* Custom dropdown icon */}
+                <span className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none text-content-200">
+                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+                <button
+                  type="button"
+                  aria-label={sortOrder === 'desc' ? 'Ordine discendente' : 'Ordine ascendente'}
+                  onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                  className="ml-1 px-2 py-1 rounded border border-base-300 bg-base-100 text-content-100 hover:bg-base-200 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm"
+                  title={sortOrder === 'desc' ? 'Ordine discendente' : 'Ordine ascendente'}
+                >
+                  {sortOrder === 'desc' ? (
+                    <span title="Ordine discendente" className="inline-block">↓</span>
+                  ) : (
+                    <span title="Ordine ascendente" className="inline-block">↑</span>
+                  )}
+                </button>
+              </div>
             </div>
             {/* Search input */}
-            <div className="w-full sm:w-1/3">
+            <div className="w-full sm:w-[260px] flex items-center bg-base-100 rounded-lg border border-base-300 px-3 py-2">
               <input
                 type="text"
                 placeholder="Digita nome giocatore…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-3 pr-4 py-2 rounded-lg bg-white border-2 border-gray-200 text-black placeholder-black/50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-all duration-200 ease-in-out text-sm"
+                className="w-full bg-transparent border-none outline-none text-sm text-content-100 placeholder-content-200"
               />
             </div>
-            {/* Analyze button and info */}
-            <div className="w-full sm:w-1/2 flex flex-col gap-1">
-              <button
-                onClick={handleAnalysisRequest}
-                disabled={isAnalysisLoading || filteredPlayers.length === 0}
-                className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-2 px-3 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-base sm:text-base"
-                title={filteredPlayers.length > 0 ? `Giocatori analizzati: ${filteredPlayers.slice(0, 20).map(p => p.player_name).join(', ')}${filteredPlayers.length > 20 ? ` +${filteredPlayers.length - 20} altri (solo i primi 20 verranno analizzati)` : ''}` : 'Analizza i giocatori selezionati con l’AI'}
-              >
-                {isAnalysisLoading ? (
-                  <>
-                    <Loader className="w-5 h-5 mr-2 animate-spin" />
-                    Analisi in corso...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    {filteredPlayers.length > 20
-                      ? 'Analizza (primi 20)'
-                      : `Analizza (${filteredPlayers.length})`}
-                    <span className="ml-2 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white hidden xs:inline">1 Credito AI</span>
-                  </>
-                )}
-              </button>
-              <div className="mb-1 mt-1">
-                <p className="text-xs text-content-200 font-medium leading-tight">Puoi analizzare un segmento di massimo 20 giocatori alla volta. Seleziona filtri o preferiti per restringere la lista.</p>
+            {/* Analyze button and info - reduced width */}
+            <div className="w-full sm:w-webkit-fill-available; flex flex-col justify-end">
+              <div className="mb-1 mt-1 flex items-center h-full">
+                {/* Tooltip for Analizza button */}
+                <div className="relative group flex-grow">
+                  <button
+                    onClick={handleAnalysisRequest}
+                    disabled={isAnalysisLoading || filteredPlayers.length === 0}
+                    className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-2 px-2 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-base sm:text-base h-full min-h-[44px]"
+                    // title={filteredPlayers.length > 0 ? `Giocatori analizzati: ${filteredPlayers.slice(0, 20).map(p => p.player_name).join(', ')}${filteredPlayers.length > 20 ? ` +${filteredPlayers.length - 20} altri (solo i primi 20 verranno analizzati)` : ''}` : 'Analizza i giocatori selezionati con l’AI'}
+                    tabIndex={0}
+                  >
+                    {isAnalysisLoading ? (
+                      <>
+                        <Loader className="w-5 h-5 mr-2 animate-spin" />
+                        Analisi in corso...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5 mr-2" />
+                        {filteredPlayers.length > 20
+                          ? 'Analizza (primi 20)'
+                          : `Analizza (${filteredPlayers.length})`}
+                        <span className="ml-2 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white hidden xs:inline">1 Credito AI</span>
+                      </>
+                    )}
+                  </button>
+                  {/* Tooltip overlay on hover/focus */}
+                  <div className="absolute left-1/2 z-20 -translate-x-1/2 mt-2 w-max min-w-[220px] max-w-xs bg-base-900 text-content-100 text-xs font-medium rounded-lg shadow-lg border border-base-300 px-4 py-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-all duration-200" style={{top: '2.2rem'}}>
+                    Puoi analizzare un segmento di massimo 20 giocatori alla volta. Seleziona filtri o preferiti per restringere la lista.
+                  </div>
+                </div>
+                {/* Alert icon if needed */}
                 {filteredPlayers.length > 20 && (
-                  <p className="mt-1 text-xs text-red-400 font-semibold">
-                    Giocatori selezionati: {filteredPlayers.length}. Seleziona massimo 20 giocatori per l'analisi aggregata.
-                  </p>
+                  <div className="relative inline-block group ml-2 flex-shrink-0">
+                    <span
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600 border border-red-200 cursor-pointer transition-all duration-150 shadow-sm group-hover:bg-red-200 group-focus:bg-red-200"
+                      tabIndex={0}
+                      aria-label={`Limite massimo: ${filteredPlayers.length} selezionati, massimo 20 per analisi`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 5.5a7 7 0 100 14 7 7 0 000-14z" /></svg>
+                    </span>
+                    {/* Overlay/tooltip on hover/focus */}
+                    <div className="absolute right-0 z-20 mt-2 w-max min-w-[220px] max-w-xs bg-white text-red-700 text-xs font-semibold rounded-lg shadow-lg border border-red-200 px-4 py-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-all duration-200" style={{top: '2.2rem'}}>
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 5.5a7 7 0 100 14 7 7 0 000-14z" /></svg>
+                        <span>Giocatori selezionati: {filteredPlayers.length}.<br/>Seleziona massimo <b>20</b> giocatori per l'analisi aggregata.</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
