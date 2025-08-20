@@ -73,7 +73,7 @@ export const CookieBanner: React.FC = () => {
         </div>
       )}
       <div className="fixed bottom-0 left-0 w-full bg-base-200 text-content-200 text-center text-xs py-2 z-[10000] border-t border-base-300">
-        © {new Date().getFullYear()} FantaCopilot · Tutti i diritti riservati · <a href="/privacy" className="underline text-brand-primary">Privacy</a>
+        © {new Date().getFullYear()} FantaPilot · Tutti i diritti riservati · <a href="/privacy" className="underline text-brand-primary">Privacy</a>
       </div>
     </>
   );

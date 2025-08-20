@@ -13,7 +13,7 @@ const TermsPage: React.FC = () => (
     {/* 1. Oggetto */}
     <h2 className="text-xl font-semibold mt-6 mb-2">1. Oggetto</h2>
     <p>
-      I presenti Termini regolano l’accesso e l’utilizzo di <strong>FantaCopilot</strong>
+      I presenti Termini regolano l’accesso e l’utilizzo di <strong>FantaPilot</strong>
       (la “<strong>Piattaforma</strong>”), offerta da <strong>[Nome / Ragione Sociale] – P. IVA [xxx] – REA [xxx] – PEC [xxx]</strong>
       (il “<strong>Fornitore</strong>”). La Piattaforma è destinata esclusivamente a <strong>consumatori</strong> (persone fisiche che agiscono per scopi estranei alla propria attività professionale).
     </p>

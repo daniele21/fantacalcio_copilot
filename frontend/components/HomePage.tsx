@@ -229,7 +229,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
           <div className="h-6 md:h-8" />
           <p className="mt-4 text-base xs:text-lg md:text-2xl font-semibold text-content-200 px-2 md:px-0">
-            FantaCopilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
+            FantaPilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
           </p>
           <div className="mt-8 flex flex-col items-center gap-2 w-full">
             {!isLoggedIn ? (

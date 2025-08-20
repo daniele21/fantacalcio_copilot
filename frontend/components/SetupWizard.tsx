@@ -242,7 +242,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
       <div className="bg-base-200 w-full max-w-lg xs:max-w-xl sm:max-w-2xl rounded-2xl shadow-2xl border border-base-300/50 p-1 xs:p-2 sm:p-6 md:p-8 max-h-screen h-full flex flex-col animate-fade-in-up overflow-y-auto">
         <div className="flex flex-col items-center text-center flex-shrink-0 px-2 xs:px-4">
           <ShieldCheck className="w-14 xs:w-16 h-14 xs:h-16 text-brand-primary mb-3 xs:mb-4" />
-          <h2 className="text-2xl xs:text-3xl font-bold text-content-100">Benvenuto in FantaCopilot</h2>
+          <h2 className="text-2xl xs:text-3xl font-bold text-content-100">Benvenuto in FantaPilot</h2>
           <button
             type="button"
             onClick={() => navigate('/')} 

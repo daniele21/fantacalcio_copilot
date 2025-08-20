@@ -325,7 +325,7 @@ export const PlayerExplorerView: React.FC<PlayerExplorerViewProps> = ({ leagueSe
                 onChange={e => setSortKey(e.target.value)}
                 className="px-2 py-1 rounded-lg border border-base-300 bg-base-100 text-content-100 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary text-sm"
               >
-                <option value="stars">Stelle FantaCopilot</option>
+                <option value="stars">Stelle FantaPilot</option>
                 <option value="xBonus">xBonus</option>
                 <option value="titolarita">Titolarità</option>
                 <option value="voto_medio">Voto Medio</option>

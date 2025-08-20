@@ -149,8 +149,9 @@ const App: React.FC = () => {
         setTargetPlayers(prev => prev.filter(p => p.id !== playerId));
     }, []);
 
-    const handleTargetBidChange = useCallback((playerId: number, newBid: number) => {
-        setTargetPlayers(prev => prev.map(p => p.id === playerId ? { ...p, maxBid: newBid } : p));
+    const handleTargetBidChange = useCallback((playerId: number | string, newBid: number) => {
+        const idNum = typeof playerId === 'string' ? parseInt(playerId, 10) : playerId;
+        setTargetPlayers(prev => prev.map(p => Number(p.id) === idNum ? { ...p, maxBid: newBid } : p));
     }, []);
 
     // Live Auction Handlers

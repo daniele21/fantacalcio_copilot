@@ -245,7 +245,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                                 {typeof playerForBidding.recommendation === 'number' && (
                                     <div className="mt-2 inline-block bg-brand-primary/10 border border-brand-primary/30 rounded-lg px-3 py-1">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-brand-primary text-xs">FantaCopilot Score</span>
+                                            <span className="font-bold text-brand-primary text-xs">FantaPilot Score</span>
                                             <span className="flex items-center">
                                                 {Array.from({ length: 5 }).map((_, i) => (
                                                     <span key={i} className={i < Math.round(playerForBidding.stars ?? 0) ? 'text-yellow-400' : 'text-base-300'}>★</span>
