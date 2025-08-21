@@ -1,7 +1,12 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { Player, MyTeamPlayer, LeagueSettings, Role, BiddingAdviceResult } from '../types';
 import { getBiddingAdvice } from '../services/geminiService';
-import { Search, Sparkles, X, Loader, AlertTriangle, Gavel, Coins, MessageSquare, Star, PiggyBank, Users, Tag, Lightbulb, MessageSquareDot, CheckCircle } from 'lucide-react';
+import { Search, Sparkles, X, Loader, AlertTriangle, Gavel, MessageSquare, Lightbulb, MessageSquareDot, CheckCircle } from 'lucide-react';
+import { NumberStepper } from './NumberStepper';
+import ShowNoCreditDialog from './showNoCreditDialog';
+import { useApi } from '../services/useApi';
+import { AuthContext } from '../services/AuthContext';
+
 // Snackbar for confirmation
 const Snackbar: React.FC<{ open: boolean; message: string; onClose: () => void }> = ({ open, message, onClose }) => (
     <div
@@ -14,12 +19,6 @@ const Snackbar: React.FC<{ open: boolean; message: string; onClose: () => void }
         <button onClick={onClose} className="ml-4 text-white/80 hover:text-white" aria-label="Chiudi notifica">&times;</button>
     </div>
 );
-import { NumberStepper } from './NumberStepper';
-import ShowNoCreditDialog from './showNoCreditDialog';
-import { useApi } from '../services/useApi';
-import { base_url } from '../services/api';
-import { AuthContext } from '../services/AuthContext';
-
 interface BiddingAssistantProps {
     availablePlayers: Player[];
     myTeam: MyTeamPlayer[];
@@ -259,39 +258,43 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                             </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-4 items-stretch">
-                            <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-end">
+                            <div className="flex-1 flex flex-col">
                                 <label htmlFor="current_bid" className="text-sm font-medium text-content-200 mb-1 block">Offerta Attuale</label>
-                                <div className="flex justify-center items-center gap-2 bg-base-100 border-2 border-base-300 rounded-lg px-2 py-2 w-full max-w-xs mx-auto">
-                                    <NumberStepper
-                                        value={currentBid}
-                                        onChange={onCurrentBidChange}
-                                        min={1}
-                                        max={999}
-                                        step={1}
-                                        inputClassName="text-2xl font-bold bg-transparent border-none focus:ring-0 focus:border-none"
-                                        ariaLabelDecrement="Diminuisci offerta"
-                                        ariaLabelIncrement="Aumenta offerta"
-                                        disabled={false}
-                                    />
-                                    <span className="text-content-200 text-base font-semibold ml-1">💰</span>
+                                <div className="flex flex-row items-center gap-2 bg-base-100 border-2 border-base-300 rounded-lg px-2 py-1.5 w-full justify-center">
+                                    <div className="flex-1 flex justify-center">
+                                        <NumberStepper
+                                            value={currentBid}
+                                            onChange={onCurrentBidChange}
+                                            min={1}
+                                            max={999}
+                                            step={1}
+                                            inputClassName="w-full text-xl sm:text-2xl font-bold bg-transparent border-none focus:ring-0 focus:border-none text-center"
+                                            ariaLabelDecrement="Diminuisci offerta"
+                                            ariaLabelIncrement="Aumenta offerta"
+                                            disabled={false}
+                                        />
+                                    </div>
+                                    <span className="text-content-200 text-lg font-semibold ml-1">💰</span>
                                 </div>
                             </div>
-                            <button
-                                onClick={handleGetAdvice}
-                                disabled={isLoadingAdvice}
-                                className="w-full sm:w-auto h-[54px] sm:h-[62px] flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-brand-primary mt-4 sm:mt-0"
-                                aria-label="Chiedi consiglio AI"
-                            >
-                                {isLoadingAdvice ? (
-                                    <><Loader className="w-6 h-6 mr-3 animate-spin" />Analisi...</>
-                                ) : (
-                                    <>
-                                        <Sparkles className="w-6 h-6 mr-3" />Chiedi Consiglio
-                                        <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
-                                    </>
-                                )}
-                            </button>
+                            <div className="flex sm:block w-full sm:w-auto mt-4 sm:mt-0">
+                                <button
+                                    onClick={handleGetAdvice}
+                                    disabled={isLoadingAdvice}
+                                    className="w-full sm:w-auto h-[48px] sm:h-[54px] flex items-center justify-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                    aria-label="Chiedi consiglio AI"
+                                >
+                                    {isLoadingAdvice ? (
+                                        <><Loader className="w-6 h-6 mr-3 animate-spin" />Analisi...</>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-6 h-6 mr-3" />Chiedi Consiglio
+                                            <span className="ml-3 px-2 py-0.5 rounded bg-white/20 border border-white/30 text-xs font-semibold text-white">1 Credito AI</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
 
                         {error && <p className="text-red-400 text-sm flex items-center gap-2 mt-2"><AlertTriangle className="w-4 h-4"/>{error}</p>}
@@ -327,21 +330,23 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                             <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4 items-stretch">
                                 <div>
                                     <label htmlFor="final_price" className="text-sm font-medium text-content-200 mb-1 block">Prezzo Finale</label>
-                                    <div className="flex justify-center items-center gap-2 bg-base-100 border-2 border-base-300 rounded-lg px-2 py-2 w-full max-w-xs mx-auto">
-                                        <NumberStepper
-                                            value={finalPrice}
-                                            onChange={val => {
-                                                setFinalPrice(val);
-                                                setFinalPriceTouched(true);
-                                            }}
-                                            min={1}
-                                            max={999}
-                                            step={1}
-                                            inputClassName="text-2xl font-bold bg-transparent border-none focus:ring-0 focus:border-none"
-                                            ariaLabelDecrement="Diminuisci prezzo finale"
-                                            ariaLabelIncrement="Aumenta prezzo finale"
-                                            disabled={false}
-                                        />
+                                    <div className="flex items-center gap-2 bg-base-100 border-2 border-base-300 rounded-lg px-2 py-2 w-full justify-center">
+                                        <div className="flex-1 flex justify-center">
+                                            <NumberStepper
+                                                value={finalPrice}
+                                                onChange={val => {
+                                                    setFinalPrice(val);
+                                                    setFinalPriceTouched(true);
+                                                }}
+                                                min={1}
+                                                max={999}
+                                                step={1}
+                                                inputClassName="w-full text-2xl font-bold bg-transparent border-none focus:ring-0 focus:border-none text-center"
+                                                ariaLabelDecrement="Diminuisci prezzo finale"
+                                                ariaLabelIncrement="Aumenta prezzo finale"
+                                                disabled={false}
+                                            />
+                                        </div>
                                         <span className="text-content-200 text-base font-semibold ml-1">💶</span>
                                     </div>
                                 </div>
