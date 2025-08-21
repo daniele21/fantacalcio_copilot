@@ -39,3 +39,6 @@ __pycache__/
 *deploy*
 fantacalcio-project-0191a57d85d2.json
 frontend/.firebaserc
+player_statistics_*
+perf_metrics_*
+*md
