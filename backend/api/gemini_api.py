@@ -398,10 +398,10 @@ def gemini_bidding_advice():
         )
         config = types.GenerateContentConfig(
             tools=[grounding_tool],
-            thinking_config=types.ThinkingConfig(thinking_budget=64),
+            thinking_config=types.ThinkingConfig(thinking_budget=32),
             response_schema=schema,
             temperature=0.1,
-            max_output_tokens=1024,
+            max_output_tokens=512,
         )
         response = genai_client.models.generate_content(
             model=GEMINI_MODEL,
