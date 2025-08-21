@@ -1,11 +1,16 @@
+
 import json
 import os
 import logging
 import google.genai as genai
 from google.genai import types
-from flask import Blueprint, request, current_app
-from .util import require_auth, jsonify_success, jsonify_error
+from flask import Blueprint, request, current_app, g
+from .util import require_auth, jsonify_success, jsonify_error, get_db
 import time
+try:
+    from google.cloud import firestore
+except ImportError:
+    firestore = None
 
 # --- GEMINI AI ENDPOINTS ---
 gemini_api = Blueprint('gemini_api', __name__)
@@ -286,13 +291,24 @@ def gemini_bidding_advice():
     auction_log = data.get('auctionLog', {})  # Ensure always defined
     initial_budget = data['settings']['budget']
     participant_status = get_participants_status_by_position(auction_log, initial_budget, player['position']) 
-    
-    # Validate input
-    if not (isinstance(player, dict) and isinstance(my_team, list) and isinstance(settings, dict) and isinstance(role_budget, dict)):
-        logger.warning(f"Malformed input for bidding-advice: {data}")
-        return jsonify_error("bad_request", "Input non valido per il consiglio sull'offerta.")
-    if current_bid is None or not isinstance(current_bid, (int, float)):
-        return jsonify_error("bad_request", "Input non valido: specificare l'offerta attuale come numero.")
+
+    # --- 1) Pre-check credits ---
+    import os
+    from flask import g
+    db = get_db()
+    sub = g.user_id
+    db_type = os.getenv('DB_TYPE', 'sqlite')
+    if db_type == 'firestore':
+        user_ref = db.collection('users').document(sub)
+        doc = user_ref.get()
+        if not doc.exists or doc.to_dict().get('ai_credits', 0) < 1:
+            return jsonify_error('no_credits', 'Crediti AI esauriti', 403)
+    else:
+        row = db.execute("SELECT ai_credits, api_cost, spent_credits FROM users WHERE google_sub = ?", (sub,)).fetchone()
+        if not row or row['ai_credits'] < 1:
+            return jsonify_error('no_credits', 'Crediti AI esauriti', 403)
+
+    # --- 2) Call Gemini (existing logic) ---
     spent_budget = sum(p.get('purchasePrice', 0) for p in my_team)
     remaining_budget = settings.get('budget', 0) - spent_budget
     total_slots_left = sum(settings.get('roster', {}).values()) - len(my_team)
@@ -368,33 +384,24 @@ def gemini_bidding_advice():
 
     "LINGUA\n"
     "Rispondi in italiano.\n"
-)
+    )
     try:
         start_time = time.time()
         schema = types.Schema(
             type=types.Type.OBJECT,
             properties={
-                # "roleBudgetAdvice": types.Schema(type=types.Type.STRING),
-                # "roleSlotAdvice": types.Schema(type=types.Type.STRING),
-                # "recommendedPriceAdvice": types.Schema(type=types.Type.STRING),
                 "opportunityAdvice": types.Schema(type=types.Type.STRING),
                 "participantAdvice": types.Schema(type=types.Type.STRING),
                 "finalAdvice": types.Schema(type=types.Type.STRING),
             },
-            required=[
-                    # "roleBudgetAdvice", 
-                    #   "roleSlotAdvice", 
-                    #   "recommendedPriceAdvice", 
-                      "opportunityAdvice", 
-                      "participantAdvice", 
-                      "finalAdvice"],
+            required=["opportunityAdvice", "participantAdvice", "finalAdvice"],
         )
         config = types.GenerateContentConfig(
             tools=[grounding_tool],
-            thinking_config=types.ThinkingConfig(thinking_budget=256),
+            thinking_config=types.ThinkingConfig(thinking_budget=64),
             response_schema=schema,
             temperature=0.1,
-            max_output_tokens=512,
+            max_output_tokens=1024,
         )
         response = genai_client.models.generate_content(
             model=GEMINI_MODEL,
@@ -406,23 +413,39 @@ def gemini_bidding_advice():
         text = response.text.replace('```json', '').replace('```', '').strip()
         logger.info(f"[Gemini bidding-advice raw response]: {text}")
         result = json.loads(text)
-        required_keys = [
-                        # "roleBudgetAdvice", 
-                        #  "roleSlotAdvice", 
-                        #  "recommendedPriceAdvice", 
-                         "opportunityAdvice", 
-                         "participantAdvice",
-                         "finalAdvice"]
+        required_keys = ["opportunityAdvice", "participantAdvice", "finalAdvice"]
         if not (isinstance(result, dict) and all(k in result for k in required_keys)):
             return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON di consiglio valido (chiavi mancanti).")
         usage_meta = getattr(response, 'usage_metadata', None)
         input_tokens = getattr(usage_meta, 'prompt_token_count', 0) if usage_meta else 0
         output_tokens = getattr(usage_meta, 'candidates_token_count', 0) if usage_meta else 0
         cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
-        logger.info(f"Gemini bidding-advice called for player={player.get('name')}, bid={current_bid}")
+
+        # --- 3) On success, decrement credits atomically ---
+        new_credits = None
+        if db_type == 'firestore':
+            user_ref.update({
+                'ai_credits': firestore.Increment(-1),
+                'api_cost': firestore.Increment(cost),
+                'spent_credits': firestore.Increment(1),
+            })
+            new_credits = doc.to_dict().get('ai_credits', 0) - 1
+        else:
+            cur = db.execute(
+                "UPDATE users SET ai_credits = ai_credits - 1, api_cost = api_cost + ?, spent_credits = spent_credits + 1 "
+                "WHERE google_sub = ? AND ai_credits > 0",
+                (cost, sub)
+            )
+            db.commit()
+            if cur.rowcount == 0:
+                return jsonify_error('no_credits', 'Crediti AI esauriti', 403)
+            new_credits = row['ai_credits'] - 1
+
+        logger.info(f"Gemini bidding-advice called for player={player.get('name')}, bid={current_bid}, ai_credits={new_credits}")
         return jsonify_success({
             'result': result,
-            'cost': cost
+            'cost': cost,
+            'ai_credits': new_credits
         })
     except Exception as e:
         logger.error(f"Gemini bidding-advice error: {e}")
