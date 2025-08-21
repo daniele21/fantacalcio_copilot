@@ -19,37 +19,34 @@ export const SuccessPage: React.FC = () => {
 
   useEffect(() => {
     if (!sessionId) return;
-    call<any>(`${BASE_URL}/api/checkout-session?sessionId=${sessionId}`)
-      .then(data => {
-        const meta = data.data.metadata;
-        const postBody: any = { sessionId };
+    (async () => {
+      try {
+        const data = await call<any>(`${BASE_URL}/api/checkout-session?sessionId=${sessionId}`);
+        const meta = data.data.metadata || {};
+        const body: any = { sessionId };
         if (meta.credits) {
           setCredits(Number(meta.credits));
-          postBody.credits = Number(meta.credits);
+          body.credits = Number(meta.credits);
         }
         if (meta.plan) {
           setPlan(meta.plan);
-          postBody.plan = meta.plan;
+          body.plan = meta.plan;
         }
-        if (postBody.credits && !postBody.plan && profile?.plan) {
-          postBody.current_plan = profile.plan;
+        if (body.credits && !body.plan && profile?.plan) {
+          body.current_plan = profile.plan;
         }
-        call<any>(`${BASE_URL}/api/checkout-session`, {
+        await call<any>(`${BASE_URL}/api/checkout-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(postBody),
+          body: JSON.stringify(body),
         });
-        // Refresh user profile to update plan after payment, after 3 seconds
-        setTimeout(() => {
-          refreshProfile();
-        }, 3000);
-      })
-      .catch(() => {
+        await refreshProfile();
+      } catch (e) {
         setError(true);
-      })
-      .finally(() => {
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, profile?.plan]);
 

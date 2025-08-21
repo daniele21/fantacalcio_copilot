@@ -174,48 +174,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // After TOS accepted, complete login
   useEffect(() => {
-    // If TOS is already accepted, skip dialog
     if (pendingToken && !tosAccepted) {
-      // Try to fetch profile with pendingToken to check tos_accepted
-      fetch(`${BASE_URL}/api/me`, {
-        headers: { Authorization: `Bearer ${pendingToken}` }
-      })
-        .then(resp => {
+      (async () => {
+        try {
+          const resp = await fetch(`${BASE_URL}/api/me`, {
+            headers: { Authorization: `Bearer ${pendingToken}` }
+          });
           if (!resp.ok) {
             setPendingToken(null);
             setShowTosDialog(false);
             alert('Login non riuscito. Il token Google non è valido o la sessione è scaduta.');
-            return { data: null };
+            return;
           }
-          return resp.json();
-        })
-        .then(data => {
+          const data = await resp.json();
           const user = data.data || {};
           if (user.tos_accepted) {
             setTosAccepted(true);
-            localStorage.setItem("idToken", pendingToken);
+            localStorage.setItem('idToken', pendingToken);
             setIdToken(pendingToken);
-            loadProfile(pendingToken);
+            await loadProfile(pendingToken);
             setPendingToken(null);
             setShowTosDialog(false);
-          } else if (!user.tos_accepted && user.email) {
-            // Show TOS dialog only if user exists and TOS not accepted
+          } else if (user.email) {
             setShowTosDialog(true);
           } else {
             setPendingToken(null);
             setShowTosDialog(false);
             alert('Login non riuscito. L’utente non esiste o non è stato creato.');
           }
-        });
+        } catch (e) {
+          console.error('[Auth] /api/me failed', e);
+          setPendingToken(null);
+          setShowTosDialog(false);
+          alert('Problema di rete/CORS durante il login. Riprova.');
+        }
+      })();
     }
     if (tosAccepted && pendingToken) {
-      localStorage.setItem("idToken", pendingToken);
+      localStorage.setItem('idToken', pendingToken);
       setIdToken(pendingToken);
       loadProfile(pendingToken);
       setPendingToken(null);
       setShowTosDialog(false);
     }
-  }, [tosAccepted, pendingToken, loadProfile]);
+  }, [pendingToken, tosAccepted, loadProfile]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('idToken');
@@ -241,6 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           window.google.accounts.id.initialize({
             client_id: clientId,
             callback: handleCredentialResponse,
+            ux_mode: 'popup',
           });
           setIsGoogleAuthReady(true); // GSI initialized successfully
           console.log('[AuthContext] Google Sign-In initialized successfully.');

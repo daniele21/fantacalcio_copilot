@@ -48,10 +48,22 @@ def create_app():
         'https://fantacalcio-project.web.app'
     ]
 
+
     # Stripe setup
     stripe.api_key = app.config['STRIPE_SECRET_KEY']
 
+    # --- Flask-Limiter setup ---
+    limiter = Limiter(get_remote_address, default_limits=["60 per minute"])
+    limiter.init_app(app)
+    app.limiter = limiter  # Attach to app for blueprint access
+
+    # Never rate-limit preflight OPTIONS requests
+    @limiter.request_filter
+    def skip_preflight_requests():
+        return request.method == "OPTIONS"
+
     # Handle CORS preflight for /api/*
+
     @app.before_request
     def handle_global_options():
         if request.method == 'OPTIONS':
@@ -60,11 +72,11 @@ def create_app():
             if origin and origin in app.config['CORS_ORIGINS']:
                 response.headers['Access-Control-Allow-Origin'] = origin
                 response.headers['Vary'] = 'Origin'
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-                response.headers['Access-Control-Allow-Headers'] = request.headers.get(
-                    'Access-Control-Request-Headers', 'Authorization,Content-Type'
-                )
-                response.headers['Access-Control-Allow-Methods'] = 'GET,POST,DELETE,OPTIONS'
+                # Credentials not needed (and can be omitted)
+                # response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.headers['Access-Control-Allow-Headers'] = 'authorization, content-type'
+                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+                response.headers['Access-Control-Max-Age'] = '600'
             return response
 
     # Teardown DB
@@ -94,12 +106,13 @@ def create_app():
             user_doc = user_ref.get()
             if not user_doc.exists:
                 plan = 'free'
+                ai_credits = CREDITS_PER_PLAN['credits_per_plan'][plan]
                 # Create user if not exists
                 user_ref.set({'plan': plan, 
                               'email': g.user_email, 
                               'created_at': firestore.SERVER_TIMESTAMP, 
-                              'ai_credits': CREDITS_PER_PLAN['credits_per_plan'][plan]}, 
-                             merge=True)
+                              'ai_credits': ai_credits
+                             }, merge=True)
                 tos_accepted = False
             else:
                 user_data = user_doc.to_dict()
@@ -119,7 +132,7 @@ def create_app():
             row = db.execute("SELECT plan, ai_credits FROM users WHERE google_sub = ?", (sub,)).fetchone()
             if not row:
                 plan = 'free'
-                credits = CREDITS_PER_PLAN.get(plan, 0)
+                credits = credits or CREDITS_PER_PLAN['credits_per_plan'].get(plan, 0)
                 db.execute(
                     "INSERT INTO users (google_sub, plan, ai_credits) VALUES (?, ?, ?)",
                     (sub, plan, credits)
@@ -185,11 +198,13 @@ def create_app():
             return jsonify_error('stripe_error', e.user_message or 'Could not create checkout session', 500)
 
     # --- /api/checkout-session ---
+
     @app.route('/api/checkout-session', methods=['GET'])
     @require_auth
     def get_checkout_session():
         session_id = request.args.get('sessionId')
-        credits = request.args.get('credits', 0)
+        credits_arg = request.args.get('credits')
+        credits = int(credits_arg) if credits_arg is not None else None
         if not session_id:
             return jsonify_error('missing_session', 'Missing sessionId')
         try:
@@ -198,25 +213,23 @@ def create_app():
             db = get_db()
             if session.payment_status in ('paid', 'complete') and session.metadata:
                 plan = session.metadata.get('plan')
-                credits = CREDITS_PER_PLAN.get(plan, 0) if credits == 0 else int(credits)
+                # Use correct plan lookup for credits
+                credits = credits or CREDITS_PER_PLAN['credits_per_plan'].get(plan, 0)
                 if db_type == 'firestore':
                     user_ref = db.collection('users').document(session.client_reference_id)
                     user_doc = user_ref.get()
                     last_session_id = None
                     current_credits = 0
+                    existing_plan = None
                     if user_doc.exists:
                         user_data = user_doc.to_dict()
                         last_session_id = user_data.get('last_session_id')
                         current_credits = user_data.get('ai_credits', 0)
+                        existing_plan = user_data.get('plan')
                     if last_session_id != session.id:
-                        # If this is a topup (not a plan change), add credits to existing
-                        if plan == user_data.get('plan'):
-                            new_credits = current_credits + credits
-                        else:
-                            new_credits = credits
+                        new_credits = current_credits + credits if (existing_plan and plan == existing_plan) else credits
                         user_ref.set({'plan': plan, 'ai_credits': new_credits, 'last_session_id': session.id}, merge=True)
                 else:
-                    # processed_sessions table is always present from init.sql
                     already_processed = db.execute(
                         "SELECT 1 FROM processed_sessions WHERE session_id = ?", (session.id,)
                     ).fetchone()
@@ -239,12 +252,14 @@ def create_app():
             app.logger.exception('Error retrieving checkout session')
             return jsonify_error('stripe_error', 'Could not retrieve session', 500)
 
+
     @app.route('/api/checkout-session', methods=['POST'])
     @require_auth
     def post_checkout_session():
         data = request.get_json() or {}
         plan = data.get('plan')
-        credits = data.get('credits')
+        credits_arg = data.get('credits')
+        credits = int(credits_arg) if credits_arg is not None else None
         current_plan = data.get('current_plan')
         session_id = data.get('sessionId')
         if not session_id or (plan is None and credits is None):
@@ -256,7 +271,6 @@ def create_app():
             meta = session.metadata or {}
             # If credits is present, this is a credit top-up
             if credits is not None:
-                credits = int(credits)
                 if credits <= 0:
                     return jsonify_error('invalid_credits', 'Credits must be > 0')
                 if db_type == 'firestore':
@@ -289,21 +303,20 @@ def create_app():
                 return jsonify_success({'status': 'updated', 'credits': credits, 'plan': current_plan})
             # Otherwise, this is a plan change
             else:
-                credits_to_set = CREDITS_PER_PLAN.get(plan, 0)
+                credits_to_set = CREDITS_PER_PLAN['credits_per_plan'].get(plan, 0)
                 if db_type == 'firestore':
                     user_ref = db.collection('users').document(session.client_reference_id)
                     user_doc = user_ref.get()
                     last_session_id = None
                     current_credits = 0
+                    existing_plan = None
                     if user_doc.exists:
                         user_data = user_doc.to_dict()
                         last_session_id = user_data.get('last_session_id')
                         current_credits = user_data.get('ai_credits', 0)
+                        existing_plan = user_data.get('plan')
                     if last_session_id != session.id:
-                        if plan == user_data.get('plan'):
-                            new_credits = current_credits + credits_to_set
-                        else:
-                            new_credits = credits_to_set
+                        new_credits = current_credits + credits_to_set if (existing_plan and plan == existing_plan) else credits_to_set
                         user_ref.set({'plan': plan, 'ai_credits': new_credits, 'last_session_id': session.id}, merge=True)
                 else:
                     already_processed = db.execute(
@@ -685,10 +698,6 @@ def create_app():
             db.commit()
             return jsonify_success({'status': 'accepted', 'version': version})
 
-    # --- Flask-Limiter setup ---
-    limiter = Limiter(get_remote_address, default_limits=["60 per minute"])
-    limiter.init_app(app)
-    app.limiter = limiter  # Attach to app for blueprint access
 
     # Register blueprints
     app.register_blueprint(routes_giocatori)
@@ -706,11 +715,10 @@ def create_app():
         if origin and origin in app.config['CORS_ORIGINS']:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Vary'] = 'Origin'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = request.headers.get(
-                'Access-Control-Request-Headers', 'Authorization,Content-Type'
-            )
-            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,DELETE,OPTIONS'
+            # response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'authorization, content-type'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+            response.headers['Access-Control-Max-Age'] = '600'
         return response
 
     return app
