@@ -228,8 +228,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             <PoweredByGeminiBadge />
           </div>
           <div className="h-6 md:h-8" />
+          <h3 className="text-2xl xs:text-2xl md:text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 to-green-500 leading-tight">
+            <span className="block">Dimentica i file sparsi, calcoli manuali e Goditi l'Asta.</span>
+          </h3>
           <p className="mt-4 text-base xs:text-lg md:text-2xl font-semibold text-content-200 px-2 md:px-0">
-            FantaPilot usa dati in tempo reale e <strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
+            <strong>FantaPilot</strong> trasforma la tua asta con l'<strong>intelligenza artificiale</strong> per guidare ogni scelta e ogni <strong>rilancio</strong>.
           </p>
           <div className="mt-8 flex flex-col items-center gap-2 w-full">
             {!isLoggedIn ? (
@@ -260,17 +263,17 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* ------------------------------------------------ FEATURE SECTION */}
         <section className="container mx-auto px-2 xs:px-4 sm:px-6 lg:px-8 mt-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-            <FeatureCard icon={<Zap className="w-6 h-6 text-brand-primary" />} title="Vinci ogni rilancio">
-              Consigli in tempo reale su chi comprare e a che prezzo in base al budget rimanente.
+            <FeatureCard icon={<Zap className="w-6 h-6 text-brand-primary" />} title="Tutto live, tutto condiviso">
+              Ogni rilancio, assegnazione e aggiornamento di rosa è visibile a tutti in tempo reale. Nessun rischio di perdere dati o confondersi: la bacheca è unica e sempre aggiornata.
             </FeatureCard>
-            <FeatureCard icon={<BarChart2 className="w-6 h-6 text-brand-primary" />} title="Scova gemme nascoste">
-              Analisi istantanea dei punti di forza e debolezza di ogni calciatore.
+            <FeatureCard icon={<BarChart2 className="w-6 h-6 text-brand-primary" />} title="Strategia senza stress">
+              Filtra, cerca e segna i tuoi favoriti. Consulta analisi e suggerimenti AI per ogni giocatore e costruisci la tua rosa con consapevolezza.
             </FeatureCard>
-            <FeatureCard icon={<ClipboardList className="w-6 h-6 text-brand-primary" />} title="Arriva preparato all'asta">
-              Crea la tua watch-list, filtra per ruolo e ottieni strategie aggregate.
+            <FeatureCard icon={<ClipboardList className="w-6 h-6 text-brand-primary" />} title="Zero errori, zero caos">
+              Addio a calcoli manuali e note perse: budget, slot e ruoli sono aggiornati automaticamente. Ogni azione è salvata e recuperabile.
             </FeatureCard>
-            <FeatureCard icon={<ShieldCheck className="w-6 h-6 text-brand-primary" />} title="Decidi con dati freschi">
-              Infortuni, stato di forma e news aggiornate grazie a Google Search.
+            <FeatureCard icon={<ShieldCheck className="w-6 h-6 text-brand-primary" />} title="Asta più veloce, più divertente">
+              Dimentica i tempi morti: rilanci e assegnazioni sono rapidissimi, la gestione è fluida e tutti possono concentrarsi solo sulle scelte di gioco.
             </FeatureCard>
           </div>
         </section>
