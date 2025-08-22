@@ -63,7 +63,7 @@ export const InstantHeader = React.forwardRef<HTMLDivElement, InstantHeaderProps
     const suggestedCap = React.useMemo(() => {
         const scaleFactor = leagueSettings.budget / 500;
         const scaledCost = (player.baseCost ?? 0) * scaleFactor;
-        return Math.round(scaledCost * 1.15);
+        return Math.round(scaledCost);
     }, [player, leagueSettings.budget]);
 
     // Calculate slots remaining for the player's role

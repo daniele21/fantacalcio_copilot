@@ -27,7 +27,7 @@ def get_limiter():
         return None
 
 # GEMINI_MODEL = "gemini-2.5-flash-lite-preview-06-17"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 ROLE_NAMES = {
     "GK": "Portieri",
     "DEF": "Difensori",
@@ -372,6 +372,8 @@ def gemini_bidding_advice():
     "  finalAdvice: string;\n"
     "}\n\n"
 
+    "VINCOLI OBBLIGATORI: Esegui al massimo DUE query di Google Search\n\n"
+
     "LINEE GUIDA PER I CAMPI\n"
     # "- roleBudgetAdvice: 1 frase (≤160 caratteri) su come gestire il budget del ruolo in relazione a quanto allocato/speso/rimanente.\n"
     # "- roleSlotAdvice: 1 frase (≤160 caratteri) su come preservare crediti per gli slot residui del ruolo.\n"
@@ -397,8 +399,8 @@ def gemini_bidding_advice():
             required=["opportunityAdvice", "participantAdvice", "finalAdvice"],
         )
         config = types.GenerateContentConfig(
-            tools=[grounding_tool],
-            thinking_config=types.ThinkingConfig(thinking_budget=32),
+            # tools=[grounding_tool],
+            # thinking_config=types.ThinkingConfig(thinking_budget=32),
             response_schema=schema,
             temperature=0.1,
             max_output_tokens=512,
