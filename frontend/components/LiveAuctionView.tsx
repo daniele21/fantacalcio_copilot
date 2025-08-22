@@ -258,6 +258,74 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
         }
     };
 
+    // --- Download helpers ---
+    function downloadCSV(filename: string, csv: string) {
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+    }
+
+
+    function auctionLogToCSV(log: Record<number, AuctionResult>) {
+        const arr = Object.values(log);
+        if (!arr.length) return '';
+        const header = Object.keys(arr[0]).join(',');
+        const rows = arr.map(r => Object.values(r).map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+        return [header, ...rows].join('\n');
+    }
+
+    // Download all teams as a single XLSX file, one sheet per participant
+    const handleDownloadTeams = async () => {
+        // Group by buyer
+        const teamsByBuyer: Record<string, MyTeamPlayer[]> = {};
+        Object.values(localAuctionLog).forEach(result => {
+            const player = players.find(p => p.id === result.playerId);
+            if (player) {
+                const entry = { ...player, purchasePrice: result.purchasePrice };
+                if (!teamsByBuyer[result.buyer]) teamsByBuyer[result.buyer] = [];
+                teamsByBuyer[result.buyer].push(entry);
+            }
+        });
+        const XLSXmod = await import('xlsx');
+        const XLSX = XLSXmod.default || XLSXmod;
+        const wb = XLSX.utils.book_new();
+        for (const buyer in teamsByBuyer) {
+            const team = teamsByBuyer[buyer].map(p => ({
+                player_name: p.player_name,
+                position: p.position,
+                purchasePrice: p.purchasePrice
+            }));
+            const ws = XLSX.utils.json_to_sheet(team);
+            XLSX.utils.book_append_sheet(wb, ws, buyer);
+        }
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'teams.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+    };
+
+    // Download auction log as CSV
+    const handleDownloadAuctionLog = () => {
+        const csv = auctionLogToCSV(localAuctionLog);
+        downloadCSV('auction_log.csv', csv);
+    };
+
     return (
         <div>
             <div className="flex flex-wrap gap-2 mb-4">
@@ -272,6 +340,18 @@ export const LiveAuctionView: React.FC<LiveAuctionViewProps> = ({ players, myTea
                     className="px-3 py-1.5 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700"
                 >
                     Inizia Nuova Asta
+                </button>
+                <button
+                    onClick={handleDownloadTeams}
+                    className="px-3 py-1.5 text-sm font-semibold text-white bg-brand-primary rounded-md hover:bg-brand-secondary"
+                >
+                    Scarica Rose Partecipanti
+                </button>
+                <button
+                    onClick={handleDownloadAuctionLog}
+                    className="px-3 py-1.5 text-sm font-semibold text-white bg-brand-primary rounded-md hover:bg-brand-secondary"
+                >
+                    Scarica Log Asta
                 </button>
             </div>
             {isInstantHeaderVisible && (

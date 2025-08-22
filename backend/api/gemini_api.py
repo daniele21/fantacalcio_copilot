@@ -336,7 +336,7 @@ def gemini_bidding_advice():
 
     "DATI\n"
     f"Giocatore: {player['player_name']} ({ROLE_NAMES.get(player['position'], player['position'])}, {player['current_team']})\n"
-    f"Punteggio Copilot: {player['stars']}/5\n"
+    f"Punteggio FantaPilot: {player['stars']}/5\n"
     f"Budget iniziale: {initial_budget} crediti | Budget globale rimanente: {remaining_budget} crediti | Slot totali da riempire: {total_slots_left}\n"
     f"Strategia personale di allocazione del budget per ruolo: "
     f"'{ROLE_NAMES.get(player['position'], player['position'])}': "

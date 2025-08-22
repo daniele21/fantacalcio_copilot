@@ -189,7 +189,7 @@ export const BiddingAssistant: React.FC<BiddingAssistantProps> = ({
                         </h2>
                     </div>
                     <p className="text-content-200 mb-4 sm:mb-6 ml-0 sm:ml-11 text-base sm:text-lg">
-                        Il tuo copilota intelligente per le decisioni in tempo reale.
+                        Il tuo FantaPilota intelligente per le decisioni in tempo reale.
                     </p>
                 </div>
 
