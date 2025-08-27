@@ -12,6 +12,7 @@ import { DEFAULT_LEAGUE_SETTINGS } from './defaults';
 import { LeagueSettings, Player, MyTeamPlayer, AuctionResult, Role, TargetPlayer } from './types';
 import { ShieldCheck, LogOut, Loader2 } from 'lucide-react';
 import { UpgradeView } from './components/UpgradeView';
+import LineupCoachPage from './lineup/page';
 import { FeatureGuard } from './components/FeatureGuard';
 import { SuccessPage } from './components/SuccessPage';
 import { AIGenerativeBadge } from './components/shared/AIGenerativeBadge';
@@ -392,6 +393,7 @@ const App: React.FC = () => {
                                     />
                                 </FeatureGuard>
                             } />
+                            <Route path="/lineup" element={<LineupCoachPage />} />
                             <Route path="*" element={<Navigate to="/" />} />
                         </Routes>
                     )}
