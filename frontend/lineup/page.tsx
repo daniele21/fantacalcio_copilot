@@ -3,7 +3,7 @@ import ImportTeamDialog from "@/components/ImportTeamDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +14,7 @@ import SectionTitle from "./components/SectionTitle";
 import PlayerRow from "./components/PlayerRow";
 import PlayerCard from "./components/PlayerCard";
 // import MiniActions from "./components/MiniActions"; // Only import if used directly
+import RoleRow from "./components/RoleRow";
 import FormationPitch from "./components/FormationPitch";
 
 /**
@@ -185,10 +186,28 @@ function buildRecommendation(
   forcedBench: Set<string>
 ) {
   const slots = MODULE_SLOTS[module];
-  const gk = selectRolePlayers(players, "POR", slots.POR, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
-  const dif = selectRolePlayers(players, "DIF", slots.DIF, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
-  const cen = selectRolePlayers(players, "CEN", slots.CEN, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
-  const att = selectRolePlayers(players, "ATT", slots.ATT, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
+
+  // NEW: holes = how many players you explicitly sent to bench for each role
+  const holes = {
+    POR: players.filter(p => p.role === "POR" && forcedBench.has(p.id)).length,
+    DIF: players.filter(p => p.role === "DIF" && forcedBench.has(p.id)).length,
+    CEN: players.filter(p => p.role === "CEN" && forcedBench.has(p.id)).length,
+    ATT: players.filter(p => p.role === "ATT" && forcedBench.has(p.id)).length,
+  };
+
+  // clamp to never request negative slots
+  const need = {
+    POR: Math.max(0, slots.POR - holes.POR),
+    DIF: Math.max(0, slots.DIF - holes.DIF),
+    CEN: Math.max(0, slots.CEN - holes.CEN),
+    ATT: Math.max(0, slots.ATT - holes.ATT),
+  };
+
+  // build XI with the reduced counts (so holes remain visible)
+  const gk  = selectRolePlayers(players, "POR", need.POR, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
+  const dif = selectRolePlayers(players, "DIF", need.DIF, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
+  const cen = selectRolePlayers(players, "CEN", need.CEN, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
+  const att = selectRolePlayers(players, "ATT", need.ATT, riskLevel, preferDefModifier, locked, excluded, xiThreshold, forcedXI, forcedBench);
   const xi = [...gk, ...dif, ...cen, ...att];
   const xiIds = new Set(xi.map((p) => p.id));
 
@@ -354,8 +373,9 @@ export default function LineupCoachPage() {
   const viceName = rec.xi.find((p) => p.id === suggestedViceId)?.name ?? "—";
 
   return (
-  <div className="container mx-auto max-w-7xl p-4 md:p-8 space-y-8 bg-base-100 min-h-screen">
-  <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-base-200 rounded-2xl shadow-sm px-4 py-3 border border-base-300">
+    <>
+      <div className="container mx-auto max-w-7xl p-4 md:p-8 space-y-8 bg-base-100 min-h-screen">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-base-200 rounded-2xl shadow-sm px-4 py-3 border border-base-300">
         <div className="flex items-center gap-4">
           <Badge variant="secondary" className="text-lg font-bold tracking-tight bg-brand-primary text-white border-brand-secondary px-4 py-2 rounded-xl shadow">Lineup Coach</Badge>
           <div className="flex items-center gap-2 text-base text-content-100"><Info className="h-5 w-5 text-primary" /> Optimize your XI + bench for each matchday.</div>
@@ -498,110 +518,136 @@ export default function LineupCoachPage() {
             </div>
           </div>
 
-          {/* XI Pitch */}
+          {/* Four horizontal, scrollable role rows */}
           <div className="md:col-span-3 space-y-6">
-            <SectionTitle>
-              <span className="text-lg font-bold text-primary">Starting XI <span className="text-content-100 font-normal">(on pitch)</span></span>
-            </SectionTitle>
-            <FormationPitch
-              module={module}
-              players={rec.xi}
+            <RoleRow
+              title="Portieri"
+              players={players.filter(p => p.role === "POR")}
               xiIds={rec.xiIds}
-              captainId={captainId}
-              viceCaptainId={viceCaptainId}
-              onCaptain={setCaptain}
-              onViceCaptain={setVice}
-              onLock={toggleLock}
-              onExclude={toggleExclude}
               onAddToXI={forceIntoXI}
               onSendToBench={moveToBench}
-              locked={locked}
-              excluded={excluded}
+              onLock={toggleLock}
+              onExclude={toggleExclude}
+              captainId={captainId}
+              onCaptain={setCaptain}
             />
-            <Separator className="my-4" />
-            <SectionTitle>
-              <span className="text-lg font-bold text-secondary">Bench order</span>
-            </SectionTitle>
-            <div className="grid gap-4 md:grid-cols-2">
-              {rec.bench.slice(0, 7).map((p, idx) => (
-                <PlayerRow
+            <RoleRow
+              title="Difensori"
+              players={players.filter(p => p.role === "DIF")}
+              xiIds={rec.xiIds}
+              onAddToXI={forceIntoXI}
+              onSendToBench={moveToBench}
+              onLock={toggleLock}
+              onExclude={toggleExclude}
+              captainId={captainId}
+              onCaptain={setCaptain}
+            />
+            <RoleRow
+              title="Centrocampisti"
+              players={players.filter(p => p.role === "CEN")}
+              xiIds={rec.xiIds}
+              onAddToXI={forceIntoXI}
+              onSendToBench={moveToBench}
+              onLock={toggleLock}
+              onExclude={toggleExclude}
+              captainId={captainId}
+              onCaptain={setCaptain}
+            />
+            <RoleRow
+              title="Attaccanti"
+              players={players.filter(p => p.role === "ATT")}
+              xiIds={rec.xiIds}
+              onAddToXI={forceIntoXI}
+              onSendToBench={moveToBench}
+              onLock={toggleLock}
+              onExclude={toggleExclude}
+              captainId={captainId}
+              onCaptain={setCaptain}
+            />
+            {/* Bench order removed: now shown as compact strip below pitch */}
+          </div>
+
+        </CardContent>
+      </Card>
+      </div>
+
+      <Card className="mt-4 w-full">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Best XI — Horizontal pitch</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <FormationPitch
+            orientation="landscape"
+            module={module}
+            players={rec.xi}
+            xiIds={rec.xiIds}
+            captainId={captainId}
+            viceCaptainId={viceCaptainId}
+            onCaptain={setCaptain}
+            onViceCaptain={setVice}
+            onLock={toggleLock}
+            onExclude={toggleExclude}
+            onAddToXI={forceIntoXI}
+            onSendToBench={moveToBench}
+            locked={locked}
+            excluded={excluded}
+          />
+
+          {/* Bench strip (compact) */}
+          <div className="pt-3 border-t">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold tracking-wide text-muted-foreground">
+                Bench (order)
+              </span>
+              <Badge variant="outline" className="h-5 px-2 text-[10px]">
+                {Math.min(7, rec.bench.length)} shown
+              </Badge>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {rec.bench.slice(0, 7).map((p) => (
+                <button
                   key={p.id}
-                  p={p}
-                  index={idx + 1}
-                  onCaptain={setCaptain}
-                  captainId={captainId}
-                  onLock={toggleLock}
-                  onExclude={toggleExclude}
-                  onAddToXI={forceIntoXI}
-                  locked={locked}
-                  excluded={excluded}
-                />
+                  onClick={() => forceIntoXI(p.id)}
+                  className="group flex items-center gap-2 rounded-lg border bg-card/90 px-2.5 py-1.5 text-xs shadow-sm hover:ring-2 hover:ring-primary/40 transition"
+                  title="Add to XI"
+                >
+                  {/* role chip */}
+                  <span
+                    className={[
+                      "grid h-6 w-6 place-items-center rounded-full bg-background/80 text-[10px] font-semibold",
+                      // reuse your role colors:
+                      p.role === "POR"
+                        ? "ring-2 ring-sky-400/60 text-sky-700 dark:text-sky-300"
+                        : p.role === "DIF"
+                        ? "ring-2 ring-emerald-400/60 text-emerald-700 dark:text-emerald-300"
+                        : p.role === "CEN"
+                        ? "ring-2 ring-indigo-400/60 text-indigo-700 dark:text-indigo-300"
+                        : "ring-2 ring-rose-400/60 text-rose-700 dark:text-rose-300",
+                    ].join(" ")}
+                  >
+                    {p.role}
+                  </span>
+
+                  {/* name + xi */}
+                  <div className="min-w-0">
+                    <div className="truncate max-w-[120px] font-medium">{p.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      XI {Math.round(p.xiProb * 100)}%
+                    </div>
+                  </div>
+
+                  {/* quick action */}
+                  <ArrowUpCircle className="ml-1 h-4 w-4 opacity-70 group-hover:opacity-100" />
+                </button>
               ))}
             </div>
           </div>
         </CardContent>
       </Card>
 
-  <Tabs defaultValue="players" className="w-full mt-8">
-        <TabsList>
-          <TabsTrigger value="players" className="data-[state=active]:bg-brand-primary data-[state=active]:text-brand-secondary hover:bg-base-200 transition">Players</TabsTrigger>
-          <TabsTrigger value="news" className="data-[state=active]:bg-brand-primary data-[state=active]:text-brand-secondary hover:bg-base-200 transition">News digest</TabsTrigger>
-          <TabsTrigger value="review" className="data-[state=active]:bg-brand-primary data-[state=active]:text-brand-secondary hover:bg-base-200 transition">Decision review</TabsTrigger>
-        </TabsList>
 
-  <TabsContent value="players" className="grid gap-4 md:grid-cols-3">
-          {players.map((p) => (
-            <PlayerCard
-              key={p.id}
-              p={p}
-              isInXI={rec.xiIds.has(p.id)}
-              captainId={captainId}
-              viceCaptainId={viceCaptainId}
-              onCaptain={setCaptain}
-              onViceCaptain={setVice}
-              onLock={toggleLock}
-              onExclude={toggleExclude}
-              onAddToXI={forceIntoXI}
-              onSendToBench={moveToBench}
-              locked={locked}
-              excluded={excluded}
-            />
-          ))}
-        </TabsContent>
-
-        <TabsContent value="news">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Info className="h-5 w-5 text-primary" /> Latest lineup notes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {players
-                .filter((p) => p.risk !== "Safe" || p.xiProb < 0.8)
-                .map((p) => (
-                  <div key={p.id} className="flex items-start gap-3 rounded-lg border p-3 bg-base-200">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <div className="text-sm">
-                      <div className="font-medium">{p.name} — {p.team} {p.opponent}</div>
-                      <div className="text-content-100">XI prob {Math.round(p.xiProb * 100)}% · kickoff {p.kickoff}. Monitor for official lineups.</div>
-                    </div>
-                  </div>
-                ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="review">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5 text-primary" /> After-matchday review (preview)</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-content-100">
-              This section will summarize projected vs actual points, regret (points left on bench), and accuracy of your decisions to fine-tune future picks.
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+    </>
   );
 }
 
