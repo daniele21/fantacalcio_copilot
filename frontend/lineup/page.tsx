@@ -379,9 +379,8 @@ export default function LineupCoachPage() {
   const viceName = rec.xi.find((p) => p.id === suggestedViceId)?.name ?? "—";
 
   return (
-    <>
-      <div className="container mx-auto max-w-7xl p-4 md:p-8 space-y-8 bg-base-100 min-h-screen">
-        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-base-200 rounded-2xl shadow-sm px-4 py-3 border border-base-300">
+    <div className="container mx-auto max-w-7xl p-4 md:p-8 space-y-8 bg-base-100 min-h-screen">
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-base-200 rounded-2xl shadow-sm px-4 py-3 border border-base-300">
         <div className="flex items-center gap-4">
           <Badge variant="secondary" className="text-lg font-bold tracking-tight bg-brand-primary text-white border-brand-secondary px-4 py-2 rounded-xl shadow">Lineup Coach</Badge>
           <div className="flex items-center gap-2 text-base text-content-100"><Info className="h-5 w-5 text-primary" /> Optimize your XI + bench for each matchday.</div>
@@ -390,14 +389,11 @@ export default function LineupCoachPage() {
           <Button variant="secondary" className="gap-2 bg-base-100 text-brand-primary border-brand-primary hover:bg-brand-primary/10 focus-visible:ring-2 focus-visible:ring-brand-primary/50 transition font-semibold px-4 shadow" onClick={() => setImportDialogOpen(true)}>
             <RefreshCw className="h-4 w-4" /> Import Team
           </Button>
-      <ImportTeamDialog
-        open={importDialogOpen}
-        onClose={() => setImportDialogOpen(false)}
-        onImport={(selected) => {
-          // TODO: handle imported team (selected: {P: Player[], D: Player[], C: Player[], A: Player[]})
-          setImportDialogOpen(false);
-        }}
-      />
+          <ImportTeamDialog
+            open={importDialogOpen}
+            onClose={() => setImportDialogOpen(false)}
+            onImport={() => setImportDialogOpen(false)}
+          />
           {/* <Select value={matchday} onValueChange={setMatchday}>
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Matchday" /></SelectTrigger>
             <SelectContent>
@@ -421,251 +417,143 @@ export default function LineupCoachPage() {
         </div>
       </header>
 
-  <Card className="ring-2 ring-brand-primary/50 bg-base-200/80 shadow-xl border-2 border-brand-primary rounded-2xl transition-shadow hover:shadow-2xl backdrop-blur-md">
-    <CardHeader className="pb-4 bg-gradient-to-r from-brand-primary/90 to-brand-secondary/80 rounded-t-2xl border-b-2 border-brand-primary/30 shadow-sm">
-      <CardTitle className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
-        <span className="flex items-center gap-2 text-xl font-bold tracking-tight text-brand-secondary drop-shadow-sm">
-          <span className="pr-2 font-bold text-content-100 drop-shadow-sm">Suggested module:</span>
-          <span className="inline-flex items-center px-4 py-1 rounded-xl border-2 border-brand-primary bg-base-100 text-brand-primary font-extrabold text-2xl shadow-md tracking-wider" style={{minWidth:'90px',justifyContent:'center'}}>
-            {module}
-          </span>
-        </span>
-        <div className="flex flex-wrap items-center gap-4 text-base text-content-100/90">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-base-100/80 border border-brand-primary/30 shadow-sm">
-            <Zap className="h-5 w-5 text-brand-primary" />
-            <span className="font-bold text-brand-primary">{rec.teamXfp.toFixed(1)}</span>
-            <span className="text-xs font-medium text-content-100/70 ml-1">Team xFP</span>
-          </span>
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-base-100/80 border border-secondary/30 shadow-sm">
-            <span className="font-bold text-secondary">{teamAvgXIprob.toFixed(0)}%</span>
-            <span className="text-xs font-medium text-content-100/70 ml-1">Avg XI probability</span>
-          </span>
-        </div>
-      </CardTitle>
-    </CardHeader>
-  <CardContent className="grid gap-8 md:grid-cols-5">
-          {/* Controls */}
-          <div className="md:col-span-2 space-y-6 bg-base-300 rounded-xl p-4 border border-base-200 shadow-sm">
-            <div className="space-y-2">
+      <Card className="ring-1 ring-brand-primary/15 border border-base-300 rounded-2xl bg-base-100/80 backdrop-blur-md shadow-lg">
+        <CardHeader className="pb-3 border-b border-base-300/60">
+          <CardTitle className="flex items-center justify-between gap-3">
+            <span className="text-sm">
+              Suggested module: {" "}
+              <span className="inline-flex items-center rounded-lg border border-brand-primary/30 bg-brand-primary/10 px-2 py-1 font-bold text-brand-primary">
+                {module}
+              </span>
+            </span>
+            <div className="flex items-center gap-2 text-sm text-content-100/80">
+              <Zap className="h-4 w-4 text-brand-primary" /> Team xFP: {" "}
+              <span className="font-semibold text-foreground">{rec.teamXfp.toFixed(1)}</span>
+              <Separator orientation="vertical" className="mx-2 h-4" />
+              Avg XI prob: <span className="font-semibold">{teamAvgXIprob.toFixed(0)}%</span>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Controls: risk, sliders, toggles */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Risk profile */}
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Risk profile</span>
                 <Badge variant="secondary">{risk <= 33 ? "Safe" : risk >= 66 ? "Upside" : "Balanced"}</Badge>
               </div>
-              <Select
-                value={risk <= 33 ? "Safe" : risk >= 66 ? "Upside" : "Balanced"}
-                onValueChange={(v: string) => {
-                  if (v === "Safe") setRisk(0);
-                  else if (v === "Balanced") setRisk(50);
-                  else if (v === "Upside") setRisk(100);
-                }}
-              >
-                <SelectTrigger className="w-full mt-2">
-                  <SelectValue placeholder="Risk profile" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Safe">Safe</SelectItem>
-                  <SelectItem value="Balanced">Balanced</SelectItem>
-                  <SelectItem value="Upside">Upside</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium">Prefer defence modifier</div>
-                <div className="text-xs text-content-100">Prioritize DEF consistency for *modificatore difesa* leagues.</div>
+              <Slider min={0} max={100} step={1} value={[risk]} onValueChange={([v]) => setRisk(v)} className="mt-2" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Safe</span>
+                <span>Balanced</span>
+                <span>Upside</span>
               </div>
-              <Switch checked={preferDefMod} onCheckedChange={setPreferDefMod} />
             </div>
-
-            <div className="space-y-2">
+            {/* XI threshold */}
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Minimum XI probability</span>
-                <Badge variant="secondary">{Math.round(xiThreshold * 100)}%</Badge>
+                <span className="text-sm font-medium">XI Probability threshold</span>
+                <Badge variant="outline">{Math.round(xiThreshold * 100)}%</Badge>
               </div>
-              <Slider value={[Math.round(xiThreshold * 100)]} onValueChange={(v: number[]) => setXiThreshold((v[0] ?? 70) / 100)} min={50} max={100} step={1} className="mt-2" />
-              <div className="text-xs text-content-100">Auto-bench players below this starting chance unless locked/forced in XI.</div>
+              <Slider min={0.5} max={1} step={0.01} value={[xiThreshold]} onValueChange={([v]) => setXiThreshold(v)} className="mt-2" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>50%</span>
+                <span>75%</span>
+                <span>100%</span>
+              </div>
             </div>
-
-            <Alert className="bg-brand-secondary border-brand-primary">
-              <Info className="h-4 w-4 text-primary" />
-              <AlertTitle>Tip</AlertTitle>
-              <AlertDescription>
-                Use the up/down arrows to add to XI or send to bench. Lock keeps a player in XI even if projections drop.
-              </AlertDescription>
-            </Alert>
-
-            {/* Captain suggestions */}
-            <div className="rounded-2xl border-2 border-brand-primary bg-base-100 p-4 space-y-3 shadow-xl ring-2 ring-brand-primary/20">
-              <div className="text-xs font-bold text-brand-primary tracking-wide uppercase mb-1">Captain suggestions</div>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-primary/10 border-2 border-brand-primary text-brand-primary font-bold text-sm shadow-sm">
-                  <span className="bg-brand-primary rounded-full p-1 mr-1 flex items-center justify-center"><Crown className="h-4 w-4 text-white drop-shadow" /></span> {capName}
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-secondary/10 border-2 border-secondary text-secondary font-bold text-sm shadow-sm">
-                  <span className="bg-secondary rounded-full p-1 mr-1 flex items-center justify-center"><Medal className="h-4 w-4 text-content-100 drop-shadow" /></span> {viceName}
-                </span>
-                <Button size="sm" variant="secondary" className="bg-brand-primary text-brand-secondary hover:bg-brand-primary/90 focus-visible:ring-2 focus-visible:ring-brand-primary/50 transition font-semibold px-4 shadow" onClick={applyCaptainSuggestions}>Apply</Button>
+            {/* Prefer defensive modifier */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Prefer defensive modifier</span>
+                <Switch checked={preferDefMod} onCheckedChange={setPreferDefMod} />
               </div>
-              <div className="text-xs text-content-100/90">Based on <span className="font-semibold text-brand-primary">xFP</span>, <span className="font-semibold text-brand-primary">XI%</span>, set-pieces & upside preference.</div>
-            </div>
-
-            {/* Legend */}
-            <div className="rounded-xl border border-base-200 bg-base-200 p-3 space-y-2">
-              <div className="text-xs font-semibold text-content-100">Legend</div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="flex items-center gap-2"><Crown className="h-4 w-4" /> Captain</div>
-                <div className="flex items-center gap-2"><Medal className="h-4 w-4" /> Vice-captain</div>
-                <div className="flex items-center gap-2"><Lock className="h-4 w-4" /> / <Unlock className="h-4 w-4" /> Lock/Unlock in XI</div>
-                <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Exclude this week</div>
-                <div className="flex items-center gap-2"><ArrowUpCircle className="h-4 w-4" /> Add to XI</div>
-                <div className="flex items-center gap-2"><ArrowDownCircle className="h-4 w-4" /> Send to bench</div>
-              </div>
+              <span className="text-xs text-muted-foreground">Prioritize defenders for modifier bonus</span>
             </div>
           </div>
 
-          {/* Four horizontal, scrollable role rows */}
-          <div className="md:col-span-3 space-y-6">
-            <RoleRow
-              title="Portieri"
-              players={players.filter(p => p.role === "POR")}
-              xiIds={rec.xiIds}
-              onAddToXI={forceIntoXI}
-              onSendToBench={moveToBench}
-              onLock={toggleLock}
-              onExclude={toggleExclude}
-              captainId={captainId}
-              onCaptain={setCaptain}
-            />
-            <RoleRow
-              title="Difensori"
-              players={players.filter(p => p.role === "DIF")}
-              xiIds={rec.xiIds}
-              onAddToXI={forceIntoXI}
-              onSendToBench={moveToBench}
-              onLock={toggleLock}
-              onExclude={toggleExclude}
-              captainId={captainId}
-              onCaptain={setCaptain}
-            />
-            <RoleRow
-              title="Centrocampisti"
-              players={players.filter(p => p.role === "CEN")}
-              xiIds={rec.xiIds}
-              onAddToXI={forceIntoXI}
-              onSendToBench={moveToBench}
-              onLock={toggleLock}
-              onExclude={toggleExclude}
-              captainId={captainId}
-              onCaptain={setCaptain}
-            />
-            <RoleRow
-              title="Attaccanti"
-              players={players.filter(p => p.role === "ATT")}
-              xiIds={rec.xiIds}
-              onAddToXI={forceIntoXI}
-              onSendToBench={moveToBench}
-              onLock={toggleLock}
-              onExclude={toggleExclude}
-              captainId={captainId}
-              onCaptain={setCaptain}
-            />
-            {/* Bench order removed: now shown as compact strip below pitch */}
-          </div>
-
-        </CardContent>
-      </Card>
-      </div>
-
-      <Card className="mt-4 w-full">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Best XI — Horizontal pitch</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <FormationPitch
-            orientation="landscape"
-            module={module}
-            players={rec.xi.map(p => ({
-              id: p.id,
-              name: p.name,
-              role: p.role,
-              team: p.team,
-              opponent: p.opponent,
-              kickoff: p.kickoff,
-              xiProb: p.xiProb,
-              xFP: p.xFP,
-              risk: p.risk,
-              news: p.news,
-              sentiment: p.sentiment,
-            }))}
-            xiIds={rec.xiIds}
-            captainId={captainId}
-            viceCaptainId={viceCaptainId}
-            onCaptain={setCaptain}
-            onViceCaptain={setVice}
-            onLock={toggleLock}
-            onExclude={toggleExclude}
-            onAddToXI={forceIntoXI}
-            onSendToBench={moveToBench}
-            locked={locked}
-            excluded={excluded}
-          />
-
-          {/* Bench strip (compact) */}
-          <div className="pt-3 border-t">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wide text-muted-foreground">
-                Bench (order)
-              </span>
-              <Badge variant="outline" className="h-5 px-2 text-[10px]">
-                {Math.min(7, rec.bench.length)} shown
-              </Badge>
-            </div>
-
-            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {rec.bench.slice(0, 7).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => forceIntoXI(p.id)}
-                  className="group flex items-center gap-2 rounded-lg border bg-card/90 px-2.5 py-1.5 text-xs shadow-sm hover:ring-2 hover:ring-primary/40 transition"
-                  title="Add to XI"
-                >
-                  {/* role chip */}
-                  <span
-                    className={[
-                      "grid h-6 w-6 place-items-center rounded-full bg-background/80 text-[10px] font-semibold",
-                      // reuse your role colors:
-                      p.role === "POR"
-                        ? "ring-2 ring-sky-400/60 text-sky-700 dark:text-sky-300"
-                        : p.role === "DIF"
-                        ? "ring-2 ring-emerald-400/60 text-emerald-700 dark:text-emerald-300"
-                        : p.role === "CEN"
-                        ? "ring-2 ring-indigo-400/60 text-indigo-700 dark:text-indigo-300"
-                        : "ring-2 ring-rose-400/60 text-rose-700 dark:text-rose-300",
-                    ].join(" ")}
-                  >
-                    {p.role}
-                  </span>
-
-                  {/* name + xi */}
-                  <div className="min-w-0">
-                    <div className="truncate max-w-[120px] font-medium">{p.name}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      XI {Math.round(p.xiProb * 100)}%
-                    </div>
+          {/* Role rows: horizontally scrollable player cards by role */}
+          <div className="space-y-6">
+            {/* Collapsible RoleRows with colored titles */}
+            {([
+              { role: "POR", title: "Portieri" },
+              { role: "DIF", title: "Difensori" },
+              { role: "CEN", title: "Centrocampisti" },
+              { role: "ATT", title: "Attaccanti" },
+            ] as const).map(({ role, title }) => {
+              // Color logic matching PlayerCard
+              let colorClass = "";
+              switch (role) {
+                case "POR": colorClass = "text-yellow-700 dark:text-yellow-300"; break;
+                case "DIF": colorClass = "text-blue-700 dark:text-blue-300"; break;
+                case "CEN": colorClass = "text-green-700 dark:text-green-300"; break;
+                case "ATT": colorClass = "text-red-700 dark:text-red-300"; break;
+                default: colorClass = "text-content-100";
+              }
+              // Collapsible state per role
+              const [open, setOpen] = useState(true);
+              return (
+                <details key={role} open={open} onToggle={e => setOpen((e.target as HTMLDetailsElement).open)} className="rounded-xl border border-base-200 bg-base-100/60 shadow-sm">
+                  <summary className={`sticky top-0 z-10 flex items-center gap-2 px-4 py-2 text-lg font-bold cursor-pointer select-none rounded-t-xl bg-base-100/80 ${colorClass}`}>{title}</summary>
+                  <div className="p-2 pt-0">
+                    <RoleRow
+                      title={title}
+                      players={players.filter(p => p.role === role)}
+                      xiIds={rec.xiIds}
+                      onAddToXI={forceIntoXI}
+                      onSendToBench={moveToBench}
+                      onLock={toggleLock}
+                      onExclude={toggleExclude}
+                      captainId={captainId}
+                      onCaptain={setCaptain}
+                    />
                   </div>
+                </details>
+              );
+            })}
+          </div>
 
-                  {/* quick action */}
-                  <ArrowUpCircle className="ml-1 h-4 w-4 opacity-70 group-hover:opacity-100" />
-                </button>
-              ))}
+          {/* Pitch and bench strip */}
+          <div className="pt-4">
+            <FormationPitch
+              orientation="landscape"
+              module={module}
+              players={rec.xi}
+              xiIds={rec.xiIds}
+              captainId={captainId}
+              viceCaptainId={viceCaptainId}
+              onCaptain={setCaptain}
+              onViceCaptain={setVice}
+              onLock={toggleLock}
+              onExclude={toggleExclude}
+              onAddToXI={forceIntoXI}
+              onSendToBench={moveToBench}
+              locked={locked}
+              excluded={excluded}
+            />
+            {/* compact bench strip */}
+            <div className="mt-2 rounded-xl border border-base-300 bg-base-100/70 p-2">
+              <div className="mb-1 text-[11px] font-semibold text-content-100/80">Bench</div>
+              <div className="flex flex-wrap gap-2">
+                {rec.bench.slice(0, 7).map((b) => (
+                  <span
+                    key={b.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-100 px-2 py-1 text-xs"
+                    title={`${b.team} ${b.opponent} · XI ${Math.round(b.xiProb * 100)}%`}
+                  >
+                    <span className="inline-grid h-5 w-5 place-items-center rounded-full bg-brand-primary/15 text-brand-primary text-[10px] font-bold">
+                      {b.role}
+                    </span>
+                    {b.name}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
-
-
-    </>
+    </div>
   );
 }
 

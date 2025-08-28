@@ -64,15 +64,9 @@ type ModuleLayout = { POR: PitchSpot[]; DIF: PitchSpot[]; CEN: PitchSpot[]; ATT:
 
 const cx = (...s: Array<string | false | undefined>) => s.filter(Boolean).join(" ");
 
-function roleRing(role: Role) {
-  return role === "POR"
-    ? "ring-sky-400/60"
-    : role === "DIF"
-    ? "ring-emerald-400/60"
-    : role === "CEN"
-    ? "ring-indigo-400/60"
-    : "ring-rose-400/60";
-}
+
+// For placeholder logic
+const ROLE_ORDER: Role[] = ["POR", "DIF", "CEN", "ATT"];
 function riskDot(risk?: RiskTag) {
   return risk === "Safe" ? "bg-emerald-500" : risk === "Upside" ? "bg-violet-500" : "bg-rose-500";
 }
@@ -227,92 +221,90 @@ export default function FormationPitch({
         if (coords[i]) spotsRaw.push({ p, spot: coords[i] });
       });
   });
+
   const spots = resolveCollisions(spotsRaw);
 
+  // --- Placeholders for empty slots (ghost pins) ---
+  // Use the same layout logic as the main spots
+  const moduleLayout = orientation === "landscape" ? layoutLandscape : layoutPortrait;
+  const layoutObj = moduleLayout(module);
+  const usedMap = new Map<string, number>(); // role -> count used
+  spots.forEach(s => usedMap.set(s.p.role, (usedMap.get(s.p.role) ?? 0) + 1));
+
+  const placeholders: Array<{ role: Role; x: number; y: number; idx: number }> = [];
+  ROLE_ORDER.forEach((r) => {
+    const coords = (layoutObj as any)[r] as { x: number; y: number }[];
+    const used = usedMap.get(r) ?? 0;
+    for (let i = used; i < coords.length; i++) {
+      const c = coords[i];
+      placeholders.push({ role: r, x: c.x, y: c.y, idx: i });
+    }
+  });
+
+
+  // --- Modern pitch container and SVG ---
   return (
     <div
       className={cx(
-        "relative block w-full rounded-2xl border overflow-hidden",
-        // modern grass gradient
-        "bg-gradient-to-br from-emerald-600 via-green-600 to-lime-600",
-        // real football pitch ratio (105 x 68) in both orientations
-        orientation === "landscape"
-          ? "aspect-[105/68]"
-          : "aspect-[68/105]",
+        "relative block w-full rounded-2xl border border-base-300 overflow-hidden",
+        "bg-[radial-gradient(120%_120%_at_50%_-10%,_oklch(0.68_0.16_145)_0%,_oklch(0.58_0.14_145)_45%,_oklch(0.52_0.12_145)_100%)]",
+        orientation === "landscape" ? "aspect-[20/9]" : "aspect-[3/4]",
         className
       )}
     >
-      {/* stripes */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* wide vertical bands */}
+      {/* soft pitch stripes */}
+      <div className="absolute inset-0 opacity-20">
         <div
-          className="h-full w-full opacity-20"
-          style={{
-            background:
-              orientation === "landscape"
-                ? "repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0, rgba(255,255,255,.12) 8%, transparent 8%, transparent 16%)"
-                : "repeating-linear-gradient(180deg, rgba(255,255,255,.12) 0, rgba(255,255,255,.12) 8%, transparent 8%, transparent 16%)",
-          }}
+          className={
+            orientation === "landscape"
+              ? "h-full w-full bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.12)_0,rgba(255,255,255,0.12)_7%,transparent_7%,transparent_14%)]"
+              : "h-full w-full bg-[repeating-linear-gradient(180deg,rgba(255,255,255,0.12)_0,rgba(255,255,255,0.12)_7%,transparent_7%,transparent_14%)]"
+          }
         />
-        {/* vignette for depth */}
-        <div className="absolute inset-0 bg-[radial-gradient(100%_60%_at_50%_50%,transparent_60%,rgba(0,0,0,0.25)_100%)]" />
       </div>
 
       {/* field lines */}
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        // important: keep `none` so players (absolute % positions) match the lines
-        preserveAspectRatio="none"
-      >
-        <rect x="3" y="3" width="94" height="94" fill="none" stroke="white" strokeWidth="1" />
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        <rect x="3" y="3" width="94" height="94" fill="none" stroke="white" strokeWidth="0.8" />
         {orientation === "landscape" ? (
-          <line x1="50" y1="3" x2="50" y2="97" stroke="white" strokeWidth="0.8" />
+          <line x1="50" y1="3" x2="50" y2="97" stroke="white" strokeWidth="0.6" />
         ) : (
-          <line x1="3" y1="50" x2="97" y2="50" stroke="white" strokeWidth="0.8" />
+          <line x1="3" y1="50" x2="97" y2="50" stroke="white" strokeWidth="0.6" />
         )}
-        <circle cx="50" cy="50" r="8" fill="none" stroke="white" strokeWidth="0.8" />
+        <circle cx="50" cy="50" r="8" fill="none" stroke="white" strokeWidth="0.6" />
         {orientation === "landscape" ? (
           <>
-            <rect x="3" y="20" width="27" height="60" fill="none" stroke="white" strokeWidth="0.8" />
-            <rect x="3" y="32" width="18" height="36" fill="none" stroke="white" strokeWidth="0.8" />
+            <rect x="3" y="20" width="27" height="60" fill="none" stroke="white" strokeWidth="0.6" />
+            <rect x="3" y="32" width="18" height="36" fill="none" stroke="white" strokeWidth="0.6" />
             <circle cx="17" cy="50" r="1" fill="white" />
-            <rect x="70" y="20" width="27" height="60" fill="none" stroke="white" strokeWidth="0.8" />
-            <rect x="79" y="32" width="18" height="36" fill="none" stroke="white" strokeWidth="0.8" />
+            <rect x="70" y="20" width="27" height="60" fill="none" stroke="white" strokeWidth="0.6" />
+            <rect x="79" y="32" width="18" height="36" fill="none" stroke="white" strokeWidth="0.6" />
             <circle cx="83" cy="50" r="1" fill="white" />
           </>
         ) : (
           <>
-            <rect x="20" y="70" width="60" height="27" fill="none" stroke="white" strokeWidth="0.8" />
-            <rect x="32" y="79" width="36" height="18" fill="none" stroke="white" strokeWidth="0.8" />
+            <rect x="20" y="70" width="60" height="27" fill="none" stroke="white" strokeWidth="0.6" />
+            <rect x="32" y="79" width="36" height="18" fill="none" stroke="white" strokeWidth="0.6" />
             <circle cx="50" cy="83" r="1" fill="white" />
-            <rect x="20" y="3" width="60" height="27" fill="none" stroke="white" strokeWidth="0.8" />
-            <rect x="32" y="3" width="36" height="18" fill="none" stroke="white" strokeWidth="0.8" />
+            <rect x="20" y="3" width="60" height="27" fill="none" stroke="white" strokeWidth="0.6" />
+            <rect x="32" y="3" width="36" height="18" fill="none" stroke="white" strokeWidth="0.6" />
             <circle cx="50" cy="17" r="1" fill="white" />
           </>
         )}
       </svg>
 
-      {/* empty slot placeholders */}
-      {placeholderSpots.map(({ role, spot }, i) => (
+
+      {/* placeholders for empty slots */}
+      {placeholders.map(({ role, x, y, idx }) => (
         <div
-          key={`ph-${role}-${i}`}
-          className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-95"
-          style={{ left: `${spot.x}%`, top: `${spot.y}%` }}
+          key={`${role}-ghost-${idx}`}
+          className="absolute -translate-x-1/2 -translate-y-1/2 opacity-80"
+          style={{ left: `${x}%`, top: `${y}%` }}
         >
-          <div
-            className={[
-              "grid place-items-center rounded-full",
-              "h-11 w-11 sm:h-12 sm:w-12 md:h-14 md:w-14",
-              "bg-white/65 text-muted-foreground",
-              "ring-2 ring-dashed ring-white/90 ring-offset-2 ring-offset-black/20",
-              roleRing(role),
-            ].join(" ")}
-          >
-            <span className="text-[10px] sm:text-xs md:text-sm font-semibold">{role}</span>
-          </div>
-          <div className="mt-1 rounded-md bg-background/75 px-1 py-0.5 text-[9px] sm:text-[11px] text-muted-foreground text-center">
-            Empty
+          <div className="rounded-full p-[2px] bg-gradient-to-br from-base-100/40 to-base-100/10">
+            <div className="grid h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 place-items-center rounded-full border-2 border-dashed border-white/50 text-white/70">
+              <span className="text-xs sm:text-sm md:text-base font-black tracking-wide">{role}</span>
+            </div>
           </div>
         </div>
       ))}
@@ -349,37 +341,24 @@ export default function FormationPitch({
                         <button
                           type="button"
                           className={cx(
-                            "relative grid place-items-center rounded-full font-extrabold tracking-tight",
-                            // solid, high-contrast
-                            "bg-white text-neutral-900",
-                            // size
-                            "h-11 w-11 sm:h-12 sm:w-12 md:h-14 md:w-14",
-                            // glow + role-colored ring
-                            "shadow-[0_8px_22px_rgba(0,0,0,0.35)] ring-2 ring-offset-2 ring-offset-black/20",
-                            roleRing(p.role),
-                            "transition-transform hover:scale-105 active:scale-95"
+                            "relative rounded-full p-[2px]",
+                            "bg-gradient-to-br from-brand-primary via-brand-primary/70 to-brand-secondary",
+                            "shadow-[0_6px_16px_-6px_rgba(0,0,0,0.4)]"
                           )}
                           aria-label={`${p.name} ${p.role}`}
                         >
-                          <span className="text-[10px] sm:text-xs md:text-sm">{p.role}</span>
-
-                          {/* risk dot with crisp rim */}
-                          <span className={cx(
-                            "absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full ring-2 ring-white",
-                            riskDot(p.risk)
-                          )} />
-
-                          {/* C / VC badges with better contrast */}
-                          {captainId === p.id && (
-                            <span className="absolute -top-1 -right-1 rounded-full bg-amber-400 px-1 text-[10px] font-black text-amber-950 ring-2 ring-white">
-                              C
-                            </span>
-                          )}
-                          {captainId !== p.id && viceCaptainId === p.id && (
-                            <span className="absolute -top-1 -right-1 rounded-full bg-sky-400 px-1 text-[10px] font-black text-sky-950 ring-2 ring-white">
-                              VC
-                            </span>
-                          )}
+                          <span className="grid h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 place-items-center rounded-full bg-background/90 text-foreground ring-2 ring-white/20 backdrop-blur-md">
+                            <span className="text-xs sm:text-sm md:text-base font-extrabold tracking-wide">{p.role}</span>
+                            {/* risk dot */}
+                            <span className={cx("absolute -top-1 -left-1 rounded-full", "h-2.5 w-2.5", riskDot(p.risk))} />
+                            {/* C/VC */}
+                            {captainId === p.id && (
+                              <span className="absolute -top-1 -right-1 rounded-full bg-amber-400 px-1 text-[10px] font-black shadow">C</span>
+                            )}
+                            {captainId !== p.id && viceCaptainId === p.id && (
+                              <span className="absolute -top-1 -right-1 rounded-full bg-sky-400 px-1 text-[10px] font-black shadow">VC</span>
+                            )}
+                          </span>
                         </button>
                       </div>
                     </TooltipTrigger>
