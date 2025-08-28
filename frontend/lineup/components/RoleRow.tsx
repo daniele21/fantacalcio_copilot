@@ -50,7 +50,7 @@ export default function RoleRow({
     <section className="space-y-2">
       {/* title + count */}
       <div className="flex items-center gap-2">
-        <div className="text-xs font-semibold tracking-wide text-primary">{title}</div>
+        <div className="text-xs font-semibold tracking-wide text-brand-primary">{title}</div>
         <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
           {inXI}/{players.length} in XI
         </Badge>

@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   ArrowDownCircle,
   ArrowUpCircle,
+  Newspaper,
 } from "lucide-react";
 
 // --- types ------------------------------------------------------------------
@@ -40,7 +41,21 @@ export type PitchPlayer = {
   xiProb?: number;     // 0..1
   xFP?: number;        // expected fantasy points
   risk?: RiskTag;
+  news?: string;
+  sentiment?: "positive" | "neutral" | "negative";
 };
+// Helper for sentiment chip style
+function sentimentChip(s: "positive" | "neutral" | "negative" = "neutral") {
+  // Stronger color contrast for positive and negative
+  switch (s) {
+    case "positive":
+      return "bg-green-500/90 text-white border border-green-700/70 shadow-sm";
+    case "negative":
+      return "bg-rose-600/90 text-white border border-rose-900/70 shadow-sm";
+    default:
+      return "bg-base-200 text-content-100 border border-base-300";
+  }
+}
 
 type PitchSpot = { x: number; y: number };
 type ModuleLayout = { POR: PitchSpot[]; DIF: PitchSpot[]; CEN: PitchSpot[]; ATT: PitchSpot[] };
@@ -386,6 +401,17 @@ export default function FormationPitch({
                       )}
                       {typeof p.xFP === "number" && <div>xFP {p.xFP.toFixed(1)}</div>}
                     </div>
+                    {p.news && (
+                      <div className="mt-2 max-w-[260px] rounded-md border bg-base-100 p-2">
+                        <div className={`mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${sentimentChip(p.sentiment)}`}>
+                          <Newspaper className="h-3 w-3" />
+                          News
+                        </div>
+                        <div className="text-[12px] leading-snug whitespace-pre-wrap text-content-100">
+                          {p.news}
+                        </div>
+                      </div>
+                    )}
                   </TooltipContent>
                 </Tooltip>
 

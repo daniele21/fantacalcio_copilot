@@ -52,6 +52,8 @@ type Player = {
   risk: RiskTag;
   status?: "ok" | "injured" | "suspended" | "doubtful";
   setPieces?: { pens?: boolean; fks?: boolean; corners?: boolean };
+  news?: string;
+  sentiment?: "positive" | "neutral" | "negative";
 };
 
 type Module = "3-4-3" | "4-3-3" | "4-4-2" | "3-5-2";
@@ -73,6 +75,8 @@ const MOCK_PLAYERS: Player[] = [
     ciLow: 4.0,
     ciHigh: 9.0,
     risk: "Safe",
+    news: "Allenamento completo: confermato titolare.",
+    sentiment: "positive",
   },
   {
     id: "p2",
@@ -87,21 +91,23 @@ const MOCK_PLAYERS: Player[] = [
     ciLow: 2.8,
     ciHigh: 8.1,
     risk: "Rotation",
+    news: "Ballottaggio con Ravaglia: 60/40. Ultima prestazione sottotono.",
+    sentiment: "negative",
   },
   // DIF
-  { id: "p3", name: "Di Lorenzo", role: "DIF", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.96, expMinutes: 90, xFP: 7.1, ciLow: 5.0, ciHigh: 9.8, risk: "Safe" },
-  { id: "p4", name: "Bastoni", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.85, expMinutes: 82, xFP: 6.4, ciLow: 4.6, ciHigh: 9.0, risk: "Safe" },
-  { id: "p5", name: "Carlos Augusto", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.7, expMinutes: 68, xFP: 6.0, ciLow: 3.2, ciHigh: 9.6, risk: "Upside" },
+  { id: "p3", name: "Di Lorenzo", role: "DIF", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.96, expMinutes: 90, xFP: 7.1, ciLow: 5.0, ciHigh: 9.8, risk: "Safe", news: "Ottima forma, nessun problema fisico.", sentiment: "positive" },
+  { id: "p4", name: "Bastoni", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.85, expMinutes: 82, xFP: 6.4, ciLow: 4.6, ciHigh: 9.0, risk: "Safe", news: "Gestione minutaggio: possibile 70-75'.", sentiment: "neutral" },
+  { id: "p5", name: "Carlos Augusto", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.7, expMinutes: 68, xFP: 6.0, ciLow: 3.2, ciHigh: 9.6, risk: "Upside", news: "Ballottaggio con Dimarco, entra anche a gara in corso. Non al meglio fisicamente.", sentiment: "negative" },
   { id: "p6", name: "Darmian", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.76, expMinutes: 75, xFP: 5.8, ciLow: 4.1, ciHigh: 8.0, risk: "Safe" },
   // CEN
-  { id: "p7", name: "Calhanoglu", role: "CEN", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.92, expMinutes: 86, xFP: 8.1, ciLow: 5.1, ciHigh: 11.0, risk: "Safe", setPieces: { pens: true, fks: true, corners: true } },
-  { id: "p8", name: "Barella", role: "CEN", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.88, expMinutes: 84, xFP: 7.0, ciLow: 4.5, ciHigh: 9.4, risk: "Safe" },
+  { id: "p7", name: "Calhanoglu", role: "CEN", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.92, expMinutes: 86, xFP: 8.1, ciLow: 5.1, ciHigh: 11.0, risk: "Safe", setPieces: { pens: true, fks: true, corners: true }, news: "Batte piazzati: alto impatto fantacalcio.", sentiment: "positive" },
+  { id: "p8", name: "Barella", role: "CEN", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.88, expMinutes: 84, xFP: 7.0, ciLow: 4.5, ciHigh: 9.4, risk: "Safe", news: "Buon momento, nessuna gestione segnalata.", sentiment: "positive" },
   { id: "p9", name: "Politano", role: "CEN", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.83, expMinutes: 78, xFP: 7.6, ciLow: 4.2, ciHigh: 10.8, risk: "Upside", setPieces: { fks: true, corners: true } },
-  { id: "p10", name: "Rabiot", role: "CEN", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.74, expMinutes: 72, xFP: 6.1, ciLow: 3.4, ciHigh: 9.0, risk: "Rotation" },
+  { id: "p10", name: "Rabiot", role: "CEN", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.74, expMinutes: 72, xFP: 6.1, ciLow: 3.4, ciHigh: 9.0, risk: "Rotation", news: "Condizione da monitorare alla rifinitura. Problemi muscolari in settimana.", sentiment: "negative" },
   // ATT
-  { id: "p11", name: "Osimhen", role: "ATT", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.91, expMinutes: 82, xFP: 9.5, ciLow: 6.0, ciHigh: 13.8, risk: "Safe" },
-  { id: "p12", name: "Thuram", role: "ATT", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.79, expMinutes: 76, xFP: 8.0, ciLow: 5.0, ciHigh: 12.0, risk: "Upside" },
-  { id: "p13", name: "Chiesa", role: "ATT", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.68, expMinutes: 60, xFP: 6.9, ciLow: 3.0, ciHigh: 11.4, risk: "Rotation" },
+  { id: "p11", name: "Osimhen", role: "ATT", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.91, expMinutes: 82, xFP: 9.5, ciLow: 6.0, ciHigh: 13.8, risk: "Safe", news: "Matchup favorevole, probabile titolare.", sentiment: "positive" },
+  { id: "p12", name: "Thuram", role: "ATT", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.79, expMinutes: 76, xFP: 8.0, ciLow: 5.0, ciHigh: 12.0, risk: "Upside", news: "Spazio in contropiede: può colpire.", sentiment: "positive" },
+  { id: "p13", name: "Chiesa", role: "ATT", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.68, expMinutes: 60, xFP: 6.9, ciLow: 3.0, ciHigh: 11.4, risk: "Rotation", news: "Da valutare: possibile gestione minuti. Non al meglio dopo l'allenamento.", sentiment: "negative" },
 ];
 
 // Formation slots map
@@ -579,7 +585,19 @@ export default function LineupCoachPage() {
           <FormationPitch
             orientation="landscape"
             module={module}
-            players={rec.xi}
+            players={rec.xi.map(p => ({
+              id: p.id,
+              name: p.name,
+              role: p.role,
+              team: p.team,
+              opponent: p.opponent,
+              kickoff: p.kickoff,
+              xiProb: p.xiProb,
+              xFP: p.xFP,
+              risk: p.risk,
+              news: p.news,
+              sentiment: p.sentiment,
+            }))}
             xiIds={rec.xiIds}
             captainId={captainId}
             viceCaptainId={viceCaptainId}

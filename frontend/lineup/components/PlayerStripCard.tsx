@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Crown, AlertTriangle, Lock, ArrowUpCircle, ArrowDownCircle, Newspaper } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Role = "POR" | "DIF" | "CEN" | "ATT";
 type RiskTag = "Safe" | "Upside" | "Rotation";
@@ -36,12 +37,17 @@ function riskPillClasses(risk: RiskTag) {
     ? "bg-secondary/15 text-secondary border border-secondary/30"
     : "bg-rose-500/15 text-rose-400 border border-rose-400/30";
 }
+// REPLACE the old sentimentClasses with this brand-aware version
 function sentimentClasses(s: Sentiment = "neutral") {
-  return s === "positive"
-    ? "bg-brand-primary/10 text-brand-primary border border-brand-primary/30"
-    : s === "negative"
-    ? "bg-rose-500/10 text-rose-400 border border-rose-400/30"
-    : "bg-base-200 text-content-200 border border-base-300";
+  // Stronger color contrast for positive and negative, matching pitch style
+  switch (s) {
+    case "positive":
+      return "bg-green-500/90 text-white border border-green-700/70 shadow-sm";
+    case "negative":
+      return "bg-rose-600/90 text-white border border-rose-900/70 shadow-sm";
+    default:
+      return "bg-base-200 text-content-100 border border-base-300";
+  }
 }
 function truncate(s: string, n = 16) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
@@ -81,33 +87,53 @@ export default function PlayerStripCard({
     >
       {/* HEADER */}
       <div className="flex flex-col gap-1">
-        {/* BUTTON ROW: Captain, Lock, Exclude */}
+        {/* BUTTON ROW: News, Captain, Lock, Exclude */}
         <div className="flex items-center gap-1 mb-1">
-          <Button
-            size="icon"
-            variant={isCaptain ? "default" : "ghost"}
-            className="h-6 w-6"
-            onClick={() => onCaptain(p.id)}
-            title={isCaptain ? "Unset captain" : "Set captain"}
-          >
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6"
+                  disabled={!p.news}
+                  title={p.news ? "Mostra news" : "Nessuna news"}
+                >
+                  <Newspaper
+                    className={
+                      "h-3.5 w-3.5 " +
+                      (p.sentiment === "positive"
+                        ? "text-brand-primary"
+                        : p.sentiment === "negative"
+                        ? "text-destructive"
+                        : "text-muted-foreground")
+                    }
+                  />
+                </Button>
+              </TooltipTrigger>
+              {p.news && (
+                <TooltipContent
+                  side="top"
+                  align="end"
+                  className="max-w-sm whitespace-pre-wrap leading-snug text-[12px]"
+                >
+                  <div className={`mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${newsTone}`}>
+                    <Newspaper className="h-3 w-3" />
+                    News
+                  </div>
+                  <div className="text-[12px] text-content-100">{p.news}</div>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+
+          <Button size="icon" variant={isCaptain ? "default" : "ghost"} className="h-6 w-6" onClick={() => onCaptain(p.id)} title={isCaptain ? "Unset captain" : "Set captain"}>
             <Crown className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onLock(p.id)}
-            title="Lock in XI"
-          >
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onLock(p.id)} title="Lock in XI">
             <Lock className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onExclude(p.id)}
-            title="Exclude this week"
-          >
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onExclude(p.id)} title="Exclude this week">
             <AlertTriangle className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -138,33 +164,32 @@ export default function PlayerStripCard({
         </div>
       </div>
 
-      {/* XI probability BAR (thicker + spacing so nothing overlaps) */}
-      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-brand-primary/10 ring-1 ring-brand-primary/20">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-secondary transition-[width] duration-300 ease-out"
-          style={{ width: `${p.xiProb * 100}%` }}
-        />
+      {/* XI probability BAR + label (always readable) */}
+      <div className="mt-2">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-300 ring-1 ring-base-200/60">
+          <div
+            className="h-full bg-brand-primary"
+            style={{ width: `${p.xiProb * 100}%` }}
+          />
+        </div>
+        <div className="mt-1 text-[11px] text-content-100">
+          XI: <span className="font-semibold text-brand-primary">{Math.round(p.xiProb * 100)}%</span>
+        </div>
       </div>
 
-      {/* COMPACT STATS */}
-      <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px] leading-tight">
-        <div className="rounded-md border border-base-300 bg-base-100/80 p-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-content-200">Ratings</div>
+      {/* COMPACT STATS (2 columns, no News) */}
+      <div className="mt-2 grid grid-cols-2 gap-1 text-[11px] leading-tight">
+        <div className="rounded-md border p-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Ratings</div>
           <div className="flex justify-between"><span>L</span><span className="font-medium">{p.lastRating ?? "-"}</span></div>
           <div className="flex justify-between"><span>3</span><span className="font-medium">{p.avg3 ?? "-"}</span></div>
           <div className="flex justify-between"><span>5</span><span className="font-medium">{p.avg5 ?? "-"}</span></div>
         </div>
-        <div className="rounded-md border border-base-300 bg-base-100/80 p-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-content-200">Season</div>
+        <div className="rounded-md border p-1">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Season</div>
           <div className="flex justify-between"><span>G/A</span><span className="font-medium">{p.seasonGoals ?? 0}/{p.seasonAssists ?? 0}</span></div>
           <div className="flex justify-between"><span>Apps</span><span className="font-medium">{p.seasonApps ?? 0}</span></div>
           <div className="flex justify-between"><span>Malus</span><span className="font-medium">{p.avgMalus ?? 0}</span></div>
-        </div>
-        <div className={`rounded-md border border-base-300 bg-base-100/80 p-1.5 ${newsTone}`}>
-          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-content-200">
-            <Newspaper className="h-3 w-3" /> News
-          </div>
-          <div className="line-clamp-3">{p.news || "—"}</div>
         </div>
       </div>
 
