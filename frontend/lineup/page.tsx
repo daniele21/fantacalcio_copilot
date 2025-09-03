@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import ImportTeamDialog from "@/components/ImportTeamDialog";
+import { getProbableLineups } from "../services/probableLineupsService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import PlayerCard from "./components/PlayerCard";
 // import MiniActions from "./components/MiniActions"; // Only import if used directly
 import RoleRow from "./components/RoleRow";
 import FormationPitch from "./components/FormationPitch";
+import ImportTeamDialog, { ImportedPlayer, ImportMode } from "@/components/ImportTeamDialog";
+
 
 /**
  * Lineup Coach – Matchday Optimizer UI (MVP)
@@ -59,6 +61,7 @@ type Player = {
 type Module = "3-4-3" | "4-3-3" | "4-4-2" | "3-5-2";
 
 // --- Mock Data (replace with real) -----------------------------------------
+
 
 const MOCK_PLAYERS: Player[] = [
   // POR
@@ -109,6 +112,32 @@ const MOCK_PLAYERS: Player[] = [
   { id: "p12", name: "Thuram", role: "ATT", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.79, expMinutes: 76, xFP: 8.0, ciLow: 5.0, ciHigh: 12.0, risk: "Upside", news: "Spazio in contropiede: può colpire.", sentiment: "positive" },
   { id: "p13", name: "Chiesa", role: "ATT", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.68, expMinutes: 60, xFP: 6.9, ciLow: 3.0, ciHigh: 11.4, risk: "Rotation", news: "Da valutare: possibile gestione minuti. Non al meglio dopo l'allenamento.", sentiment: "negative" },
 ];
+
+
+// --- Import helpers --------------------------------------------------------
+function mapImported(ip: ImportedPlayer): Player {
+  const xfp = ip.xFP ?? 0;
+  return {
+    id: ip.id,
+    name: ip.name,
+    role: ip.role,
+    team: ip.team ?? "",
+    opponent: ip.opponent ?? "",
+    kickoff: ip.kickoff ?? "",
+    xiProb: typeof ip.xiProb === "number" ? Math.min(1, Math.max(0, ip.xiProb)) : 0.8,
+    expMinutes: 90,
+    xFP: xfp,
+    ciLow: Math.max(0, xfp - 2),
+    ciHigh: xfp + 3,
+    risk: "Safe",
+  };
+}
+
+function mergePlayers(current: Player[], incoming: Player[]): Player[] {
+  const byId = new Map(current.map(p => [p.id, p]));
+  incoming.forEach(p => byId.set(p.id, p));
+  return Array.from(byId.values());
+}
 
 // Formation slots map
 const MODULE_SLOTS: Record<Module, { POR: number; DIF: number; CEN: number; ATT: number }> = {
@@ -265,6 +294,8 @@ function suggestCaptaincy(xi: Player[], riskLevel: number) {
 // --- UI --------------------------------------------------------------------
 
 export default function LineupCoachPage() {
+  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [importOpen, setImportOpen] = useState(false);
   const [module, setModule] = useState<Module>("4-3-3");
   const [risk, setRisk] = useState<number>(35);
   const [preferDefMod, setPreferDefMod] = useState<boolean>(false);
@@ -276,9 +307,25 @@ export default function LineupCoachPage() {
   const [forcedXI, setForcedXI] = useState<Set<string>>(new Set());
   const [forcedBench, setForcedBench] = useState<Set<string>>(new Set());
   const [matchday, setMatchday] = useState<string>("MD 1");
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [probableLineups, setProbableLineups] = useState<any>(null);
+  const [probableLineupsLoading, setProbableLineupsLoading] = useState(false);
+  const [probableLineupsError, setProbableLineupsError] = useState<string | null>(null);
 
-  const players = MOCK_PLAYERS; // swap with user roster projections for `matchday`
+  // Helper to get current matchday as int (default 1 if not parseable)
+  const matchdayInt = parseInt(matchday.replace(/\D/g, "")) || 1;
+
+  const handleFetchProbableLineups = async () => {
+    setProbableLineupsError(null);
+    setProbableLineupsLoading(true);
+    try {
+      const data = await getProbableLineups(matchdayInt);
+      setProbableLineups(data.result);
+    } catch (e: any) {
+      setProbableLineupsError(e.message || "Errore durante la chiamata alle probabili formazioni.");
+    } finally {
+      setProbableLineupsLoading(false);
+    }
+  };
 
   const rec = useMemo(
     () =>
@@ -386,14 +433,32 @@ export default function LineupCoachPage() {
           <div className="flex items-center gap-2 text-base text-content-100"><Info className="h-5 w-5 text-primary" /> Optimize your XI + bench for each matchday.</div>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          <Button variant="secondary" className="gap-2 bg-base-100 text-brand-primary border-brand-primary hover:bg-brand-primary/10 focus-visible:ring-2 focus-visible:ring-brand-primary/50 transition font-semibold px-4 shadow" onClick={() => setImportDialogOpen(true)}>
-            <RefreshCw className="h-4 w-4" /> Import Team
+          <Button variant="outline" onClick={handleFetchProbableLineups} disabled={probableLineupsLoading} className="gap-2">
+            <Zap className="h-4 w-4" />
+            {probableLineupsLoading ? "Caricamento..." : "Probabili formazioni"}
           </Button>
-          <ImportTeamDialog
-            open={importDialogOpen}
-            onClose={() => setImportDialogOpen(false)}
-            onImport={() => setImportDialogOpen(false)}
-          />
+      {/* Probable Lineups Result Display */}
+      {probableLineupsError && (
+        <Alert variant="destructive" className="my-4">
+          <AlertTitle>Errore</AlertTitle>
+          <AlertDescription>{probableLineupsError}</AlertDescription>
+        </Alert>
+      )}
+      {/* {probableLineups && (
+        <Card className="my-4">
+          <CardHeader>
+            <CardTitle>Probabili formazioni (AI, giornata {matchdayInt})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs whitespace-pre-wrap break-all max-h-96 overflow-auto bg-base-200 p-2 rounded-lg">
+              {JSON.stringify(probableLineups, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )} */}
+          <Button variant="secondary" onClick={() => setImportOpen(true)} className="gap-2">
+            Import Team
+          </Button>
           {/* <Select value={matchday} onValueChange={setMatchday}>
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Matchday" /></SelectTrigger>
             <SelectContent>
@@ -417,7 +482,18 @@ export default function LineupCoachPage() {
         </div>
       </header>
 
-      <Card className="ring-1 ring-brand-primary/15 border border-base-300 rounded-2xl bg-base-100/80 backdrop-blur-md shadow-lg">
+  <Card className="ring-1 ring-brand-primary/15 border border-base-300 rounded-2xl bg-base-100/80 backdrop-blur-md shadow-lg">
+      {/* Mount ImportTeamDialog at the end of the page JSX */}
+      <ImportTeamDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        currentPlayers={players.map(p => ({ id: p.id, role: p.role }))}
+        onImport={(arr: ImportedPlayer[], mode: ImportMode) => {
+          const mapped = arr.map(mapImported);
+          setPlayers(prev => (mode === "replace" ? mapped : mergePlayers(prev, mapped)));
+          setImportOpen(false);
+        }}
+      />
         <CardHeader className="pb-3 border-b border-base-300/60">
           <CardTitle className="flex items-center justify-between gap-3">
             <span className="text-sm">

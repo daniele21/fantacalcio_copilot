@@ -1,126 +1,371 @@
+"use client";
 
-import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import * as React from "react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fetchLeagueSettings } from "@/services/leagueSettingsService";
-import { usePlayerApi } from "@/services/playerService";
-import { Player, LeagueSettings } from "@/types";
 
-interface ImportTeamDialogProps {
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+
+import { AlertTriangle, UserPlus, Users, XCircle, Filter, Upload } from "lucide-react";
+
+// === Services ===============================================================
+import { usePlayerApi } from "@/services/playerService";
+import { fetchLeagueSettings } from "@/services/leagueSettingsService";
+import { useAuth } from "@/services/AuthContext";
+
+// === Types (aligned to your app) ===========================================
+export type Role = "POR" | "DIF" | "CEN" | "ATT";
+export type ImportMode = "append" | "replace";
+
+export type ImportedPlayer = {
+  id: string;
+  name: string;
+  role: Role;
+  team?: string;
+  opponent?: string;
+  kickoff?: string;
+  xiProb?: number;
+  xFP?: number;
+};
+
+// service shape (adjust if your service returns more/less fields)
+type ServicePlayer = {
+  id: string;
+  name: string;
+  role: Role;
+  team?: string;
+  opponent?: string;
+  kickoff?: string;
+  xiProb?: number;
+  xFP?: number;
+};
+
+type Props = {
   open: boolean;
   onClose: () => void;
-  onImport: (selected: Record<string, Player[]>) => void;
-}
+  onImport: (players: ImportedPlayer[], mode: ImportMode) => void;
+  /** current roster, to compute remaining slots per role */
+  currentPlayers?: Array<{ id: string; role: Role }>;
+};
 
-export default function ImportTeamDialog({ open, onClose, onImport }: ImportTeamDialogProps) {
-  const [loading, setLoading] = useState(false);
-  const [leagueSettings, setLeagueSettings] = useState<LeagueSettings | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [selected, setSelected] = useState<Record<string, Player[]>>({ P: [], D: [], C: [], A: [] });
-  const [search, setSearch] = useState("");
-  const [searchRole, setSearchRole] = useState<"P" | "D" | "C" | "A">("P");
+const ROLE_LABEL: Record<Role, string> = { POR: "Portieri", DIF: "Difensori", CEN: "Centrocampisti", ATT: "Attaccanti" };
+const ROLES: Role[] = ["POR", "DIF", "CEN", "ATT"];
+
+export default function ImportTeamDialog({ open, onClose, onImport, currentPlayers = [] }: Props) {
+  const { idToken } = useAuth();
+  const [mode, setMode] = React.useState<ImportMode>("append");
+  const [roleFilter, setRoleFilter] = React.useState<Role | "ALL">("ALL");
+  const [query, setQuery] = React.useState("");
+
+  const [loading, setLoading] = React.useState(true);
+  const [servicePlayers, setServicePlayers] = React.useState<ServicePlayer[]>([]);
+  const [slots, setSlots] = React.useState<{ POR: number; DIF: number; CEN: number; ATT: number } | null>(null);
+
+  // local selection state
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+
   const { fetchPlayers } = usePlayerApi();
 
-  // Fetch league settings and players on open
-  useEffect(() => {
+  // fetch players + roster slots
+  React.useEffect(() => {
     if (!open) return;
     setLoading(true);
     Promise.all([
-      fetchLeagueSettings(),
-      fetchPlayers()
-    ]).then(([settings, players]) => {
-      setLeagueSettings(settings);
-      setPlayers(players);
-      setLoading(false);
-    });
-  }, [open]);
+      fetchPlayers().then(players => players.map(p => ({
+        id: String(p.id),
+        name: p.player_name,
+        role: p.position as "POR" | "DIF" | "CEN" | "ATT",
+        team: p.current_team,
+        // Mock data for missing fields
+        opponent: '',
+        kickoff: '',
+        xiProb: p.starting_rate ? p.starting_rate / 100 : undefined,
+        xFP: p.xfp_per_game || undefined,
+      }))),
+      fetchLeagueSettings(idToken || undefined).then(settings => {
+        // Map API roster keys to app roles
+  const apiRoster: Record<string, number> = settings?.roster || { P: 3, D: 8, C: 8, A: 6 };
+        return {
+          POR: apiRoster["P"] ?? 3,
+          DIF: apiRoster["D"] ?? 8,
+          CEN: apiRoster["C"] ?? 8,
+          ATT: apiRoster["A"] ?? 6,
+        };
+      })
+    ])
+      .then(([players, slots]) => {
+        setServicePlayers(players);
+        setSlots(slots);
+      })
+      .finally(() => setLoading(false));
+  }, [open, idToken]);
 
-  // Add player to slot
-  const addPlayer = (role: string, player: Player) => {
-    setSelected(sel => {
-      if (sel[role].some(p => p.id === player.id)) return sel;
-      if (sel[role].length >= (leagueSettings?.roster[role] || 0)) return sel;
-      return { ...sel, [role]: [...sel[role], player] };
+  // compute remaining per role
+  const currentCounts = React.useMemo(() => {
+    const init = { POR: 0, DIF: 0, CEN: 0, ATT: 0 } as Record<Role, number>;
+    currentPlayers.forEach((p) => (init[p.role] += 1));
+    return init;
+  }, [currentPlayers]);
+
+  const selectionCounts = React.useMemo(() => {
+    const init = { POR: 0, DIF: 0, CEN: 0, ATT: 0 } as Record<Role, number>;
+    for (const id of selectedIds) {
+      const p = servicePlayers.find((sp) => sp.id === id);
+      if (p) init[p.role] += 1;
+    }
+    return init;
+  }, [selectedIds, servicePlayers]);
+
+  const remainingByRole = React.useMemo(() => {
+    if (!slots) return { POR: 0, DIF: 0, CEN: 0, ATT: 0 } as Record<Role, number>;
+    if (mode === "replace") return slots;
+    // append: subtract current counts
+    return {
+      POR: Math.max(0, slots.POR - currentCounts.POR),
+      DIF: Math.max(0, slots.DIF - currentCounts.DIF),
+      CEN: Math.max(0, slots.CEN - currentCounts.CEN),
+      ATT: Math.max(0, slots.ATT - currentCounts.ATT),
+    };
+  }, [slots, mode, currentCounts]);
+
+  // filtered list
+  const list = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return servicePlayers.filter((p) => {
+      if (roleFilter !== "ALL" && p.role !== roleFilter) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.team ?? "").toLowerCase().includes(q) ||
+        (p.opponent ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [servicePlayers, roleFilter, query]);
+
+  const atCap = (role: Role) => selectionCounts[role] >= remainingByRole[role];
+  const isDisabledByCap = (p: ServicePlayer) => {
+    // If already selected, never disable (can uncheck)
+    if (selectedIds.has(p.id)) return false;
+    // If replace mode, caps == absolute slots (no current roster penalty)
+    if (mode === "replace") return selectionCounts[p.role] >= (slots?.[p.role] ?? 0);
+    // Append mode: respect remaining
+    return atCap(p.role);
+  };
+
+  const toggleOne = (p: ServicePlayer) => {
+    setSelectedIds((cur) => {
+      const next = new Set(cur);
+      if (next.has(p.id)) next.delete(p.id);
+      else if (!isDisabledByCap(p)) next.add(p.id);
+      return next;
     });
   };
-  // Remove player from slot
-  const removePlayer = (role: string, id: string) => {
-    setSelected(sel => ({ ...sel, [role]: sel[role].filter(p => p.id !== id) }));
+
+  const clearSelection = () => setSelectedIds(new Set());
+  const selectAllFiltered = () => {
+    const next = new Set(selectedIds);
+    const tempCounts = { ...selectionCounts };
+    for (const p of list) {
+      if (next.has(p.id)) continue;
+      const cap = mode === "replace" ? (slots?.[p.role] ?? 0) : remainingByRole[p.role];
+      if (tempCounts[p.role] < cap) {
+        next.add(p.id);
+        tempCounts[p.role] += 1;
+      }
+    }
+    setSelectedIds(next);
   };
 
-  // Filtered player list for search
-  const filteredPlayers = players.filter(
-    p => (p.role === searchRole || p.role === roleMap(searchRole)) &&
-      (!search || p.name.toLowerCase().includes(search.toLowerCase()))
-  );
+  const canImport = selectedIds.size > 0 && (!!slots || mode === "replace");
 
-  // Map for role code conversion
-  function roleMap(r: string) {
-    if (r === "P") return "POR";
-    if (r === "D") return "DIF";
-    if (r === "C") return "CEN";
-    if (r === "A") return "ATT";
-    return r;
-  }
+  const toImported = (id: string): ImportedPlayer | null => {
+    const sp = servicePlayers.find((x) => x.id === id);
+    if (!sp) return null;
+    return {
+      id: sp.id,
+      name: sp.name,
+      role: sp.role,
+      team: sp.team,
+      opponent: sp.opponent,
+      kickoff: sp.kickoff,
+      xiProb: typeof sp.xiProb === "number" ? sp.xiProb : undefined,
+      xFP: typeof sp.xFP === "number" ? sp.xFP : undefined,
+    };
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Import Team</DialogTitle>
+    <Dialog open={open} onOpenChange={(v) => (!v ? onClose() : null)}>
+  <DialogContent className="sm:max-w-3xl bg-base-100/90 backdrop-blur-xl border border-base-300 rounded-2xl shadow-xl">
+        <DialogHeader className="pb-2 border-b border-base-300/60">
+          <DialogTitle className="text-lg font-bold text-brand-primary">Importa squadra</DialogTitle>
+          <DialogDescription className="text-sm text-content-100/80">
+            Seleziona i giocatori dal database e rispetta i limiti di rosa per ruolo.
+          </DialogDescription>
         </DialogHeader>
-        {loading ? (
-          <div className="p-8 text-center">Loading…</div>
-        ) : leagueSettings ? (
-          <div className="space-y-6">
-            <div className="flex flex-wrap gap-4">
-              {Object.entries(leagueSettings.roster).map(([role, count]) => (
-                <div key={role} className="flex-1 min-w-[120px]">
-                  <div className="font-bold mb-1">{role} <Badge className="ml-1">{selected[role]?.length || 0}/{count}</Badge></div>
-                  <div className="flex flex-wrap gap-1">
-                    {(selected[role] || []).map(p => (
-                      <Badge key={p.id} className="bg-brand-primary text-white px-2 py-1 rounded-lg flex items-center gap-1">
-                        {p.name}
-                        <button className="ml-1 text-xs" onClick={() => removePlayer(role, p.id)} title="Remove">×</button>
-                      </Badge>
-                    ))}
+
+        {/* Top controls */}
+  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-2">
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-semibold text-content-100">Modalità merge</label>
+            <Select value={mode} onValueChange={(v) => setMode(v as ImportMode)}>
+              <SelectTrigger className="w-[150px] border-base-300 rounded-md bg-base-100 text-content-100 shadow-xs"><SelectValue placeholder="Append or Replace" /></SelectTrigger>
+              <SelectContent className="bg-base-100 border-base-300 rounded-md shadow-lg">
+                <SelectItem value="append">Append</SelectItem>
+                <SelectItem value="replace">Replace</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative w-[220px]">
+              <Input
+                placeholder="Cerca nome, team, avversario"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-8 border-base-300 rounded-md bg-base-100 text-content-100 shadow-xs"
+              />
+              <Filter className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as Role | "ALL")}> 
+              <SelectTrigger className="w-[140px] border-base-300 rounded-md bg-base-100 text-content-100 shadow-xs"><SelectValue placeholder="Ruolo" /></SelectTrigger>
+              <SelectContent className="bg-base-100 border-base-300 rounded-md shadow-lg">
+                <SelectItem value="ALL">Tutti i ruoli</SelectItem>
+                {ROLES.map((r) => (<SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Caps summary */}
+        <div className="rounded-xl border border-base-300 bg-base-100/80 p-3 mb-2">
+          <div className="grid grid-cols-4 gap-3 text-xs">
+            {ROLES.map((r) => {
+              const cap = mode === "replace" ? (slots?.[r] ?? 0) : remainingByRole[r];
+              const sel = selectionCounts[r];
+              const taken = mode === "replace" ? 0 : currentCounts[r];
+              return (
+                <div key={r} className="rounded-lg border border-base-200 bg-base-100 p-2 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-content-100">{r}</span>
+                    <Badge variant="outline" className="px-2 py-1 text-xs font-bold border-brand-primary/40 bg-brand-primary/10 text-brand-primary">{sel}/{cap}</Badge>
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {mode === "append" ? <>Occupati: <b>{taken}</b></> : <>Sostituirai l’intera rosa</>}
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-brand-primary/40 transition-[width]"
+                      style={{ width: `${cap === 0 ? 0 : Math.min(100, (sel / Math.max(1, cap)) * 100)}%` }}
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-2 items-end">
-              <Select value={searchRole} onValueChange={v => setSearchRole(v as any)}>
-                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="P">POR</SelectItem>
-                  <SelectItem value="D">DIF</SelectItem>
-                  <SelectItem value="C">CEN</SelectItem>
-                  <SelectItem value="A">ATT</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input placeholder="Search player…" value={search} onChange={e => setSearch(e.target.value)} className="w-48" />
-            </div>
-            <div className="max-h-48 overflow-y-auto border rounded-lg p-2 bg-base-200">
-              {filteredPlayers.map(p => (
-                <div key={p.id} className="flex items-center justify-between py-1 px-2 hover:bg-base-100 rounded cursor-pointer" onClick={() => addPlayer(searchRole, p)}>
-                  <span>{p.name} <span className="text-xs text-content-200">({p.team})</span></span>
-                  <Button size="xs" variant="secondary" className="ml-2" disabled={selected[searchRole].some(sel => sel.id === p.id) || selected[searchRole].length >= (leagueSettings.roster[searchRole] || 0)}>
-                    Add
-                  </Button>
-                </div>
-              ))}
-              {!filteredPlayers.length && <div className="text-xs text-content-200 p-2">No players found.</div>}
-            </div>
+              );
+            })}
           </div>
-        ) : (
-          <div className="p-8 text-center text-red-500">Could not load league settings.</div>
-        )}
-        <DialogFooter>
-          <Button onClick={() => onImport(selected)} disabled={loading}>Import</Button>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        </div>
+
+        {/* List */}
+  <Tabs defaultValue="select" className="w-full mt-2">
+          <TabsList className="grid w-full grid-cols-2 rounded-lg bg-base-100 border border-base-300 mb-2">
+            <TabsTrigger value="select" className="rounded-lg data-[state=active]:bg-brand-primary/10 data-[state=active]:text-brand-primary font-semibold"><Users className="mr-2 h-4 w-4" /> Seleziona</TabsTrigger>
+            <TabsTrigger value="paste" className="rounded-lg data-[state=active]:bg-brand-primary/10 data-[state=active]:text-brand-primary font-semibold"><Upload className="mr-2 h-4 w-4" /> CSV/JSON</TabsTrigger>
+          </TabsList>
+
+          {/* Select from services */}
+          <TabsContent value="select" className="space-y-2">
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-10 w-full rounded-lg bg-base-200/80 animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs text-content-100/80">
+                    {list.length} risultati · selezionati <b>{selectedIds.size}</b>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="border-base-300 bg-base-100 text-content-100 hover:bg-brand-primary/10" onClick={clearSelection}><XCircle className="mr-1 h-4 w-4" /> Clear</Button>
+                    <Button variant="secondary" size="sm" className="bg-brand-primary text-brand-secondary hover:bg-brand-primary/90" onClick={selectAllFiltered}><UserPlus className="mr-1 h-4 w-4" /> Seleziona filtri</Button>
+                  </div>
+                </div>
+
+                <div className="h-[320px] rounded-xl border border-base-300 bg-base-100/80 overflow-y-auto shadow">
+                  <div className="divide-y divide-base-200">
+                    {list.map((p) => {
+                      const checked = selectedIds.has(p.id);
+                      const disabled = isDisabledByCap(p);
+                      return (
+                        <label
+                          key={p.id}
+                          className={`flex items-center gap-3 px-3 py-2 text-sm rounded-lg ${disabled && !checked ? "opacity-50" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled && !checked}
+                            onChange={() => toggleOne(p)}
+                            className="form-checkbox h-4 w-4 text-brand-primary rounded border-base-300 focus:ring-brand-primary/50 disabled:opacity-50"
+                          />
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <Badge variant="outline" className="w-10 justify-center px-2 py-1 text-xs font-bold border-brand-primary/40 bg-brand-primary/10 text-brand-primary">{p.role}</Badge>
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-content-100">{p.name}</div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {(p.team ?? "")} {(p.opponent ?? "")} {p.kickoff ? `· ${p.kickoff}` : ""}
+                              </div>
+                            </div>
+                          </div>
+                          {typeof p.xiProb === "number" && (
+                            <div className="text-xs text-brand-primary/80 w-16 text-right font-semibold">XI {Math.round(p.xiProb * 100)}%</div>
+                          )}
+                        </label>
+                      );
+                    })}
+                    {list.length === 0 && (
+                      <div className="p-6 text-center text-sm text-content-100/70">
+                        Nessun risultato. Modifica i filtri.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Optional CSV/JSON fallback (kept minimal) */}
+          <TabsContent value="paste" className="space-y-2">
+            <div className="rounded-xl border border-base-300 bg-base-100/80 p-3 text-xs text-content-100/80">
+              Per ora l’import CSV/JSON è opzionale: usa la selezione manuale sopra.
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter className="flex items-center justify-between sm:justify-between mt-4">
+          <div className="flex items-center gap-2 text-xs text-content-100/80">
+            <AlertTriangle className="h-3.5 w-3.5 text-brand-primary" />
+            Rispettare i limiti di ruolo: la selezione oltre il cap è disabilitata.
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="border-base-300 bg-base-100 text-content-100 hover:bg-brand-primary/10" onClick={onClose}>Annulla</Button>
+            <Button
+              variant="secondary"
+              className="bg-brand-primary text-brand-secondary hover:bg-brand-primary/90 font-semibold"
+              disabled={!canImport}
+              onClick={() => {
+                const arr = Array.from(selectedIds).map(toImported).filter(Boolean) as ImportedPlayer[];
+                onImport(arr, mode);
+              }}
+            >
+              Importa ({selectedIds.size})
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

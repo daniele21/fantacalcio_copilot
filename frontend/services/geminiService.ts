@@ -4,7 +4,7 @@ import { useContext } from "react";
 import { AuthContext } from "./AuthContext";
 
 // Helper to get idToken from AuthContext if not provided
-function getAuthToken(providedToken?: string): string | null {
+export function getAuthToken(providedToken?: string): string | null {
   if (providedToken) return providedToken;
   try {
     // Use window.AuthContext if available (for non-hook usage)

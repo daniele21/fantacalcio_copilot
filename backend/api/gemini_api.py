@@ -1,3 +1,4 @@
+# --- Probable Lineups Endpoint ---
 
 import json
 import os
@@ -60,6 +61,11 @@ GEMINI_PRICING = {
         "output": 2.50,
         "unit": "per 1 million tokens"
     },
+    "gemini-2.5-flash-lite": {
+        "input": {"default": 0.10, "audio": 1.00},
+        "output": 0.40,
+        "unit": "per 1 million tokens"
+    },
     "gemini-2.0-flash": {
         "input": {"default": 0.10, "audio": 0.70},
         "output": 0.40,
@@ -67,6 +73,121 @@ GEMINI_PRICING = {
     }
 }
 GROUNDING_SEARCH_COST = 0.035  # USD per search
+
+
+@gemini_api.route('/probable-lineups', methods=['POST'])
+@require_auth
+def gemini_probable_lineups():
+    """
+    Given a Serie A matchday (giornata), returns the probable lineups for all teams using Gemini and Google Search grounding.
+    Expects JSON: { "matchday": <int>, "season": <str, optional> }
+    """
+    limiter = get_limiter()
+    if limiter:
+        limiter.limit("10/minute")(lambda: None)()
+    data = request.get_json() or {}
+    matchday = data.get('matchday')
+    season = data.get('season') or '2025/2026'
+    if not isinstance(matchday, int) or not (1 <= matchday <= 38):
+        return jsonify_error("bad_request", "'matchday' deve essere un intero tra 1 e 38.")
+
+    # Use matchday as document id and check if created today
+    from datetime import datetime
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    db_type = os.getenv('DB_TYPE', 'sqlite')
+    db = get_db()
+
+    # Try to load from Firestore if enabled
+    if db_type == 'firestore' and firestore is not None:
+        doc_ref = db.collection('probable_lineups').document(str(matchday))
+        doc = doc_ref.get()
+        if doc.exists:
+            row = doc.to_dict()
+            created_at = row.get('created_at')
+            # Only use cached result if it was created today
+            if created_at == today_str:
+                return jsonify_success({'result': row.get('result'), 'cost': 0, 'cached': True})
+
+    # Not cached, run Gemini
+    prompt = f'''
+Sei un esperto di Fantacalcio e Serie A. 
+Fornisci le probabili formazioni di tutte le squadre di Serie A per la giornata {matchday} della stagione 2025-2026.
+Usa la Ricerca Google per trovare le informazioni più aggiornate possibili (ultimi 3 giorni, fonti attendibili come Sky, Gazzetta, Fantacalcio, ecc).
+Per ogni squadra, restituisci un array di oggetti giocatore con queste chiavi:
+- squadra: nome della squadra
+- giocatore: nome completo
+- titolare: true/false
+- prob_titolare: probabilità (0-1) di essere titolare (non inventare, ma prendi da fonti attendibili)
+- prob_subentro: probabilità (0-1) di subentrare
+- ballottaggio: stringa con eventuale ballottaggio (es. 'Dumfries/Darmian')
+- razionale: motivazione sintetica per la scelta e la probabilità relative alla giornata in questione
+- forma: descrizione della forma aggiornata delle ultime partite
+- raccomandazione: sulla base della forma recente del giocatore, della prob_titolare e del suo potenziale,spiegare se è un giocatore consigliato da schierare per questa giornata {matchday} e perché
+Rispondi SOLO con un oggetto JSON valido, senza testo extra, senza markdown, senza spiegazioni.
+Struttura esempio: {{ "giocatori": [ {{ "squadra": "Inter", "giocatore": "Sommer", "titolare": true, "prob_titolare": 0.98, "prob_subentro": 0.01, "ballottaggio": "in ballottaggio con xxx", 
+"razionale": "...", "forma": "...", "raccomandazione": "..." }}, ... ] }}.
+Usa sempre doppi apici per chiavi e stringhe. Rispondi in italiano.
+'''
+    try:
+        start_time = time.time()
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "giocatori": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "squadra": types.Schema(type=types.Type.STRING),
+                            "giocatore": types.Schema(type=types.Type.STRING),
+                            "titolare": types.Schema(type=types.Type.BOOLEAN),
+                            "prob_titolare": types.Schema(type=types.Type.NUMBER),
+                            "prob_subentro": types.Schema(type=types.Type.NUMBER),
+                            "ballottaggio": types.Schema(type=types.Type.STRING),
+                            "razionale": types.Schema(type=types.Type.STRING),
+                            "forma": types.Schema(type=types.Type.STRING),
+                            "raccomandazione": types.Schema(type=types.Type.STRING),
+                        },
+                        required=["squadra", "giocatore", "titolare", "prob_titolare", "prob_subentro", "ballottaggio", "razionale", "forma", "raccomandazione"]
+                    )
+                )
+            },
+            required=["giocatori"]
+        )
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            thinking_config=types.ThinkingConfig(thinking_budget=512),
+            response_schema=schema,
+            temperature=0.1,
+            max_output_tokens=None,
+        )
+        response = genai_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
+        elapsed = time.time() - start_time
+        # logger.info(f"Gemini probable-lineups call time: {elapsed:.2f}s")
+        text = response.text
+        # logger.info(f"[Gemini probable-lineups raw response]: {text}")
+        result = json.loads(text.replace('```json', '').replace('```', '').strip())
+        if not (isinstance(result, dict) and 'giocatori' in result):
+            return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON valido con la chiave 'giocatori'.")
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
+        cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
+
+        # Save to Firestore if enabled
+        if db_type == 'firestore' and firestore is not None:
+            doc_ref = db.collection('probable_lineups').document(str(matchday))
+            doc_ref.set({'result': result, 'cost': cost, 'created_at': today_str, 'matchday': matchday}, merge=True)
+
+        return jsonify_success({'result': result, 'cost': cost, 'cached': False})
+    except Exception as e:
+        logger.error(f"Gemini probable-lineups error: {e}")
+        return jsonify_error("gemini_error", f"Impossibile generare le probabili formazioni: {str(e)}")
+
 
 def compute_gemini_cost(model, input_tokens, output_tokens, input_type="default", grounding_searches=0):
     pricing = GEMINI_PRICING.get(model, {})
