@@ -1,3 +1,4 @@
+
 import { useMemo, useState, useEffect } from "react";
 import { usePlayerApi } from "../services/playerService";
 import { getMatchdays } from "../services/lineupService";
@@ -62,56 +63,26 @@ type Module = "3-4-3" | "4-3-3" | "4-4-2" | "3-5-2";
 // --- Mock Data (replace with real) -----------------------------------------
 
 
-const MOCK_PLAYERS: Player[] = [
-  // POR
-  {
-    id: "p1",
-    name: "Meret",
-    role: "POR",
-    team: "NAP",
-    opponent: "vs LEC",
-    kickoff: "Sat 18:00",
-    xiProb: 0.94,
-    expMinutes: 90,
-    xFP: 6.2,
-    ciLow: 4.0,
-    ciHigh: 9.0,
-    risk: "Safe",
-    news: "Allenamento completo: confermato titolare.",
-    sentiment: "positive",
-  },
-  {
-    id: "p2",
-    name: "Skorupski",
-    role: "POR",
-    team: "BOL",
-    opponent: "@ ROM",
-    kickoff: "Sun 20:45",
-    xiProb: 0.82,
-    expMinutes: 90,
-    xFP: 4.9,
-    ciLow: 2.8,
-    ciHigh: 8.1,
-    risk: "Rotation",
-    news: "Ballottaggio con Ravaglia: 60/40. Ultima prestazione sottotono.",
-    sentiment: "negative",
-  },
-  // DIF
-  { id: "p3", name: "Di Lorenzo", role: "DIF", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.96, expMinutes: 90, xFP: 7.1, ciLow: 5.0, ciHigh: 9.8, risk: "Safe", news: "Ottima forma, nessun problema fisico.", sentiment: "positive" },
-  { id: "p4", name: "Bastoni", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.85, expMinutes: 82, xFP: 6.4, ciLow: 4.6, ciHigh: 9.0, risk: "Safe", news: "Gestione minutaggio: possibile 70-75'.", sentiment: "neutral" },
-  { id: "p5", name: "Carlos Augusto", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.7, expMinutes: 68, xFP: 6.0, ciLow: 3.2, ciHigh: 9.6, risk: "Upside", news: "Ballottaggio con Dimarco, entra anche a gara in corso. Non al meglio fisicamente.", sentiment: "negative" },
-  { id: "p6", name: "Darmian", role: "DIF", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.76, expMinutes: 75, xFP: 5.8, ciLow: 4.1, ciHigh: 8.0, risk: "Safe" },
-  // CEN
-  { id: "p7", name: "Calhanoglu", role: "CEN", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.92, expMinutes: 86, xFP: 8.1, ciLow: 5.1, ciHigh: 11.0, risk: "Safe", setPieces: { pens: true, fks: true, corners: true }, news: "Batte piazzati: alto impatto fantacalcio.", sentiment: "positive" },
-  { id: "p8", name: "Barella", role: "CEN", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.88, expMinutes: 84, xFP: 7.0, ciLow: 4.5, ciHigh: 9.4, risk: "Safe", news: "Buon momento, nessuna gestione segnalata.", sentiment: "positive" },
-  { id: "p9", name: "Politano", role: "CEN", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.83, expMinutes: 78, xFP: 7.6, ciLow: 4.2, ciHigh: 10.8, risk: "Upside", setPieces: { fks: true, corners: true } },
-  { id: "p10", name: "Rabiot", role: "CEN", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.74, expMinutes: 72, xFP: 6.1, ciLow: 3.4, ciHigh: 9.0, risk: "Rotation", news: "Condizione da monitorare alla rifinitura. Problemi muscolari in settimana.", sentiment: "negative" },
-  // ATT
-  { id: "p11", name: "Osimhen", role: "ATT", team: "NAP", opponent: "vs LEC", kickoff: "Sat 18:00", xiProb: 0.91, expMinutes: 82, xFP: 9.5, ciLow: 6.0, ciHigh: 13.8, risk: "Safe", news: "Matchup favorevole, probabile titolare.", sentiment: "positive" },
-  { id: "p12", name: "Thuram", role: "ATT", team: "INT", opponent: "@ FIO", kickoff: "Sun 18:00", xiProb: 0.79, expMinutes: 76, xFP: 8.0, ciLow: 5.0, ciHigh: 12.0, risk: "Upside", news: "Spazio in contropiede: può colpire.", sentiment: "positive" },
-  { id: "p13", name: "Chiesa", role: "ATT", team: "JUV", opponent: "@ MON", kickoff: "Mon 20:45", xiProb: 0.68, expMinutes: 60, xFP: 6.9, ciLow: 3.0, ciHigh: 11.4, risk: "Rotation", news: "Da valutare: possibile gestione minuti. Non al meglio dopo l'allenamento.", sentiment: "negative" },
-];
 
+
+
+// CSV export helper
+function exportTeamToCSV(players: Player[]) {
+  const header = ['player_name', 'role', 'team'];
+  const rows = players.map(p => [p.name, p.role, p.team]);
+  const csv = [header, ...rows].map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'my_team.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+}
 
 // --- Import helpers --------------------------------------------------------
 
@@ -311,7 +282,7 @@ export default function LineupCoachPage() {
       setPlayerStatsLoading(false);
     }
   };
-  const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [matchesError, setMatchesError] = useState<string | null>(null);
@@ -503,6 +474,9 @@ export default function LineupCoachPage() {
           <div className="flex items-center gap-2 text-base text-content-100"><Info className="h-5 w-5 text-primary" /> Optimize your XI + bench for each matchday.</div>
         </div>
         <div className="flex flex-wrap items-center gap-4">
+          <Button variant="outline" onClick={() => exportTeamToCSV(players)} className="gap-2">
+            Export Team CSV
+          </Button>
           <Button variant="secondary" onClick={handleFetchPlayerStats} disabled={playerStatsLoading} className="gap-2">
             Fetch Player Stats
           </Button>

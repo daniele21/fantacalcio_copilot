@@ -17,6 +17,7 @@ import { AlertTriangle, UserPlus, Users, XCircle, Filter, Upload } from "lucide-
 import { usePlayerApi } from "@/services/playerService";
 import { fetchLeagueSettings } from "@/services/leagueSettingsService";
 import { useAuth } from "@/services/AuthContext";
+import { saveUserTeam } from "@/services/teamService";
 
 // === Types (aligned to your app) ===========================================
 export type Role = "POR" | "DIF" | "CEN" | "ATT";
@@ -53,11 +54,24 @@ type Props = {
   currentPlayers?: Array<{ id: string; role: Role }>;
 };
 
+
 const ROLE_LABEL: Record<Role, string> = { POR: "Portieri", DIF: "Difensori", CEN: "Centrocampisti", ATT: "Attaccanti" };
 const ROLES: Role[] = ["POR", "DIF", "CEN", "ATT"];
 
+// Repo style: badge color by role (matches PlayerCard)
+function getRoleBadgeClass(role: Role) {
+  switch (role) {
+    case "POR": return "bg-yellow-100/40 text-yellow-700 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-300 dark:border-yellow-700";
+    case "DIF": return "bg-blue-100/40 text-blue-700 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700";
+    case "CEN": return "bg-green-100/40 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700";
+    case "ATT": return "bg-red-100/40 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700";
+    default: return "bg-base-200/40 text-content-100 border-base-300 dark:bg-base-800/40 dark:text-content-100 dark:border-base-700";
+  }
+}
+
 export default function ImportTeamDialog({ open, onClose, onImport, currentPlayers = [] }: Props) {
-  const { idToken } = useAuth();
+  const authContext = useAuth();
+  const idToken = authContext?.idToken;
   const [mode, setMode] = React.useState<ImportMode>("append");
   const [roleFilter, setRoleFilter] = React.useState<Role | "ALL">("ALL");
   const [query, setQuery] = React.useState("");
@@ -68,6 +82,8 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
 
   // local selection state
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  // Store role overrides for each player by id
+  const [roleOverrides, setRoleOverrides] = React.useState<Record<string, Role>>({});
 
   const { fetchPlayers } = usePlayerApi();
 
@@ -87,9 +103,9 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
         xiProb: p.starting_rate ? p.starting_rate / 100 : undefined,
         xFP: p.xfp_per_game || undefined,
       }))),
-      fetchLeagueSettings(idToken || undefined).then(settings => {
+  fetchLeagueSettings(idToken || undefined).then(settings => {
         // Map API roster keys to app roles
-  const apiRoster: Record<string, number> = settings?.roster || { P: 3, D: 8, C: 8, A: 6 };
+        const apiRoster: Record<string, number> = settings?.roster || { P: 3, D: 8, C: 8, A: 6 };
         return {
           POR: apiRoster["P"] ?? 3,
           DIF: apiRoster["D"] ?? 8,
@@ -101,6 +117,10 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
       .then(([players, slots]) => {
         setServicePlayers(players);
         setSlots(slots);
+        // Reset role overrides to initial roles
+        const initialRoles: Record<string, Role> = {};
+        players.forEach(p => { initialRoles[p.id] = p.role; });
+        setRoleOverrides(initialRoles);
       })
       .finally(() => setLoading(false));
   }, [open, idToken]);
@@ -115,11 +135,11 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
   const selectionCounts = React.useMemo(() => {
     const init = { POR: 0, DIF: 0, CEN: 0, ATT: 0 } as Record<Role, number>;
     for (const id of selectedIds) {
-      const p = servicePlayers.find((sp) => sp.id === id);
-      if (p) init[p.role] += 1;
+      const role = roleOverrides[id] ?? servicePlayers.find((sp) => sp.id === id)?.role;
+      if (role) init[role] += 1;
     }
     return init;
-  }, [selectedIds, servicePlayers]);
+  }, [selectedIds, servicePlayers, roleOverrides]);
 
   const remainingByRole = React.useMemo(() => {
     if (!slots) return { POR: 0, DIF: 0, CEN: 0, ATT: 0 } as Record<Role, number>;
@@ -149,12 +169,13 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
 
   const atCap = (role: Role) => selectionCounts[role] >= remainingByRole[role];
   const isDisabledByCap = (p: ServicePlayer) => {
+    const role = roleOverrides[p.id] ?? p.role;
     // If already selected, never disable (can uncheck)
     if (selectedIds.has(p.id)) return false;
     // If replace mode, caps == absolute slots (no current roster penalty)
-    if (mode === "replace") return selectionCounts[p.role] >= (slots?.[p.role] ?? 0);
+    if (mode === "replace") return selectionCounts[role] >= (slots?.[role] ?? 0);
     // Append mode: respect remaining
-    return atCap(p.role);
+    return atCap(role);
   };
 
   const toggleOne = (p: ServicePlayer) => {
@@ -189,7 +210,7 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
     return {
       id: sp.id,
       name: sp.name,
-      role: sp.role,
+      role: roleOverrides[id] ?? sp.role,
       team: sp.team,
       opponent: sp.opponent,
       kickoff: sp.kickoff,
@@ -251,8 +272,10 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
               return (
                 <div key={r} className="rounded-lg border border-base-200 bg-base-100 p-2 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-content-100">{r}</span>
-                    <Badge variant="outline" className="px-2 py-1 text-xs font-bold border-brand-primary/40 bg-brand-primary/10 text-brand-primary">{sel}/{cap}</Badge>
+                    <span className={`font-semibold text-content-100`}>
+                      <Badge variant="outline" className={`w-8 justify-center px-2 py-1 text-xs font-bold border ${getRoleBadgeClass(r)}`}>{r}</Badge>
+                    </span>
+                    <Badge variant="outline" className={`px-2 py-1 text-xs font-bold border ${getRoleBadgeClass(r)}`}>{sel}/{cap}</Badge>
                   </div>
                   <div className="mt-1 text-[11px] text-muted-foreground">
                     {mode === "append" ? <>Occupati: <b>{taken}</b></> : <>Sostituirai l’intera rosa</>}
@@ -301,6 +324,10 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
                     {list.map((p) => {
                       const checked = selectedIds.has(p.id);
                       const disabled = isDisabledByCap(p);
+                      const roleOverride = roleOverrides[p.id] ?? p.role;
+                      const handleRoleChange = (newRole: Role) => {
+                        setRoleOverrides(prev => ({ ...prev, [p.id]: newRole }));
+                      };
                       return (
                         <label
                           key={p.id}
@@ -314,7 +341,14 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
                             className="form-checkbox h-4 w-4 text-brand-primary rounded border-base-300 focus:ring-brand-primary/50 disabled:opacity-50"
                           />
                           <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <Badge variant="outline" className="w-10 justify-center px-2 py-1 text-xs font-bold border-brand-primary/40 bg-brand-primary/10 text-brand-primary">{p.role}</Badge>
+                            <Select value={roleOverride} onValueChange={v => handleRoleChange(v as Role)}>
+                              <SelectTrigger className={`w-14 border ${getRoleBadgeClass(roleOverride)} rounded px-1 py-0 text-xs font-bold`}><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {ROLES.map(r => (
+                                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <div className="min-w-0">
                               <div className="truncate font-semibold text-content-100">{p.name}</div>
                               <div className="truncate text-xs text-muted-foreground">
@@ -358,8 +392,34 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
               variant="secondary"
               className="bg-brand-primary text-brand-secondary hover:bg-brand-primary/90 font-semibold"
               disabled={!canImport}
-              onClick={() => {
+              onClick={async () => {
                 const arr = Array.from(selectedIds).map(toImported).filter(Boolean) as ImportedPlayer[];
+                const team_players = arr.map(p => ({
+                  player_name: p.name,
+                  team: p.team ?? '',
+                  role: p.role
+                }));
+                // Use idToken and sub from authContext.profile
+                const googleSub = authContext?.profile?.sub || '';
+                const token = typeof idToken === 'string' ? idToken : '';
+                console.log('authContext:', authContext);
+                if (!googleSub) {
+                  alert('Utente non autenticato. Effettua il login.');
+                  return;
+                }
+                if (!team_players.length) {
+                  alert('Seleziona almeno un giocatore.');
+                  return;
+                }
+                console.log('[ImportTeamDialog] Calling saveUserTeam', { googleSub, team_players, token });
+                try {
+                  await saveUserTeam(googleSub, team_players, token);
+                  console.log('[ImportTeamDialog] saveUserTeam success');
+                } catch (err) {
+                  console.error('[ImportTeamDialog] saveUserTeam error', err);
+                  alert('Errore nel salvataggio della squadra: ' + (err instanceof Error ? err.message : String(err)));
+                  return;
+                }
                 onImport(arr, mode);
               }}
             >

@@ -1,3 +1,4 @@
+
 import os
 import sqlite3
 from flask import Blueprint, request, jsonify, g
@@ -79,4 +80,19 @@ def get_giocatori():
         giocatori = stratified[:total]
     return jsonify_success({'giocatori': giocatori})
 
-
+@routes_giocatori.route('/api/team', methods=['POST'])
+@require_auth
+def store_user_team():
+    """
+    API endpoint to override the user's team in Firestore with team_players (list of dicts with player_name, team, role).
+    Expects JSON: { "google_sub": ..., "team_players": [ {"player_name": ..., "team": ..., "role": ...}, ... ] }
+    """
+    data = request.get_json(force=True)
+    google_sub = data.get('google_sub') or g.user_id
+    team_players = data.get('team_players', [])
+    if not google_sub or not isinstance(team_players, list):
+        return jsonify({"success": False, "error": "Missing google_sub or team_players"}), 400
+    db = get_db()
+    user_ref = db.collection('users').document(google_sub)
+    user_ref.set({'team': team_players}, merge=True)
+    return jsonify_success({"success": True})
