@@ -42,3 +42,15 @@ frontend/.firebaserc
 player_statistics_*
 perf_metrics_*
 *md
+data/lineup/beginner_def_lineup_features.csv
+data/lineup/beginner_fwd_lineup_features.csv
+data/lineup/beginner_gk_lineup_features.csv
+data/lineup/beginner_mid_lineup_features.csv
+data/lineup/expert_def_lineup_features.csv
+data/lineup/expert_fwd_lineup_features.csv
+data/lineup/expert_gk_lineup_features.csv
+data/lineup/expert_mid_lineup_features.csv
+data/lineup/intermediate_def_lineup_features.csv
+data/lineup/intermediate_fwd_lineup_features.csv
+data/lineup/intermediate_gk_lineup_features.csv
+data/lineup/intermediate_mid_lineup_features.csv

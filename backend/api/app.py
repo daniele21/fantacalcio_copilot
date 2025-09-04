@@ -26,6 +26,9 @@ from .routes.giocatori import routes_giocatori
 from .routes.auction_log import routes_auction_log
 from .routes.credit import routes_credit
 from .routes.league_settings import routes_league_settings
+from .routes.lineup import route_lineup_api
+from .routes.player_stats import routes_player_stats
+
 
 
 # Load credits config
@@ -704,7 +707,9 @@ def create_app():
     app.register_blueprint(routes_auction_log)
     app.register_blueprint(routes_credit)
     app.register_blueprint(routes_league_settings)
+    app.register_blueprint(route_lineup_api, url_prefix='/api/lineup')
     app.register_blueprint(strategy_api, url_prefix='/api')
+    app.register_blueprint(routes_player_stats, url_prefix='/api')
     from backend.api.gemini_api import gemini_api
     app.register_blueprint(gemini_api, url_prefix='/api/gemini')
 

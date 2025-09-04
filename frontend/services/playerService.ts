@@ -102,5 +102,16 @@ export function usePlayerApi() {
     return mapped;
   };
 
-  return { fetchPlayers };
+  /**
+   * Recupera le statistiche avanzate dei giocatori dalla API Flask.
+   * @returns Una Promise che si risolve con un array di oggetti PlayerStats.
+   */
+  const fetchPlayerStats = async (): Promise<any[]> => {
+    const data = await call<any>(`${BASE_URL}/api/player_stats`);
+    // Accept both {player_stats: [...]} and {data: {player_stats: [...]}}
+    const player_stats = data?.player_stats || data?.data?.player_stats;
+    return Array.isArray(player_stats) ? player_stats : [];
+  };
+
+  return { fetchPlayers, fetchPlayerStats };
 }

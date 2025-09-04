@@ -78,3 +78,5 @@ def get_giocatori():
         random.shuffle(stratified)
         giocatori = stratified[:total]
     return jsonify_success({'giocatori': giocatori})
+
+

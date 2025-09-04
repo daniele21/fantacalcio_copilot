@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { usePlayerApi } from "../services/playerService";
+import { getMatchdays } from "../services/lineupService";
 import { getProbableLineups } from "../services/probableLineupsService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, ShieldCheck, Zap, AlertTriangle, Crown, Medal, Lock, Unlock, Wand2, RefreshCw, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
-import SectionTitle from "./components/SectionTitle";
-import PlayerRow from "./components/PlayerRow";
-import PlayerCard from "./components/PlayerCard";
+import { Info, ShieldCheck, Zap, Wand2} from "lucide-react";
 // import MiniActions from "./components/MiniActions"; // Only import if used directly
 import RoleRow from "./components/RoleRow";
 import FormationPitch from "./components/FormationPitch";
@@ -115,6 +114,7 @@ const MOCK_PLAYERS: Player[] = [
 
 
 // --- Import helpers --------------------------------------------------------
+
 function mapImported(ip: ImportedPlayer): Player {
   const xfp = ip.xFP ?? 0;
   return {
@@ -294,7 +294,27 @@ function suggestCaptaincy(xi: Player[], riskLevel: number) {
 // --- UI --------------------------------------------------------------------
 
 export default function LineupCoachPage() {
+  const { fetchPlayerStats } = usePlayerApi();
+  const [playerStats, setPlayerStats] = useState<any[]>([]);
+  const [playerStatsLoading, setPlayerStatsLoading] = useState(false);
+  const [playerStatsError, setPlayerStatsError] = useState<string | null>(null);
+
+  const handleFetchPlayerStats = async () => {
+    setPlayerStatsLoading(true);
+    setPlayerStatsError(null);
+    try {
+      const stats = await fetchPlayerStats();
+      setPlayerStats(stats);
+    } catch (e: any) {
+      setPlayerStatsError(e.message || 'Errore durante la chiamata alle statistiche giocatori.');
+    } finally {
+      setPlayerStatsLoading(false);
+    }
+  };
   const [players, setPlayers] = useState<Player[]>(MOCK_PLAYERS);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [matchesError, setMatchesError] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [module, setModule] = useState<Module>("4-3-3");
   const [risk, setRisk] = useState<number>(35);
@@ -310,6 +330,30 @@ export default function LineupCoachPage() {
   const [probableLineups, setProbableLineups] = useState<any>(null);
   const [probableLineupsLoading, setProbableLineupsLoading] = useState(false);
   const [probableLineupsError, setProbableLineupsError] = useState<string | null>(null);
+  // Store the next matchday number from the API response
+  const [nextMatchday, setNextMatchday] = useState<string | null>(null);
+
+
+  // Load matches for today on mount
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    setMatchesLoading(true);
+    setMatchesError(null);
+    getMatchdays(today)
+      .then((data) => {
+        setMatches(data.matches || []);
+        // Set next matchday from the first match if available
+        if (data.matches && data.matches.length > 0 && data.matches[0].matchday) {
+          setNextMatchday(data.matches[0].matchday);
+        } else {
+          setNextMatchday(null);
+        }
+      })
+      .catch((e) => {
+        setMatchesError(e.message || "Errore durante il caricamento delle partite.");
+      })
+      .finally(() => setMatchesLoading(false));
+  }, []);
 
   // Helper to get current matchday as int (default 1 if not parseable)
   const matchdayInt = parseInt(matchday.replace(/\D/g, "")) || 1;
@@ -427,12 +471,60 @@ export default function LineupCoachPage() {
 
   return (
     <div className="container mx-auto max-w-7xl p-4 md:p-8 space-y-8 bg-base-100 min-h-screen">
+      {/* Matches Card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>
+            Serie A: Prossime partite
+            {nextMatchday && (
+              <span className="ml-2 text-base font-semibold text-brand-primary">Giornata {nextMatchday}</span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {matchesLoading && <div>Caricamento partite...</div>}
+          {matchesError && <Alert variant="destructive"><AlertTitle>Errore</AlertTitle><AlertDescription>{matchesError}</AlertDescription></Alert>}
+          {!matchesLoading && !matchesError && matches.length > 0 && (
+            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {matches.map((m, i) => (
+                <li key={i} className="border rounded p-2 bg-base-200">
+                  <div className="font-semibold">{m.home_team} vs {m.away_team}</div>
+                  <div className="text-xs text-muted-foreground">{m.date || m.data}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!matchesLoading && !matchesError && matches.length === 0 && <div>Nessuna partita trovata.</div>}
+        </CardContent>
+      </Card>
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-base-200 rounded-2xl shadow-sm px-4 py-3 border border-base-300">
         <div className="flex items-center gap-4">
           <Badge variant="secondary" className="text-lg font-bold tracking-tight bg-brand-primary text-white border-brand-secondary px-4 py-2 rounded-xl shadow">Lineup Coach</Badge>
           <div className="flex items-center gap-2 text-base text-content-100"><Info className="h-5 w-5 text-primary" /> Optimize your XI + bench for each matchday.</div>
         </div>
         <div className="flex flex-wrap items-center gap-4">
+          <Button variant="secondary" onClick={handleFetchPlayerStats} disabled={playerStatsLoading} className="gap-2">
+            Fetch Player Stats
+          </Button>
+          {playerStatsError && (
+            <Alert variant="destructive" className="my-2">
+              <AlertTitle>Errore</AlertTitle>
+              <AlertDescription>{playerStatsError}</AlertDescription>
+            </Alert>
+          )}
+          {playerStatsLoading && <div>Caricamento statistiche giocatori...</div>}
+          {/* {!playerStatsLoading && playerStats.length > 0 && (
+            <Card className="my-2">
+              <CardHeader>
+                <CardTitle>Player Stats (debug)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-xs whitespace-pre-wrap break-all max-h-96 overflow-auto bg-base-200 p-2 rounded-lg">
+                  {JSON.stringify(playerStats, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          )} */}
           <Button variant="outline" onClick={handleFetchProbableLineups} disabled={probableLineupsLoading} className="gap-2">
             <Zap className="h-4 w-4" />
             {probableLineupsLoading ? "Caricamento..." : "Probabili formazioni"}
