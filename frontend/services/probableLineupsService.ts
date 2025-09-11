@@ -1,8 +1,26 @@
 import { base_url } from "./api";
 import { getAuthToken } from "./geminiService";
 
-export async function getProbableLineups(matchday: number, season?: string, idToken?: string) {
+export interface PlayerInfo {
+  player_name: string;
+  role: string;
+}
+
+export interface ProbableLineupsOptions {
+  matchday: number;
+  season?: string;
+  idToken?: string;
+  playerNames?: PlayerInfo[];
+}
+
+export async function getProbableLineups(options: ProbableLineupsOptions) {
+  const { matchday, season, idToken, playerNames } = options;
   const token = getAuthToken(idToken);
+  const body: any = { matchday };
+  if (season) body.season = season;
+  if (playerNames && Array.isArray(playerNames)) {
+    body.player_names = playerNames;
+  }
   const resp = await fetch(`${base_url}/api/gemini/probable-lineups`, {
     method: "POST",
     headers: {
@@ -10,7 +28,7 @@ export async function getProbableLineups(matchday: number, season?: string, idTo
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     credentials: "include",
-    body: JSON.stringify({ matchday, season }),
+    body: JSON.stringify(body),
   });
   const data = await resp.json();
   if (!resp.ok || !data.success) {

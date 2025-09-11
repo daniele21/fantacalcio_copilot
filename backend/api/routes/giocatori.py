@@ -80,7 +80,7 @@ def get_giocatori():
         giocatori = stratified[:total]
     return jsonify_success({'giocatori': giocatori})
 
-@routes_giocatori.route('/api/team', methods=['POST'])
+@routes_giocatori.route('/api/save_team', methods=['POST'])
 @require_auth
 def store_user_team():
     """
@@ -96,3 +96,45 @@ def store_user_team():
     user_ref = db.collection('users').document(google_sub)
     user_ref.set({'team': team_players}, merge=True)
     return jsonify_success({"success": True})
+
+@routes_giocatori.route('/api/get_team', methods=['GET'])
+@require_auth
+def get_user_team():
+    """
+    API endpoint to read the user's team from Firestore.
+    Accepts optional query param 'google_sub', otherwise uses g.user_id.
+    Returns: { "team": [...] }
+    """
+    google_sub = request.args.get('google_sub') or g.user_id
+    return get_user_team_cached(google_sub)
+
+@cache_api_lru(maxsize=1024, ttl=60)
+def get_user_team_cached(google_sub):
+    """
+    Cached function to read the user's team from Firestore.
+    Only takes google_sub as parameter to ensure stable cache keys.
+    """
+    db = get_db()  # Get db inside the function to avoid cache key issues
+    user_ref = db.collection('users').document(google_sub)
+    user_doc = user_ref.get()
+    team = []
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        team = user_data.get('team', [])
+
+    # Enrich each team player with stats from 'players_current_statistics' and build dict keyed by player_name
+    stats_collection = db.collection('players_current_statistics')
+    team_dict = {}
+    for player in team:
+        player_name = player.get('player_name')
+        player_id = player.get('player_id')  # Get player_id if available
+        stats_doc = stats_collection.document(player_name).get()
+        stats = stats_doc.to_dict() if stats_doc.exists else {}
+        team_dict[player_name] = {
+            'player_id': player_id,  # Include player_id for AI optimization
+            'role': player.get('role'),
+            'team': player.get('team'),
+            'stats': stats
+        }
+
+    return jsonify_success(team_dict)

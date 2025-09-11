@@ -395,6 +395,7 @@ export default function ImportTeamDialog({ open, onClose, onImport, currentPlaye
               onClick={async () => {
                 const arr = Array.from(selectedIds).map(toImported).filter(Boolean) as ImportedPlayer[];
                 const team_players = arr.map(p => ({
+                  player_id: p.id,      // Include the player ID for AI optimization
                   player_name: p.name,
                   team: p.team ?? '',
                   role: p.role

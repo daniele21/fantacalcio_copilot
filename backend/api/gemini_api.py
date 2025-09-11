@@ -6,7 +6,10 @@ import logging
 import google.genai as genai
 from google.genai import types
 from flask import Blueprint, request, current_app, g
+
+from backend.api.routes.giocatori import get_user_team_cached
 from .util import require_auth, jsonify_success, jsonify_error, get_db
+from backend.api.utils.cache import cache_api_lru
 import time
 try:
     from google.cloud import firestore
@@ -29,7 +32,13 @@ def get_limiter():
 
 # GEMINI_MODEL = "gemini-2.5-flash-lite-preview-06-17"
 GEMINI_MODEL = "gemini-2.5-flash-lite"
+GEMINI_POWER_MODEL = "gemini-2.5-flash"
 ROLE_NAMES = {
+    "POR": "Portieri",
+    "DIF": "Difensori", 
+    "CEN": "Centrocampisti",
+    "ATT": "Attaccanti",
+    # Legacy mapping for backwards compatibility
     "GK": "Portieri",
     "DEF": "Difensori",
     "MID": "Centrocampisti",
@@ -74,6 +83,14 @@ GEMINI_PRICING = {
 }
 GROUNDING_SEARCH_COST = 0.035  # USD per search
 
+# Formation slots mapping
+MODULE_SLOTS = {
+    "3-4-3": {"POR": 1, "DIF": 3, "CEN": 4, "ATT": 3},
+    "4-3-3": {"POR": 1, "DIF": 4, "CEN": 3, "ATT": 3},
+    "4-4-2": {"POR": 1, "DIF": 4, "CEN": 4, "ATT": 2},
+    "3-5-2": {"POR": 1, "DIF": 3, "CEN": 5, "ATT": 2},
+}
+
 
 @gemini_api.route('/probable-lineups', methods=['POST'])
 @require_auth
@@ -88,46 +105,138 @@ def gemini_probable_lineups():
     data = request.get_json() or {}
     matchday = data.get('matchday')
     season = data.get('season') or '2025/2026'
+    player_names = data.get('player_names', [])
     if not isinstance(matchday, int) or not (1 <= matchday <= 38):
         return jsonify_error("bad_request", "'matchday' deve essere un intero tra 1 e 38.")
+    # Log or use player_names as needed
+    if player_names:
+        logger.info(f"Received player_names for probable-lineups: {player_names}")
 
     # Use matchday as document id and check if created today
     from datetime import datetime
     today_str = datetime.now().strftime('%Y-%m-%d')
     db_type = os.getenv('DB_TYPE', 'sqlite')
+    google_sub = request.args.get('google_sub') or g.user_id
     db = get_db()
 
-    # Try to load from Firestore if enabled
+    # Check which players need fresh info (missing or outdated)
+    players_to_update = []
+    existing_fresh_data = {}
+    
     if db_type == 'firestore' and firestore is not None:
         doc_ref = db.collection('probable_lineups').document(str(matchday))
         doc = doc_ref.get()
         if doc.exists:
             row = doc.to_dict()
-            created_at = row.get('created_at')
-            # Only use cached result if it was created today
-            if created_at == today_str:
-                return jsonify_success({'result': row.get('result'), 'cost': 0, 'cached': True})
+            existing_result = row.get('result', {})
+            
+            # Check each player to see if their info is fresh (from today)
+            for player_info in player_names:
+                player_name = player_info.get('player_name')
+                if player_name and player_name in existing_result:
+                    player_data = existing_result[player_name]
+                    updated_at = player_data.get('updated_at', '')
+                    # Check if updated today (compare date part only)
+                    if updated_at.startswith(today_str):
+                        existing_fresh_data[player_name] = player_data
+                    else:
+                        players_to_update.append(player_name)
+                else:
+                    players_to_update.append(player_name)
+            
+            # If all players have fresh data, return cached result
+            if not players_to_update:
+                logger.info(f"All player info is fresh for matchday {matchday}, returning cached result")
+                # get_user_team_cached(google_sub, db)
+                return jsonify_success({'result': existing_result, 'cost': 0, 'cached': True})
+        else:
+            # No existing document, need to fetch all players
+            players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
+    else:
+        # For SQLite or when Firestore is not available, always update all players
+        players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
+
+    if not players_to_update:
+        logger.info(f"No players to update for matchday {matchday}")
+        return jsonify_success({'result': existing_fresh_data, 'cost': 0, 'cached': True})
+    
+    logger.info(f"Players to update: {players_to_update} (out of {len(player_names)} total players)")
 
     # Not cached, run Gemini
+    # Get current month for more precise search terms
+    from datetime import datetime
+    current_month = datetime.now().strftime('%B %Y')  # e.g., "September 2025"
+    current_month_it = {
+        'January': 'gennaio', 'February': 'febbraio', 'March': 'marzo', 'April': 'aprile',
+        'May': 'maggio', 'June': 'giugno', 'July': 'luglio', 'August': 'agosto',
+        'September': 'settembre', 'October': 'ottobre', 'November': 'novembre', 'December': 'dicembre'
+    }.get(datetime.now().strftime('%B'), datetime.now().strftime('%B').lower())
+    current_year = datetime.now().year
+    
     prompt = f'''
-Sei un esperto di Fantacalcio e Serie A. 
-Fornisci le probabili formazioni di tutte le squadre di Serie A per la giornata {matchday} della stagione 2025-2026.
-Usa la Ricerca Google per trovare le informazioni più aggiornate possibili (ultimi 3 giorni, fonti attendibili come Sky, Gazzetta, Fantacalcio, ecc).
-Per ogni squadra, restituisci un array di oggetti giocatore con queste chiavi:
-- squadra: nome della squadra
-- giocatore: nome completo
-- titolare: true/false
-- prob_titolare: probabilità (0-1) di essere titolare (non inventare, ma prendi da fonti attendibili)
-- prob_subentro: probabilità (0-1) di subentrare
-- ballottaggio: stringa con eventuale ballottaggio (es. 'Dumfries/Darmian')
-- razionale: motivazione sintetica per la scelta e la probabilità relative alla giornata in questione
-- forma: descrizione della forma aggiornata delle ultime partite
-- raccomandazione: sulla base della forma recente del giocatore, della prob_titolare e del suo potenziale,spiegare se è un giocatore consigliato da schierare per questa giornata {matchday} e perché
-Rispondi SOLO con un oggetto JSON valido, senza testo extra, senza markdown, senza spiegazioni.
-Struttura esempio: {{ "giocatori": [ {{ "squadra": "Inter", "giocatore": "Sommer", "titolare": true, "prob_titolare": 0.98, "prob_subentro": 0.01, "ballottaggio": "in ballottaggio con xxx", 
-"razionale": "...", "forma": "...", "raccomandazione": "..." }}, ... ] }}.
-Usa sempre doppi apici per chiavi e stringhe. Rispondi in italiano.
-'''
+        Sei un esperto di Fantacalcio e Serie A. Il tuo compito è estrarre informazioni sulle probabili formazioni ESCLUSIVAMENTE per la stagione CORRENTE 2025/26.
+        
+        VINCOLI TEMPORALI CRITICI - FILTRA RIGOROSAMENTE:
+        - Cerca SOLO informazioni pubblicate dopo il 15 agosto 2025 (inizio stagione 2025/26)
+        - RIFIUTA qualsiasi dato delle stagioni 2024/25, 2023/24 o precedenti
+        - Concentrati su notizie di {current_month_it} {current_year} per la giornata {matchday}
+        - Se una fonte menziona stagioni passate, IGNORALA completamente
+        
+        RICERCA GOOGLE - USA QUESTI TERMINI SPECIFICI:
+        - "probabili formazioni {matchday}a giornata serie a 2025/26 {current_month_it} {current_year}"
+        - "formazioni ufficiali serie a giornata {matchday} stagione 2025/26"
+        - "titolari {matchday}a giornata settembre 2025 serie a"
+        - "convocati {matchday}a giornata 2025/26 serie a"
+        - "infortunati squalificati serie a giornata {matchday} 2025/26"
+        
+        FONTI ATTENDIBILI (solo da queste):
+        - fantacalcio.it (cerca nelle sezioni probabili formazioni 2025/26)
+        - gazzetta.it (filtra per stagione corrente)
+        - corrieredellosport.it (solo notizie recenti)
+        - tuttosport.com (solo articoli post-agosto 2025)
+        - sky.it/sport (solo contenuti stagione 2025/26)
+        
+        GIOCATORI DA ANALIZZARE: {players_to_update}
+        
+        Per ogni giocatore, estrai SOLO informazioni della stagione 2025/26 per queste chiavi:
+        - squadra: nome squadra attuale (stagione 2025/26)
+        - giocatore: nome completo del giocatore
+        - titolare: true/false (basato SOLO su fonti stagione 2025/26)
+        - prob_titolare: probabilità (0-1) di titolarità per giornata {matchday} stagione 2025/26
+        - prob_subentro: probabilità (0-1) di subentro per giornata {matchday} stagione 2025/26
+        - ballottaggio: eventuale ballottaggio menzionato per giornata {matchday} 2025/26, altrimenti null
+        - note: informazioni SPECIFICHE per giornata {matchday} stagione 2025/26
+        - forma: forma attuale basata SOLO su prestazioni stagione 2025/26
+        - news: notizie recenti relative alla giornata {matchday} stagione 2025/26
+        
+        VALIDAZIONE RIGOROSA:
+        - Se non trovi informazioni SPECIFICHE per la stagione 2025/26 di un giocatore:
+          * prob_titolare: 0.5
+          * note: "Nessun dato specifico trovato per stagione 2025/26 giornata {matchday}"
+          * forma: "Da monitorare - informazioni stagione corrente limitate"
+          * news: "Nessuna news specifica per giornata {matchday} stagione 2025/26"
+        
+        - NON usare dati delle stagioni precedenti anche se sembrano recenti
+        - NON inventare probabilità se non supportate da fonti 2025/26
+        - Se un articolo menziona "la scorsa stagione" o anni precedenti, IGNORALO
+        
+        ESEMPIO OUTPUT:
+        {{ "giocatori": [ 
+            {{ 
+                "squadra": "Inter", 
+                "giocatore": "Yann Sommer", 
+                "titolare": true, 
+                "prob_titolare": 0.95, 
+                "prob_subentro": 0.02, 
+                "ballottaggio": null, 
+                "note": "Titolare confermato per giornata {matchday} stagione 2025/26 secondo Gazzetta", 
+                "forma": "Ottima - 2 clean sheet nelle prime giornate 2025/26", 
+                "news": "Confermato tra i pali per la sfida di giornata {matchday} - {current_month_it} 2025" 
+            }} 
+        ] }}
+        
+        Rispondi SOLO con JSON valido. Usa doppi apici. Lingua italiana.
+        '''
     try:
         start_time = time.time()
         schema = types.Schema(
@@ -144,11 +253,11 @@ Usa sempre doppi apici per chiavi e stringhe. Rispondi in italiano.
                             "prob_titolare": types.Schema(type=types.Type.NUMBER),
                             "prob_subentro": types.Schema(type=types.Type.NUMBER),
                             "ballottaggio": types.Schema(type=types.Type.STRING),
-                            "razionale": types.Schema(type=types.Type.STRING),
+                            "note": types.Schema(type=types.Type.STRING),
                             "forma": types.Schema(type=types.Type.STRING),
-                            "raccomandazione": types.Schema(type=types.Type.STRING),
+                            "news": types.Schema(type=types.Type.STRING),
                         },
-                        required=["squadra", "giocatore", "titolare", "prob_titolare", "prob_subentro", "ballottaggio", "razionale", "forma", "raccomandazione"]
+                        required=["squadra", "giocatore", "titolare", "prob_titolare", "prob_subentro", "ballottaggio", "note", "forma", "news"]
                     )
                 )
             },
@@ -156,9 +265,9 @@ Usa sempre doppi apici per chiavi e stringhe. Rispondi in italiano.
         )
         config = types.GenerateContentConfig(
             tools=[grounding_tool],
-            thinking_config=types.ThinkingConfig(thinking_budget=512),
+            # thinking_config=types.ThinkingConfig(thinking_budget=1024),
             response_schema=schema,
-            temperature=0.1,
+            temperature=0.0,
             max_output_tokens=None,
         )
         response = genai_client.models.generate_content(
@@ -173,17 +282,44 @@ Usa sempre doppi apici per chiavi e stringhe. Rispondi in italiano.
         result = json.loads(text.replace('```json', '').replace('```', '').strip())
         if not (isinstance(result, dict) and 'giocatori' in result):
             return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON valido con la chiave 'giocatori'.")
+
+
+        # Transform giocatori array into dict keyed by player_name, with required structure
+        from datetime import datetime
+        giocatori_list = result['giocatori']
+        now_iso = datetime.now().isoformat()
+        giocatori_by_name = {}
+        for player in giocatori_list:
+            nome = player.get('giocatore')
+            if not nome:
+                continue
+            giocatori_by_name[nome] = {
+                'updated_at': now_iso,
+                'squadra': player.get('squadra'),
+                'titolare': player.get('titolare'),
+                'prob_titolare': player.get('prob_titolare'),
+                'prob_subentro': player.get('prob_subentro'),
+                'ballottaggio': player.get('ballottaggio'),
+                'note': player.get('note'),
+                'forma': player.get('forma'),
+                'news': player.get('news'),
+            }
+        
+        # Merge new data with existing fresh data
+        final_result = {**existing_fresh_data, **giocatori_by_name}
+
+
         usage = getattr(response, "usage_metadata", None)
         input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
         output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
         cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
 
-        # Save to Firestore if enabled
+        # Save to Firestore if enabled, merging with existing player info
         if db_type == 'firestore' and firestore is not None:
             doc_ref = db.collection('probable_lineups').document(str(matchday))
-            doc_ref.set({'result': result, 'cost': cost, 'created_at': today_str, 'matchday': matchday}, merge=True)
+            doc_ref.set({'result': final_result, 'cost': cost, 'created_at': today_str, 'matchday': matchday}, merge=True)
 
-        return jsonify_success({'result': result, 'cost': cost, 'cached': False})
+        return jsonify_success({'result': final_result, 'cost': cost, 'cached': False})
     except Exception as e:
         logger.error(f"Gemini probable-lineups error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare le probabili formazioni: {str(e)}")
@@ -234,9 +370,11 @@ def gemini_aggregated_analysis():
         f"Usa la Ricerca Google per ottenere informazioni aggiornate sui seguenti giocatori {player_list} "
         f"({role_name}) e sintetizzarle.\n\n"
         f"ISTRUZIONI DI RICERCA\n"
-        f"- Dai priorità a notizie/statistiche degli ultimi 90 giorni, relativamente all'ultima stagione completa (2024/2025).\n"
-        f"- Disambigua eventuali omonimi usando ruolo fornito.\n"
-        f"- Non inventare numeri: se un dato non è certo, segnala l'incertezza.\n\n"
+        f"- Dai priorità ASSOLUTA a notizie/statistiche della stagione 2025/26 (pubblicate dopo agosto 2025)\n"
+        f"- IGNORA completamente dati delle stagioni 2024/25, 2023/24 o precedenti\n"
+        f"- Cerca informazioni su trasferimenti estivi 2025, prestazioni nelle prime giornate 2025/26, infortuni attuali\n"
+        f"- Disambigua eventuali omonimi usando ruolo fornito\n"
+        f"- Non inventare numeri: se un dato non è certo per la stagione corrente, segnala l'incertezza\n\n"
         f"CONSEGNA (OBBLIGATORIA)\n"
         f"Restituisci SOLO un SINGOLO oggetto JSON **valido**. Usa sempre doppi apici per chiavi e stringhe. Rispetta esattamente questa struttura:\n"
         f'{{{{\n'
@@ -245,8 +383,11 @@ def gemini_aggregated_analysis():
         f'  "trap": "..." # potenziali trappole o giocatori sopravvalutati.\n'
         f'}}}}\n\n'
         f"VINCOLI DI CONTENUTO\n"
-        f"- Indica sempre il periodo a cui si riferiscono i dati.\n"
-        f"- Non inserire link o citazioni nel JSON.\n\n"
+        f"- Indica sempre che i dati si riferiscono alla stagione 2025/26 (es. 'inizio stagione 2025/26', 'prime giornate 2025/26')\n"
+        f"- trend: descrizione breve basata su prestazioni/notizie stagione 2025/26\n"
+        f"- hot_players: giocatori top per la stagione corrente con motivazioni basate su dati 2025/26\n"
+        f"- trap: potenziali trappole considerando il contesto stagione 2025/26\n"
+        f"- Non inserire link o citazioni nel JSON\n\n"
         f"LINGUA\n"
         f"Rispondi in italiano.\n\n"
         f"OUTPUT\n"
@@ -320,9 +461,11 @@ def gemini_detailed_analysis():
         f"({player_team}, {player_role}) e sintetizzarle.\n\n"
 
         f"ISTRUZIONI DI RICERCA\n"
-        f"- Dai priorità a notizie/statistiche degli ultimi 90 giorni; in mancanza, usa l'ultima stagione completa.\n"
-        f"- Disambigua eventuali omonimi usando squadra e ruolo forniti.\n"
-        f"- Non inventare numeri: se un dato non è certo, segnala l'incertezza nella sezione weaknesses.\n\n"
+        f"- Dai priorità ASSOLUTA a notizie/statistiche della stagione 2025/26 (pubblicate dopo agosto 2025)\n"
+        f"- IGNORA completamente dati delle stagioni 2024/25, 2023/24 o precedenti\n"
+        f"- Se non trovi dati specifici per la stagione 2025/26, cerca almeno le ultime notizie di mercato/trasferimenti estivi 2025\n"
+        f"- Disambigua eventuali omonimi usando squadra e ruolo forniti\n"
+        f"- Non inventare numeri: se un dato non è certo per la stagione corrente, segnala l'incertezza nella sezione weaknesses\n\n"
 
         f"CONSEGNA (OBBLIGATORIA)\n"
         f"Restituisci SOLO un SINGOLO oggetto JSON **valido**, senza testo extra, senza spiegazioni, senza markdown "
@@ -334,11 +477,11 @@ def gemini_detailed_analysis():
         f'}}}}\n\n'
 
         f"VINCOLI DI CONTENUTO\n"
-        f"- strengths: 2–3 frasi brevi e specifiche (forma recente, titolarità, infortuni recuperati, minuti, rigori, ruolo tattico, dati oggettivi come gol/assist/xG).\n"
-        f"- weaknesses: 1–2 frasi su rischi/limiti (rotazione, infortunio, calo forma, trasferimento incerto, 'dati recenti limitati/contraddittori' se necessario).\n"
-        f"- advice: una sola frase operativa e concisa per l'asta (es.: prezzi/strategia/asta, livello di rischio/ritorno atteso).\n"
-        f"- Indica sempre il periodo a cui si riferiscono i dati (es. 'ultime 10 presenze', 'stagione 2024/25').\n"
-        f"- Non inserire link o citazioni nel JSON.\n\n"
+        f"- strengths: 2–3 frasi brevi e specifiche basate SOLO su stagione 2025/26 (forma recente, titolarità, infortuni recuperati, minuti, rigori, ruolo tattico, dati oggettivi come gol/assist/xG)\n"
+        f"- weaknesses: 1–2 frasi su rischi/limiti per la stagione corrente (rotazione, infortunio, calo forma, trasferimento incerto, 'dati stagione 2025/26 limitati' se necessario)\n"
+        f"- advice: una sola frase operativa e concisa per l'asta basata su informazioni stagione 2025/26 (prezzi/strategia/asta, livello di rischio/ritorno atteso)\n"
+        f"- Indica sempre che i dati si riferiscono alla stagione 2025/26 (es. 'nelle prime giornate 2025/26', 'inizio stagione 2025/26')\n"
+        f"- Non inserire link o citazioni nel JSON\n\n"
 
         f"LINGUA\n"
         f"Rispondi in italiano.\n\n"
@@ -573,6 +716,515 @@ def gemini_bidding_advice():
     except Exception as e:
         logger.error(f"Gemini bidding-advice error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare il consiglio sull'offerta: {str(e)}")
+
+@cache_api_lru(maxsize=128, ttl=30*60)  # Cache for 30 minutes
+def optimize_lineup_cached(matchday, risk, xi_threshold, prefer_def_mod, module, players_json):
+    """
+    Cached function for lineup optimization.
+    Uses stable parameters to ensure good cache hit rates.
+    """
+    import hashlib
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Parse players data
+        team_players = json.loads(players_json)
+        
+        # Debug: Check role distribution in team
+        role_distribution = {"POR": 0, "DIF": 0, "CEN": 0, "ATT": 0}
+        for player in team_players:
+            role = player.get('role')
+            if role in role_distribution:
+                role_distribution[role] += 1
+        
+        logger.info(f"Team role distribution: {role_distribution}")
+        logger.info(f"Formation {module} requires: {MODULE_SLOTS.get(module, {})}")
+        
+        # Check if team has enough players for formation
+        required = MODULE_SLOTS.get(module, {})
+        insufficient_roles = []
+        for role, required_count in required.items():
+            available_count = role_distribution.get(role, 0)
+            if available_count < required_count:
+                logger.warning(f"Not enough {role} players: need {required_count}, have {available_count}")
+                insufficient_roles.append(f"{role}: hai {available_count}, servono {required_count}")
+        
+        if insufficient_roles:
+            error_msg = f"Impossibile creare formazione {module}. " + ", ".join(insufficient_roles)
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # Format player data for the prompt
+        players_summary = []
+        for player in team_players:
+            prob_info = player.get('probableLineupInfo', {})
+            player_text = f"""
+            - ID: {player.get('id')} | {player.get('name')} ({player.get('role')}, {player.get('team')})
+              • Avversario: {player.get('opponent', 'N/A')}
+              • Titolare prob: {prob_info.get('prob_titolare', 0):.0%}
+              • Forma: {prob_info.get('forma', 'N/A')}
+              • News: {prob_info.get('news', 'Nessuna news')}
+              • Note: {prob_info.get('note', 'Nessuna nota')}
+            """
+            players_summary.append(player_text.strip())
+        
+        players_text = "\n".join(players_summary)
+        
+        prompt = f"""
+        RUOLO
+        Sei un esperto allenatore di Fantacalcio e data analyst. Devi ottimizzare la formazione per la giornata {matchday}.
+
+        STRATEGIA IMPOSTATA
+        - Profilo di rischio: {risk}
+        - Soglia XI: {xi_threshold:.0%} (probabilità minima per essere titolare)
+        - Modulo: {module}
+        - Preferenza difensori: {'Sì' if prefer_def_mod else 'No'}
+
+        GIOCATORI DISPONIBILI
+        {players_text}
+
+        VINCOLI FONDAMENTALI - RISPETTA RIGOROSAMENTE:
+        1. Usa SEMPRE il ruolo originale di ogni giocatore come specificato nei dati
+        2. NON cambiare MAI il ruolo di un giocatore (POR rimane POR, DIF rimane DIF, CEN rimane CEN, ATT rimane ATT)
+        3. MODULO {module} OBBLIGATORIO - seleziona ESATTAMENTE:
+           • 1 giocatore con ruolo POR
+           • {MODULE_SLOTS.get(module, {}).get('DIF', 4)} giocatori con ruolo DIF
+           • {MODULE_SLOTS.get(module, {}).get('CEN', 3)} giocatori con ruolo CEN  
+           • {MODULE_SLOTS.get(module, {}).get('ATT', 3)} giocatori con ruolo ATT
+        4. VERIFICA PRIMA DI RISPONDERE: conta i giocatori per ruolo nell'XI
+        5. Se non ci sono abbastanza giocatori di un ruolo, DIMMI che è impossibile creare il modulo richiesto
+        6. IMPORTANTE: Nel JSON di risposta, usa per "role" ESATTAMENTE il ruolo originale del giocatore
+        7. Il campo "formation" DEVE essere esattamente "{module}"
+
+        OBIETTIVO
+        Usa la Ricerca Google per verificare le ultime notizie e informazioni aggiornate sui giocatori SPECIFICAMENTE per la giornata {matchday} della stagione 2025/26, 
+        poi ottimizza la formazione considerando:
+        1. Probabilità di giocare titolare nella giornata {matchday} 2025/26
+        2. Forma attuale e notizie recenti della stagione 2025/26
+        3. Strategia di rischio impostata
+        4. Modulo tattico scelto
+        5. RUOLI ORIGINALI dei giocatori (NON modificarli)
+
+        VINCOLI TEMPORALI PER LA RICERCA:
+        - Cerca SOLO informazioni pubblicate dopo agosto 2025 (stagione 2025/26)
+        - IGNORA completamente dati delle stagioni 2024/25, 2023/24 o precedenti
+        - Concentrati su notizie, allenamenti e probabili formazioni per la giornata {matchday} 2025/26
+        - Se una fonte menziona stagioni passate, IGNORALA
+        - Usa termini di ricerca come: "giornata {matchday} serie a 2025/26", "probabili formazioni settembre 2025"
+
+        ISTRUZIONI
+        - Per profilo Conservativo: privilegia titolari sicuri, giocatori con alta probabilità di giocare e in forma (stagione 2025/26)
+        - Per profilo Aggressivo: considera giocatori con alto potenziale di Fantasy Points anche se con probabilità di titolarità inferiore
+        - Per profilo Bilanciato: equilibra sicurezza e potenziale, puntando su un mix di titolari sicuri e qualche scelta a rischio calcolato
+        - Se preferenza difensori attiva, dai leggero bonus ai difensori nelle scelte
+        - Rispetta la soglia XI impostata come guida per le probabilità di titolarità
+        - Considera avversari, orari di gioco e ultime notizie DELLA STAGIONE CORRENTE 2025/26
+        - MANTIENI sempre il ruolo originale di ogni giocatore
+
+        CONSEGNA (OBBLIGATORIA)
+        Restituisci SOLO un oggetto JSON valido con questa struttura esatta:
+        {{
+          "xi": [
+            {{"playerId": "usa_esatto_ID_dal_prompt", "playerName": "nome", "role": "ruolo in input del giocatore (non prendere questo ruolo dalle fonti)", "reasoning": "breve motivazione max 100 caratteri"}},
+            ...
+          ],
+          "bench": [
+            {{"playerId": "usa_esatto_ID_dal_prompt", "playerName": "nome", "role": "ruolo in input del giocatore (non prendere questo ruolo dalle fonti)", "reasoning": "breve motivazione max 100 caratteri"}},
+            ...
+          ],
+          "captain": {{"playerId": "usa_esatto_ID_dal_prompt", "playerName": "nome", "reasoning": "motivazione max 150 caratteri"}},
+          "viceCaptain": {{"playerId": "usa_esatto_ID_dal_prompt", "playerName": "nome", "reasoning": "motivazione max 150 caratteri"}},
+          "formation": "{module}",
+          "totalXfp": 0.0,
+          "reasoning": "spiegazione generale della strategia utilizzata max 300 caratteri"
+        }}
+
+        VINCOLI CRITICI - FORMAZIONE {module}
+        - VINCOLO ASSOLUTO: L'XI deve contenere ESATTAMENTE:
+          * 1 giocatore con role="POR" 
+          * {MODULE_SLOTS.get(module, {}).get('DIF', 4)} giocatori con role="DIF"
+          * {MODULE_SLOTS.get(module, {}).get('CEN', 3)} giocatori con role="CEN"  
+          * {MODULE_SLOTS.get(module, {}).get('ATT', 3)} giocatori con role="ATT"
+        - TOTALE XI: esattamente 11 giocatori
+        - NON MODIFICARE MAI il campo "role" - usa sempre il ruolo originale del giocatore
+        - Se un giocatore ha role="CEN" nel prompt, nell'XI deve avere role="CEN"
+        - Se un giocatore ha role="DIF" nel prompt, nell'XI deve avere role="DIF"
+        - PRIMA di scrivere il JSON finale: conta i giocatori per ruolo e verifica che rispettino {module}
+        - Se i conti non tornano, ricontrolla e correggi la selezione
+        - Capitano e vice-capitano devono essere nell'XI
+        - Usa sempre doppi apici per chiavi e stringhe
+        - Non aggiungere testo extra o markdown
+        - Calcola totalXfp sommando gli xFP dei giocatori nell'XI
+        - Reasoning deve essere specifico e conciso
+        - IMPORTANTE: Per playerId usa ESATTAMENTE l'ID fornito nel prompt (quello dopo "ID:"), non creare ID diversi
+        - FONDAMENTALE: Per "role" usa ESATTAMENTE il ruolo originale del giocatore senza modificarlo
+        - Il campo "formation" deve essere esattamente "{module}"
+
+        PROCEDURA DI VALIDAZIONE OBBLIGATORIA - SEGUI RIGOROSAMENTE:
+        1. Seleziona esattamente 1 giocatore con role="POR" per l'XI
+        2. Seleziona esattamente {MODULE_SLOTS.get(module, {}).get('DIF', 4)} giocatori con role="DIF" per l'XI
+        3. Seleziona esattamente {MODULE_SLOTS.get(module, {}).get('CEN', 3)} giocatori con role="CEN" per l'XI
+        4. Seleziona esattamente {MODULE_SLOTS.get(module, {}).get('ATT', 3)} giocatori con role="ATT" per l'XI
+        5. VERIFICA FINALE: conta i giocatori nell'XI per ruolo:
+           - POR: deve essere 1
+           - DIF: deve essere {MODULE_SLOTS.get(module, {}).get('DIF', 4)}
+           - CEN: deve essere {MODULE_SLOTS.get(module, {}).get('CEN', 3)}
+           - ATT: deve essere {MODULE_SLOTS.get(module, {}).get('ATT', 3)}
+           - TOTALE: deve essere 11
+        6. Se i conti non tornano, RICOMINCIA la selezione finché non rispetti {module}
+        7. Solo quando la formazione è corretta, procedi con il JSON finale
+
+        LINGUA
+        Rispondi in italiano.
+        """
+        
+        start_time = time.time()
+        
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "xi": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "playerId": types.Schema(type=types.Type.STRING),
+                            "playerName": types.Schema(type=types.Type.STRING),
+                            "role": types.Schema(type=types.Type.STRING),
+                            "reasoning": types.Schema(type=types.Type.STRING),
+                        },
+                        required=["playerId", "playerName", "role", "reasoning"]
+                    )
+                ),
+                "bench": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "playerId": types.Schema(type=types.Type.STRING),
+                            "playerName": types.Schema(type=types.Type.STRING),
+                            "role": types.Schema(type=types.Type.STRING),
+                            "reasoning": types.Schema(type=types.Type.STRING),
+                        },
+                        required=["playerId", "playerName", "role", "reasoning"]
+                    )
+                ),
+                "captain": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "playerId": types.Schema(type=types.Type.STRING),
+                        "playerName": types.Schema(type=types.Type.STRING),
+                        "reasoning": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["playerId", "playerName", "reasoning"]
+                ),
+                "viceCaptain": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "playerId": types.Schema(type=types.Type.STRING),
+                        "playerName": types.Schema(type=types.Type.STRING),
+                        "reasoning": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["playerId", "playerName", "reasoning"]
+                ),
+                "formation": types.Schema(type=types.Type.STRING),
+                "totalXfp": types.Schema(type=types.Type.NUMBER),
+                "reasoning": types.Schema(type=types.Type.STRING),
+            },
+            required=["xi", "bench", "captain", "viceCaptain", "formation", "totalXfp", "reasoning"]
+        )
+        
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            response_schema=schema,
+            temperature=0.1,
+            max_output_tokens=None,
+        )
+        
+        response = genai_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
+        
+        elapsed = time.time() - start_time
+        logger.info(f"Gemini optimize-lineup call time: {elapsed:.2f}s")
+        
+        text = response.text
+        logger.info(f"[Gemini optimize-lineup raw response]: {text}")
+        
+        result = json.loads(text.replace('```json', '').replace('```', '').strip())
+        
+        if not (isinstance(result, dict) and 'xi' in result and 'bench' in result):
+            logger.error(f"Invalid Gemini optimize-lineup response structure: {result}")
+            raise ValueError("Risposta Gemini non valida: struttura errata.")
+        
+        # Validate XI has 11 players
+        if len(result['xi']) != 11:
+            logger.warning(f"XI does not have 11 players: {len(result['xi'])}")
+        
+        # Validate formation structure
+        if module in MODULE_SLOTS:
+            role_counts = {"POR": 0, "DIF": 0, "CEN": 0, "ATT": 0}
+            logger.info(f"AI XI players and their roles:")
+            for player in result['xi']:
+                role = player.get('role')
+                player_name = player.get('playerName', 'Unknown')
+                player_id = player.get('playerId', 'Unknown')
+                logger.info(f"  - {player_name} ({player_id}): role = '{role}'")
+                if role in role_counts:
+                    role_counts[role] += 1
+                else:
+                    logger.warning(f"  - Unknown role '{role}' for player {player_name}")
+            
+            logger.info(f"AI XI role counts: {role_counts}")
+            expected = MODULE_SLOTS[module]
+            logger.info(f"Expected for {module}: {expected}")
+            
+            mismatches = []
+            for role, expected_count in expected.items():
+                actual_count = role_counts[role]
+                if actual_count != expected_count:
+                    mismatches.append(f"{role}: expected {expected_count}, got {actual_count}")
+            
+            if mismatches:
+                logger.error(f"Formation {module} validation failed: {', '.join(mismatches)}")
+                logger.error(f"XI roles distribution: {role_counts}")
+                
+                # Try auto-correction for minor mismatches
+                total_players_in_xi = sum(role_counts.values())
+                expected_total = sum(MODULE_SLOTS[module].values())
+                
+                if total_players_in_xi == expected_total:
+                    # Same total players, try to redistribute from bench
+                    logger.info("Attempting auto-correction by redistributing players from bench...")
+                    
+                    # Parse team players for bench adjustments
+                    team_players = json.loads(players_json)
+                    xi_players = result.get('xi', [])
+                    bench_players = result.get('bench', [])
+                    
+                    # Group available players by role
+                    available_by_role = {"POR": [], "DIF": [], "CEN": [], "ATT": []}
+                    for player in team_players:
+                        role = player.get('role')
+                        if role in available_by_role:
+                            available_by_role[role].append(player)
+                    
+                    # Try to fix role shortages
+                    corrected_xi = xi_players.copy()
+                    corrected_bench = bench_players.copy()
+                    auto_corrected = False
+                    
+                    for role, expected_count in MODULE_SLOTS[module].items():
+                        current_count = role_counts.get(role, 0)
+                        if current_count < expected_count:
+                            needed = expected_count - current_count
+                            logger.info(f"Need {needed} more {role} players")
+                            
+                            # Find excess players in other roles that we can swap
+                            for excess_role, excess_count in role_counts.items():
+                                excess_expected = MODULE_SLOTS[module].get(excess_role, 0)
+                                if excess_count > excess_expected:
+                                    excess_available = excess_count - excess_expected
+                                    swap_count = min(needed, excess_available)
+                                    
+                                    if swap_count > 0:
+                                        # Find players to swap
+                                        players_to_remove = []
+                                        players_to_add = []
+                                        
+                                        # Remove excess players from XI
+                                        for i, xi_player in enumerate(corrected_xi):
+                                            if len(players_to_remove) >= swap_count:
+                                                break
+                                            for team_player in team_players:
+                                                if ((team_player.get('id') == xi_player.get('playerId')) or 
+                                                    (team_player.get('name') == xi_player.get('playerName'))) and team_player.get('role') == excess_role:
+                                                    players_to_remove.append(i)
+                                                    break
+                                        
+                                        # Find replacement players from bench or available players
+                                        for bench_player in corrected_bench:
+                                            if len(players_to_add) >= swap_count:
+                                                break
+                                            for team_player in team_players:
+                                                if ((team_player.get('id') == bench_player.get('playerId')) or 
+                                                    (team_player.get('name') == bench_player.get('playerName'))) and team_player.get('role') == role:
+                                                    players_to_add.append(bench_player)
+                                                    break
+                                        
+                                        # Perform the swap
+                                        if len(players_to_add) >= swap_count:
+                                            for idx in sorted(players_to_remove[:swap_count], reverse=True):
+                                                moved_player = corrected_xi.pop(idx)
+                                                corrected_bench.append(moved_player)
+                                            
+                                            for new_player in players_to_add[:swap_count]:
+                                                corrected_xi.append(new_player)
+                                                if new_player in corrected_bench:
+                                                    corrected_bench.remove(new_player)
+                                            
+                                            needed -= swap_count
+                                            auto_corrected = True
+                                            logger.info(f"Auto-corrected: swapped {swap_count} {excess_role} -> {role}")
+                                            
+                                            if needed <= 0:
+                                                break
+                    
+                    if auto_corrected:
+                        # Update the result with corrected lineup
+                        result['xi'] = corrected_xi
+                        result['bench'] = corrected_bench
+                        logger.info("Auto-correction successful - lineup updated")
+                        
+                        # Re-validate after correction
+                        corrected_role_counts = {"POR": 0, "DIF": 0, "CEN": 0, "ATT": 0}
+                        for xi_player in corrected_xi:
+                            player_id = xi_player.get('playerId')
+                            player_name = xi_player.get('playerName')
+                            
+                            for team_player in team_players:
+                                if ((team_player.get('id') == player_id) or 
+                                    (team_player.get('name') == player_name)):
+                                    role = team_player.get('role')
+                                    if role in corrected_role_counts:
+                                        corrected_role_counts[role] += 1
+                                    break
+                        
+                        # Check if correction worked
+                        correction_mismatches = []
+                        for role, expected_count in MODULE_SLOTS[module].items():
+                            actual_count = corrected_role_counts[role]
+                            if actual_count != expected_count:
+                                correction_mismatches.append(f"{role}: expected {expected_count}, got {actual_count}")
+                        
+                        if not correction_mismatches:
+                            logger.info(f"Auto-correction successful! New role counts: {corrected_role_counts}")
+                        else:
+                            logger.warning(f"Auto-correction partially failed: {correction_mismatches}")
+                    
+                if mismatches:  # Still have mismatches after auto-correction attempt
+                    # Suggest alternative formations
+                    suggestions = []
+                    for alt_module, alt_slots in MODULE_SLOTS.items():
+                        if alt_module != module:
+                            # Check if current role counts fit alternative formation
+                            if all(role_counts.get(role, 0) >= count for role, count in alt_slots.items()):
+                                suggestions.append(alt_module)
+                    
+                    error_msg = f"Formazione {module} non rispettata: {', '.join(mismatches)}"
+                    if suggestions:
+                        error_msg += f". Formazioni alternative possibili: {', '.join(suggestions[:2])}"
+                    else:
+                        error_msg += ". Verifica di avere abbastanza giocatori per ogni ruolo nella tua squadra"
+                    
+                    raise ValueError(error_msg)
+            else:
+                logger.info(f"Formation {module} validation passed: {role_counts}")
+        
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
+        cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
+        
+        logger.info(f"Gemini optimize-lineup cached call for matchday={matchday}, risk={risk}, module={module}")
+        
+        return {
+            'result': result, 
+            'cost': cost,
+            'input_tokens': input_tokens,
+            'output_tokens': output_tokens
+        }
+        
+    except Exception as e:
+        logger.error(f"Gemini optimize-lineup cached error: {e}")
+        raise e
+
+@gemini_api.route('/optimize-lineup', methods=['POST'])
+@require_auth
+def gemini_optimize_lineup():
+    """
+    Given strategy settings and team players with stats and probable lineup info,
+    returns the optimized XI and bench using Gemini AI.
+    Expects JSON: { 
+        "strategySettings": {...}, 
+        "teamPlayers": [...], 
+        "matchday": <int> 
+    }
+    """
+    limiter = get_limiter()
+    if limiter:
+        limiter.limit("15/minute")(lambda: None)()
+    
+    try:
+        data = request.get_json() or {}
+        logger.info(f"Received optimize-lineup request: {data}")
+        
+        strategy_settings = data.get('strategySettings', {})
+        team_players = data.get('teamPlayers', [])
+        matchday = data.get('matchday')
+        
+        logger.info(f"Parsed data - matchday: {matchday} (type: {type(matchday)}), strategy: {strategy_settings}, players count: {len(team_players)}")
+        
+        if matchday is None:
+            logger.error("Matchday is None")
+            return jsonify_error("bad_request", "'matchday' è richiesto.")
+        
+        if not isinstance(matchday, int):
+            logger.error(f"Matchday is not int: {matchday} (type: {type(matchday)})")
+            return jsonify_error("bad_request", f"'matchday' deve essere un intero. Ricevuto: {matchday} (tipo: {type(matchday)})")
+        
+        if not (1 <= matchday <= 38):
+            logger.error(f"Matchday out of range: {matchday}")
+            return jsonify_error("bad_request", f"'matchday' deve essere tra 1 e 38. Ricevuto: {matchday}")
+        
+        if not team_players:
+            logger.error("No team players provided")
+            return jsonify_error("bad_request", "Nessun giocatore fornito per l'ottimizzazione.")
+        
+        # Extract strategy settings
+        risk = strategy_settings.get('risk', 50)
+        xi_threshold = strategy_settings.get('xiThreshold', 0.7)
+        prefer_def_mod = strategy_settings.get('preferDefMod', False)
+        module = strategy_settings.get('module', '4-3-3')
+        
+        # Convert numerical risk to descriptive label
+        def get_risk_label(risk_value):
+            if risk_value <= 33:
+                return "Conservativo"
+            elif risk_value >= 67:
+                return "Aggressivo"
+            else:
+                return "Bilanciato"
+        
+        risk_label = get_risk_label(risk)
+        
+        logger.info(f"Strategy settings - risk: {risk} ({risk_label}), threshold: {xi_threshold}, defMod: {prefer_def_mod}, module: {module}")
+    except Exception as e:
+        logger.error(f"Error parsing optimize-lineup request: {e}")
+        return jsonify_error("bad_request", f"Errore nella richiesta: {str(e)}")
+    
+    try:
+        # Convert team_players to JSON string for cache key stability
+        players_json = json.dumps(team_players, sort_keys=True)
+        
+        # Call the cached optimization function
+        cached_result = optimize_lineup_cached(
+            matchday=matchday,
+            risk=risk_label,  # Pass the descriptive label instead of number
+            xi_threshold=xi_threshold,
+            prefer_def_mod=prefer_def_mod,
+            module=module,
+            players_json=players_json
+        )
+        
+        return jsonify_success(cached_result)
+        
+    except Exception as e:
+        logger.error(f"Gemini optimize-lineup error: {e}")
+        return jsonify_error("gemini_error", f"Impossibile ottimizzare la formazione: {str(e)}")
 
 def get_participants_status_by_position(auction_log, starting_budget=500, position=None):
     """

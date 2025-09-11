@@ -50,6 +50,10 @@ def create_app():
         'http://127.0.0.1:5173',
         'https://fantacalcio-project.web.app'
     ]
+    
+    # Configure JSON to handle UTF-8 properly (fix Unicode escape issues)
+    app.config['JSON_AS_ASCII'] = False
+    app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 
     # Stripe setup
