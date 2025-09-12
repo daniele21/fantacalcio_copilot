@@ -114,7 +114,7 @@ export default function PlayerStripCard({
 
   return (
     <Card
-      className={`snap-start w-[280px] sm:w-[300px] shrink-0 rounded-3xl border p-4 transition-all duration-300
+      className={`snap-start w-[240px] sm:w-[280px] lg:w-[300px] shrink-0 rounded-2xl sm:rounded-3xl border p-3 sm:p-4 transition-all duration-300
         shadow-lg hover:shadow-2xl hover:scale-[1.02]
         bg-gradient-to-br from-white via-slate-50 to-slate-100 
         dark:from-slate-800 dark:via-slate-850 dark:to-slate-900
@@ -126,21 +126,21 @@ export default function PlayerStripCard({
       title={`${p.name} • ${p.team} ${p.opponent} • ${p.kickoff}`}
     >
       {/* HEADER */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:gap-3">
         {/* Player Name and Role */}
         <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">
-              {truncate(p.name, 20)}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">
+              {truncate(p.name, 18)}
             </h3>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
               {onRoleChange ? (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
                         <Select value={p.role} onValueChange={(newRole) => onRoleChange(p.id, newRole)}>
-                          <SelectTrigger className={`w-[60px] h-6 text-xs border-2 transition-all duration-200 font-semibold ${
+                          <SelectTrigger className={`w-[55px] sm:w-[60px] h-5 sm:h-6 text-xs border-2 transition-all duration-200 font-semibold ${
                             p.role === 'POR' ? 'border-yellow-400 bg-yellow-50 text-yellow-700 dark:border-yellow-500 dark:bg-yellow-900/20 dark:text-yellow-300' :
                             p.role === 'DIF' ? 'border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/20 dark:text-blue-300' :
                             p.role === 'CEN' ? 'border-green-400 bg-green-50 text-green-700 dark:border-green-500 dark:bg-green-900/20 dark:text-green-300' :
@@ -165,12 +165,12 @@ export default function PlayerStripCard({
               ) : (
                 <Badge 
                   variant="outline" 
-                  className="text-xs font-semibold px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600"
+                  className="text-xs font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600"
                 >
                   {p.role}
                 </Badge>
               )}
-              <span className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
                 {p.team}
               </span>
             </div>
@@ -178,38 +178,38 @@ export default function PlayerStripCard({
           
           {/* Captain Badge */}
           {isCaptain && (
-            <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
-              <Crown className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex-shrink-0">
+              <Crown className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600 dark:text-yellow-400" />
             </div>
           )}
         </div>
 
         {/* Match Info and Status */}
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           {/* Match Details */}
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-slate-600 dark:text-slate-400">{p.kickoff}</span>
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 text-xs sm:text-sm">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full"></div>
+              <span className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm">{p.kickoff}</span>
             </div>
             {/* Opponent team - make it more prominent */}
-            <div className="flex items-center justify-center bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-750 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-              <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{p.opponent}</span>
+            <div className="flex items-center justify-center bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-750 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+              <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">{p.opponent}</span>
             </div>
           </div>
           
           {/* Status Badges */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {/* Risk tag - only show when we have probable lineup data */}
             {p.risk && (
-              <span className={`px-2 py-1 text-xs rounded-full font-medium ${riskPillClasses(p.risk)}`}>
+              <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs rounded-full font-medium ${riskPillClasses(p.risk)}`}>
                 {p.risk}
               </span>
             )}
             
             {/* Titolare flag */}
             {p.titolare !== undefined && (
-              <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+              <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs rounded-full font-medium ${
                 p.titolare 
                   ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" 
                   : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
@@ -263,15 +263,15 @@ export default function PlayerStripCard({
 
       {/* Probability Section - Only show when probable lineup data is available */}
       {p.prob_titolare !== undefined && (
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Starting Probability</span>
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+            <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">Starting Probability</span>
             {(() => {
               const probLevel = getProbabilityLevel(p.prob_titolare);
               return (
                 <Badge 
                   variant="secondary" 
-                  className={`px-2 py-1 text-xs font-semibold ${probLevel.textColor} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700`}
+                  className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-semibold ${probLevel.textColor} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700`}
                 >
                   {probLevel.level}
                 </Badge>
@@ -296,14 +296,14 @@ export default function PlayerStripCard({
 
       {/* AI Reasoning Section - Only show when AI reasoning is available */}
       {p.aiReasoning && (
-        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-3 mb-4 border border-purple-200/50 dark:border-purple-700/30">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
-              <Wand2 className="h-3 w-3 text-white" />
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 mb-3 sm:mb-4 border border-purple-200/50 dark:border-purple-700/30">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+              <Wand2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-white" />
             </div>
-            <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">🤖 AI Insight</span>
+            <span className="text-xs sm:text-sm font-semibold text-purple-700 dark:text-purple-300">🤖 AI Insight</span>
           </div>
-          <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
             {p.aiReasoning}
           </p>
         </div>
@@ -316,7 +316,7 @@ export default function PlayerStripCard({
         ref={detailsRef}
         onToggle={e => setDetailsOpen((e.target as HTMLDetailsElement).open)}
       >
-        <summary className="cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-300 py-2 px-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 select-none transition-colors flex items-center justify-between">
+        <summary className="cursor-pointer text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 select-none transition-colors flex items-center justify-between">
           <span>📊 Statistics</span>
           <div className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -469,11 +469,11 @@ export default function PlayerStripCard({
       </details>
 
       {/* ACTION BUTTONS */}
-      <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between mb-3">
+      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
           <Badge 
             variant={isInXI ? "default" : "outline"} 
-            className={`px-3 py-1 font-semibold ${
+            className={`px-2 sm:px-3 py-0.5 sm:py-1 font-semibold text-xs sm:text-sm ${
               isInXI 
                 ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800" 
                 : "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400"
@@ -488,14 +488,14 @@ export default function PlayerStripCard({
               variant="outline"
               onClick={() => onCaptain?.(p.id)}
               disabled={!onCaptain}
-              className={`h-8 w-8 p-0 border-slate-300 dark:border-slate-600 ${
+              className={`h-6 w-6 sm:h-8 sm:w-8 p-0 border-slate-300 dark:border-slate-600 ${
                 isCaptain 
                   ? "bg-yellow-100 border-yellow-300 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-400" 
                   : "hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
               title={isCaptain ? "Remove as captain" : "Set as captain"}
             >
-              <Crown className="h-4 w-4" />
+              <Crown className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
             
             <Button
@@ -503,10 +503,10 @@ export default function PlayerStripCard({
               variant="outline"
               onClick={() => onLock?.(p.id)}
               disabled={!onLock}
-              className="h-8 w-8 p-0 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="h-6 w-6 sm:h-8 sm:w-8 p-0 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
               title="Lock in XI"
             >
-              <Lock className="h-4 w-4" />
+              <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
             
             <Button
@@ -514,35 +514,37 @@ export default function PlayerStripCard({
               variant="outline"
               onClick={() => onExclude?.(p.id)}
               disabled={!onExclude}
-              className="h-8 w-8 p-0 border-slate-300 dark:border-slate-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 hover:text-red-600 dark:hover:text-red-400"
+              className="h-6 w-6 sm:h-8 sm:w-8 p-0 border-slate-300 dark:border-slate-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 hover:text-red-600 dark:hover:text-red-400"
               title="Exclude this week"
             >
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
             </Button>
           </div>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 sm:gap-2">
           {isInXI ? (
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-9 text-sm font-medium border-slate-300 dark:border-slate-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 hover:text-red-600 dark:hover:text-red-400"
+              className="flex-1 h-8 sm:h-9 text-xs sm:text-sm font-medium border-slate-300 dark:border-slate-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 hover:text-red-600 dark:hover:text-red-400"
               onClick={() => onSendToBench?.(p.id)}
               disabled={!onSendToBench}
             >
-              <ArrowDownCircle className="h-4 w-4 mr-2" />
-              Send to Bench
+              <ArrowDownCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Send to Bench</span>
+              <span className="sm:hidden">Bench</span>
             </Button>
           ) : (
             <Button
               size="sm"
-              className="flex-1 h-9 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+              className="flex-1 h-8 sm:h-9 text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white border-0"
               onClick={() => onAddToXI?.(p.id)}
               disabled={!onAddToXI}
             >
-              <ArrowUpCircle className="h-4 w-4 mr-2" />
-              Add to XI
+              <ArrowUpCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Add to XI</span>
+              <span className="sm:hidden">Add XI</span>
             </Button>
           )}
         </div>

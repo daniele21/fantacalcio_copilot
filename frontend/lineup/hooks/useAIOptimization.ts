@@ -24,6 +24,14 @@ interface UseAIOptimizationReturn {
   setViceCaptainId: (id: string | null) => void;
   captainId: string | null;
   viceCaptainId: string | null;
+  // Manual lineup management
+  handleAddToXI: (playerId: string) => void;
+  handleSendToBench: (playerId: string) => void;
+  // Swap dialog state
+  showSwapDialog: boolean;
+  setShowSwapDialog: (show: boolean) => void;
+  playerToAdd: Player | null;
+  handleSwapPlayers: (playerToRemoveId: string, playerToAddId: string) => void;
 }
 
 export function useAIOptimization({
@@ -42,6 +50,10 @@ export function useAIOptimization({
   const [aiRecommendations, setAiRecommendations] = useState<AIRecommendations | null>(null);
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
+  
+  // Swap dialog state
+  const [showSwapDialog, setShowSwapDialog] = useState(false);
+  const [playerToAdd, setPlayerToAdd] = useState<Player | null>(null);
 
   const handleAIOptimization = async () => {
     if (!nextMatchday) {
@@ -225,6 +237,146 @@ export function useAIOptimization({
     }
   };
 
+  // Manual lineup management functions
+  const handleAddToXI = (playerId: string) => {
+    if (!aiResult) return;
+    
+    const player = players.find(p => p.id === playerId);
+    if (!player) return;
+    
+    // Check if player is already in XI
+    const isInXI = aiResult.xi.some((xiPlayer: any) => xiPlayer.playerId === playerId);
+    if (isInXI) return;
+    
+    // Check current XI count by role
+    const currentXIByRole = aiResult.xi.reduce((acc: any, xiPlayer: any) => {
+      const p = players.find(p => p.id === xiPlayer.playerId);
+      if (p) {
+        acc[p.role] = (acc[p.role] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    
+    // Basic formation constraints (11 players max)
+    if (aiResult.xi.length >= 11) {
+      console.log(`XI is full (11 players), opening swap dialog for ${player.name}`);
+      setPlayerToAdd(player);
+      setShowSwapDialog(true);
+      return;
+    }
+    
+    // Log current formation for debugging
+    console.log(`Current XI by role:`, currentXIByRole, `Adding ${player.role}`);
+    
+    // Remove from bench and add to XI
+    const updatedBench = aiResult.bench.filter((benchPlayer: any) => benchPlayer.playerId !== playerId);
+    const updatedXI = [...aiResult.xi, {
+      playerId: player.id,
+      playerName: player.name,
+      role: player.role,
+      reasoning: "Added manually"
+    }];
+    
+    // Update AI result
+    setAiResult({
+      ...aiResult,
+      xi: updatedXI,
+      bench: updatedBench
+    });
+    
+    console.log(`✅ Added ${player.name} (${player.role}) to XI. Current XI: ${updatedXI.length}/11`);
+  };
+
+  const handleSwapPlayers = (playerToRemoveId: string, playerToAddId: string) => {
+    if (!aiResult) return;
+    
+    const playerToRemove = players.find(p => p.id === playerToRemoveId);
+    const playerToAddObj = players.find(p => p.id === playerToAddId);
+    
+    if (!playerToRemove || !playerToAddObj) return;
+    
+    // Remove captain/vice-captain status if the removed player had it
+    if (captainId === playerToRemoveId) {
+      setCaptainId(null);
+    }
+    if (viceCaptainId === playerToRemoveId) {
+      setViceCaptainId(null);
+    }
+    
+    // Update XI: remove the selected player and add the new one
+    const updatedXI = aiResult.xi
+      .filter((xiPlayer: any) => xiPlayer.playerId !== playerToRemoveId)
+      .concat({
+        playerId: playerToAddObj.id,
+        playerName: playerToAddObj.name,
+        role: playerToAddObj.role,
+        reasoning: "Swapped manually"
+      });
+    
+    // Update bench: remove the player being added and add the player being removed
+    const updatedBench = aiResult.bench
+      .filter((benchPlayer: any) => benchPlayer.playerId !== playerToAddId)
+      .concat({
+        playerId: playerToRemove.id,
+        playerName: playerToRemove.name,
+        role: playerToRemove.role,
+        reasoning: "Moved to bench via swap"
+      });
+    
+    // Update AI result
+    setAiResult({
+      ...aiResult,
+      xi: updatedXI,
+      bench: updatedBench
+    });
+    
+    console.log(`🔄 Swapped ${playerToRemove.name} (to bench) with ${playerToAddObj.name} (to XI)`);
+  };
+
+  const handleSendToBench = (playerId: string) => {
+    if (!aiResult) return;
+    
+    const player = players.find(p => p.id === playerId);
+    if (!player) return;
+    
+    // Check if player is in XI
+    const isInXI = aiResult.xi.some((xiPlayer: any) => xiPlayer.playerId === playerId);
+    if (!isInXI) return;
+    
+    // Don't allow sending to bench if it would leave XI with less than minimum players for that role
+    const currentXIByRole = aiResult.xi.reduce((acc: any, xiPlayer: any) => {
+      const p = players.find(p => p.id === xiPlayer.playerId);
+      if (p) {
+        acc[p.role] = (acc[p.role] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    
+    // Basic constraint: ensure at least 1 goalkeeper remains
+    if (player.role === 'POR' && currentXIByRole['POR'] <= 1) {
+      console.warn(`Cannot send ${player.name} to bench: Must have at least 1 goalkeeper in XI`);
+      return;
+    }
+    
+    // Remove from XI and add to bench
+    const updatedXI = aiResult.xi.filter((xiPlayer: any) => xiPlayer.playerId !== playerId);
+    const updatedBench = [...aiResult.bench, {
+      playerId: player.id,
+      playerName: player.name,
+      role: player.role,
+      reasoning: "Sent to bench manually"
+    }];
+    
+    // Update AI result
+    setAiResult({
+      ...aiResult,
+      xi: updatedXI,
+      bench: updatedBench
+    });
+    
+    console.log(`✅ Sent ${player.name} (${player.role}) to bench. Current XI: ${updatedXI.length}/11`);
+  };
+
   return {
     aiOptimizing,
     aiOptimizationError,
@@ -234,6 +386,13 @@ export function useAIOptimization({
     setCaptainId,
     setViceCaptainId,
     captainId,
-    viceCaptainId
+    viceCaptainId,
+    handleAddToXI,
+    handleSendToBench,
+    // Swap dialog state and handlers
+    showSwapDialog,
+    setShowSwapDialog,
+    playerToAdd,
+    handleSwapPlayers
   };
 }

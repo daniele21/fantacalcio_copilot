@@ -3,6 +3,7 @@
 import json
 import os
 import logging
+import hashlib
 import google.genai as genai
 from google.genai import types
 from flask import Blueprint, request, current_app, g
@@ -92,77 +93,66 @@ MODULE_SLOTS = {
 }
 
 
-@gemini_api.route('/probable-lineups', methods=['POST'])
-@require_auth
-def gemini_probable_lineups():
+def probable_lineups_with_stable_cache(matchday, season, stable_players_json):
     """
-    Given a Serie A matchday (giornata), returns the probable lineups for all teams using Gemini and Google Search grounding.
-    Expects JSON: { "matchday": <int>, "season": <str, optional> }
+    Custom cache implementation that uses stable player data for cache key generation.
     """
-    limiter = get_limiter()
-    if limiter:
-        limiter.limit("10/minute")(lambda: None)()
-    data = request.get_json() or {}
-    matchday = data.get('matchday')
-    season = data.get('season') or '2025/2026'
-    player_names = data.get('player_names', [])
-    if not isinstance(matchday, int) or not (1 <= matchday <= 38):
-        return jsonify_error("bad_request", "'matchday' deve essere un intero tra 1 e 38.")
-    # Log or use player_names as needed
-    if player_names:
-        logger.info(f"Received player_names for probable-lineups: {player_names}")
-
-    # Use matchday as document id and check if created today
-    from datetime import datetime
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    db_type = os.getenv('DB_TYPE', 'sqlite')
-    google_sub = request.args.get('google_sub') or g.user_id
-    db = get_db()
-
-    # Check which players need fresh info (missing or outdated)
-    players_to_update = []
-    existing_fresh_data = {}
+    import hashlib
+    import time
+    import sys
     
-    if db_type == 'firestore' and firestore is not None:
-        doc_ref = db.collection('probable_lineups').document(str(matchday))
-        doc = doc_ref.get()
-        if doc.exists:
-            row = doc.to_dict()
-            existing_result = row.get('result', {})
-            
-            # Check each player to see if their info is fresh (from today)
-            for player_info in player_names:
-                player_name = player_info.get('player_name')
-                if player_name and player_name in existing_result:
-                    player_data = existing_result[player_name]
-                    updated_at = player_data.get('updated_at', '')
-                    # Check if updated today (compare date part only)
-                    if updated_at.startswith(today_str):
-                        existing_fresh_data[player_name] = player_data
-                    else:
-                        players_to_update.append(player_name)
-                else:
-                    players_to_update.append(player_name)
-            
-            # If all players have fresh data, return cached result
-            if not players_to_update:
-                logger.info(f"All player info is fresh for matchday {matchday}, returning cached result")
-                # get_user_team_cached(google_sub, db)
-                return jsonify_success({'result': existing_result, 'cost': 0, 'cached': True})
+    # Create cache key from stable parameters only
+    key_parts = [str(matchday), season, stable_players_json]
+    cache_key = "|".join(key_parts)
+    cache_key_hash = hashlib.sha256(cache_key.encode()).hexdigest()
+    
+    # Use global cache or create one
+    if not hasattr(probable_lineups_with_stable_cache, '_cache'):
+        probable_lineups_with_stable_cache._cache = {}
+        probable_lineups_with_stable_cache._cache_times = {}
+    
+    cache = probable_lineups_with_stable_cache._cache
+    cache_times = probable_lineups_with_stable_cache._cache_times
+    ttl = 6 * 60 * 60  # 6 hours for probable lineups (more stable than formations)
+    now = time.time()
+    
+    # Check cache
+    if cache_key_hash in cache and cache_key_hash in cache_times:
+        if now - cache_times[cache_key_hash] < ttl:
+            print(f"\033[92m[Cache HIT] /api/gemini/probable-lineups | key={cache_key_hash[:8]}... | age={now - cache_times[cache_key_hash]:.1f}s\033[0m", file=sys.stderr)
+            return cache[cache_key_hash]
         else:
-            # No existing document, need to fetch all players
-            players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
-    else:
-        # For SQLite or when Firestore is not available, always update all players
-        players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
-
-    if not players_to_update:
-        logger.info(f"No players to update for matchday {matchday}")
-        return jsonify_success({'result': existing_fresh_data, 'cost': 0, 'cached': True})
+            # TTL expired
+            print(f"\033[93m[Cache EXPIRED] /api/gemini/probable-lineups | key={cache_key_hash[:8]}...\033[0m", file=sys.stderr)
+            del cache[cache_key_hash]
+            del cache_times[cache_key_hash]
     
-    logger.info(f"Players to update: {players_to_update} (out of {len(player_names)} total players)")
+    print(f"\033[91m[Cache MISS] /api/gemini/probable-lineups | key={cache_key_hash[:8]}... | params={cache_key[:100]}...\033[0m", file=sys.stderr)
+    
+    # Call original function
+    result = probable_lineups_cached(matchday, season, stable_players_json)
+    
+    # Store in cache (implement simple LRU by removing oldest if cache is too big)
+    max_cache_size = 50
+    if len(cache) >= max_cache_size:
+        oldest_key = min(cache_times.keys(), key=lambda k: cache_times[k])
+        del cache[oldest_key]
+        del cache_times[oldest_key]
+    
+    cache[cache_key_hash] = result
+    cache_times[cache_key_hash] = now
+    
+    return result
 
-    # Not cached, run Gemini
+
+@cache_api_lru(maxsize=1024, ttl=6*60*60)  # Cache for 6 hours
+def probable_lineups_cached(matchday, season, stable_players_json):
+    """
+    Cached function for probable lineups.
+    """
+    # Parse back the player names for the actual API call
+    player_names = json.loads(stable_players_json)
+    
     # Get current month for more precise search terms
     from datetime import datetime
     current_month = datetime.now().strftime('%B %Y')  # e.g., "September 2025"
@@ -172,6 +162,8 @@ def gemini_probable_lineups():
         'September': 'settembre', 'October': 'ottobre', 'November': 'novembre', 'December': 'dicembre'
     }.get(datetime.now().strftime('%B'), datetime.now().strftime('%B').lower())
     current_year = datetime.now().year
+    
+    players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
     
     prompt = f'''
         Sei un esperto di Fantacalcio e Serie A. Il tuo compito è estrarre informazioni sulle probabili formazioni ESCLUSIVAMENTE per la stagione CORRENTE 2025/26.
@@ -237,89 +229,185 @@ def gemini_probable_lineups():
         
         Rispondi SOLO con JSON valido. Usa doppi apici. Lingua italiana.
         '''
-    try:
-        start_time = time.time()
-        schema = types.Schema(
-            type=types.Type.OBJECT,
-            properties={
-                "giocatori": types.Schema(
-                    type=types.Type.ARRAY,
-                    items=types.Schema(
-                        type=types.Type.OBJECT,
-                        properties={
-                            "squadra": types.Schema(type=types.Type.STRING),
-                            "giocatore": types.Schema(type=types.Type.STRING),
-                            "titolare": types.Schema(type=types.Type.BOOLEAN),
-                            "prob_titolare": types.Schema(type=types.Type.NUMBER),
-                            "prob_subentro": types.Schema(type=types.Type.NUMBER),
-                            "ballottaggio": types.Schema(type=types.Type.STRING),
-                            "note": types.Schema(type=types.Type.STRING),
-                            "forma": types.Schema(type=types.Type.STRING),
-                            "news": types.Schema(type=types.Type.STRING),
-                        },
-                        required=["squadra", "giocatore", "titolare", "prob_titolare", "prob_subentro", "ballottaggio", "note", "forma", "news"]
-                    )
+    
+    start_time = time.time()
+    schema = types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "giocatori": types.Schema(
+                type=types.Type.ARRAY,
+                items=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "squadra": types.Schema(type=types.Type.STRING),
+                        "giocatore": types.Schema(type=types.Type.STRING),
+                        "titolare": types.Schema(type=types.Type.BOOLEAN),
+                        "prob_titolare": types.Schema(type=types.Type.NUMBER),
+                        "prob_subentro": types.Schema(type=types.Type.NUMBER),
+                        "ballottaggio": types.Schema(type=types.Type.STRING),
+                        "note": types.Schema(type=types.Type.STRING),
+                        "forma": types.Schema(type=types.Type.STRING),
+                        "news": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["squadra", "giocatore", "titolare", "prob_titolare", "prob_subentro", "ballottaggio", "note", "forma", "news"]
                 )
-            },
-            required=["giocatori"]
-        )
-        config = types.GenerateContentConfig(
-            tools=[grounding_tool],
-            # thinking_config=types.ThinkingConfig(thinking_budget=1024),
-            response_schema=schema,
-            temperature=0.0,
-            max_output_tokens=None,
-        )
-        response = genai_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=config,
-        )
-        elapsed = time.time() - start_time
-        # logger.info(f"Gemini probable-lineups call time: {elapsed:.2f}s")
-        text = response.text
-        # logger.info(f"[Gemini probable-lineups raw response]: {text}")
-        result = json.loads(text.replace('```json', '').replace('```', '').strip())
-        if not (isinstance(result, dict) and 'giocatori' in result):
-            return jsonify_error("gemini_error", "La risposta dell'AI non è un oggetto JSON valido con la chiave 'giocatori'.")
+            )
+        },
+        required=["giocatori"]
+    )
+    config = types.GenerateContentConfig(
+        tools=[grounding_tool],
+        response_schema=schema,
+        temperature=0.0,
+        max_output_tokens=None,
+    )
+    response = genai_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=config,
+    )
+    elapsed = time.time() - start_time
+    
+    text = response.text
+    result = json.loads(text.replace('```json', '').replace('```', '').strip())
+    if not (isinstance(result, dict) and 'giocatori' in result):
+        raise ValueError("La risposta dell'AI non è un oggetto JSON valido con la chiave 'giocatori'.")
+
+    # Transform giocatori array into dict keyed by player_name, with required structure
+    from datetime import datetime
+    giocatori_list = result['giocatori']
+    now_iso = datetime.now().isoformat()
+    giocatori_by_name = {}
+    for player in giocatori_list:
+        nome = player.get('giocatore')
+        if not nome:
+            continue
+        giocatori_by_name[nome] = {
+            'updated_at': now_iso,
+            'squadra': player.get('squadra'),
+            'titolare': player.get('titolare'),
+            'prob_titolare': player.get('prob_titolare'),
+            'prob_subentro': player.get('prob_subentro'),
+            'ballottaggio': player.get('ballottaggio'),
+            'note': player.get('note'),
+            'forma': player.get('forma'),
+            'news': player.get('news'),
+        }
+
+    usage = getattr(response, "usage_metadata", None)
+    input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+    output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
+    cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
+
+    return {
+        'result': giocatori_by_name,
+        'cost': cost,
+        'cached': False
+    }
 
 
-        # Transform giocatori array into dict keyed by player_name, with required structure
-        from datetime import datetime
-        giocatori_list = result['giocatori']
-        now_iso = datetime.now().isoformat()
-        giocatori_by_name = {}
-        for player in giocatori_list:
-            nome = player.get('giocatore')
-            if not nome:
-                continue
-            giocatori_by_name[nome] = {
-                'updated_at': now_iso,
-                'squadra': player.get('squadra'),
-                'titolare': player.get('titolare'),
-                'prob_titolare': player.get('prob_titolare'),
-                'prob_subentro': player.get('prob_subentro'),
-                'ballottaggio': player.get('ballottaggio'),
-                'note': player.get('note'),
-                'forma': player.get('forma'),
-                'news': player.get('news'),
-            }
+@gemini_api.route('/probable-lineups', methods=['POST'])
+@require_auth
+def gemini_probable_lineups():
+    """
+    Given a Serie A matchday (giornata), returns the probable lineups for all teams using Gemini and Google Search grounding.
+    Expects JSON: { "matchday": <int>, "season": <str, optional> }
+    """
+    limiter = get_limiter()
+    if limiter:
+        limiter.limit("10/minute")(lambda: None)()
+    data = request.get_json() or {}
+    matchday = data.get('matchday')
+    season = data.get('season') or '2025/2026'
+    player_names = data.get('player_names', [])
+    if not isinstance(matchday, int) or not (1 <= matchday <= 38):
+        return jsonify_error("bad_request", "'matchday' deve essere un intero tra 1 e 38.")
+    # Log or use player_names as needed
+    if player_names:
+        logger.info(f"Received player_names for probable-lineups: {player_names}")
+
+    # Use matchday as document id and check if created today
+    from datetime import datetime
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    db_type = os.getenv('DB_TYPE', 'sqlite')
+    google_sub = request.args.get('google_sub') or g.user_id
+    db = get_db()
+
+    # Create stable cache key using only essential player data
+    stable_players = []
+    for player_info in player_names:
+        if player_info.get('player_name'):
+            stable_players.append({
+                'player_name': player_info.get('player_name')
+            })
+    
+    stable_players_json = json.dumps(stable_players, sort_keys=True)
+
+    # Check which players need fresh info (missing or outdated)
+    players_to_update = []
+    existing_fresh_data = {}
+    
+    if db_type == 'firestore' and firestore is not None:
+        doc_ref = db.collection('probable_lineups').document(str(matchday))
+        doc = doc_ref.get()
+        if doc.exists:
+            row = doc.to_dict()
+            existing_result = row.get('result', {})
+            
+            # Check each player to see if their info is fresh (from today)
+            for player_info in player_names:
+                player_name = player_info.get('player_name')
+                if player_name and player_name in existing_result:
+                    player_data = existing_result[player_name]
+                    updated_at = player_data.get('updated_at', '')
+                    # Check if updated today (compare date part only)
+                    if updated_at.startswith(today_str):
+                        existing_fresh_data[player_name] = player_data
+                    else:
+                        players_to_update.append(player_name)
+                else:
+                    players_to_update.append(player_name)
+            
+            # If all players have fresh data, return cached result
+            if not players_to_update:
+                logger.info(f"All player info is fresh for matchday {matchday}, returning cached result")
+                # get_user_team_cached(google_sub, db)
+                return jsonify_success({'result': existing_result, 'cost': 0, 'cached': True})
+        else:
+            # No existing document, need to fetch all players
+            players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
+    else:
+        # For SQLite or when Firestore is not available, check cache first
+        try:
+            cached_result = probable_lineups_with_stable_cache(matchday, season, stable_players_json)
+            if cached_result:
+                return jsonify_success(cached_result)
+        except Exception as cache_error:
+            logger.warning(f"Cache lookup failed, proceeding with fresh request: {cache_error}")
+        
+        # Always update all players for SQLite
+        players_to_update = [p.get('player_name') for p in player_names if p.get('player_name')]
+
+    if not players_to_update:
+        logger.info(f"No players to update for matchday {matchday}")
+        return jsonify_success({'result': existing_fresh_data, 'cost': 0, 'cached': True})
+    
+    logger.info(f"Players to update: {players_to_update} (out of {len(player_names)} total players)")
+
+    # Use the stable cache function for fresh API calls
+    try:
+        cached_result = probable_lineups_with_stable_cache(matchday, season, stable_players_json)
         
         # Merge new data with existing fresh data
-        final_result = {**existing_fresh_data, **giocatori_by_name}
-
-
-        usage = getattr(response, "usage_metadata", None)
-        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
-        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
-        cost = compute_gemini_cost(GEMINI_MODEL, input_tokens, output_tokens, "default", grounding_searches=1)
-
+        final_result = {**existing_fresh_data, **cached_result['result']}
+        
         # Save to Firestore if enabled, merging with existing player info
         if db_type == 'firestore' and firestore is not None:
             doc_ref = db.collection('probable_lineups').document(str(matchday))
-            doc_ref.set({'result': final_result, 'cost': cost, 'created_at': today_str, 'matchday': matchday}, merge=True)
+            doc_ref.set({'result': final_result, 'cost': cached_result['cost'], 'created_at': today_str, 'matchday': matchday}, merge=True)
 
-        return jsonify_success({'result': final_result, 'cost': cost, 'cached': False})
+        return jsonify_success({'result': final_result, 'cost': cached_result['cost'], 'cached': cached_result['cached']})
+        
     except Exception as e:
         logger.error(f"Gemini probable-lineups error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare le probabili formazioni: {str(e)}")
@@ -717,7 +805,60 @@ def gemini_bidding_advice():
         logger.error(f"Gemini bidding-advice error: {e}")
         return jsonify_error("gemini_error", f"Impossibile generare il consiglio sull'offerta: {str(e)}")
 
-@cache_api_lru(maxsize=128, ttl=30*60)  # Cache for 30 minutes
+def optimize_lineup_with_stable_cache(matchday, risk, xi_threshold, prefer_def_mod, module, stable_players_json, team_players):
+    """
+    Custom cache implementation that uses stable player data for cache key generation
+    but processes the full team_players data for optimization.
+    """
+    import hashlib
+    import time
+    import sys
+    
+    # Create cache key from stable parameters only
+    key_parts = [str(matchday), risk, str(xi_threshold), str(prefer_def_mod), module, stable_players_json]
+    cache_key = "|".join(key_parts)
+    cache_key_hash = hashlib.sha256(cache_key.encode()).hexdigest()
+    
+    # Use global cache or create one
+    if not hasattr(optimize_lineup_with_stable_cache, '_cache'):
+        optimize_lineup_with_stable_cache._cache = {}
+        optimize_lineup_with_stable_cache._cache_times = {}
+    
+    cache = optimize_lineup_with_stable_cache._cache
+    cache_times = optimize_lineup_with_stable_cache._cache_times
+    ttl = 30 * 60  # 30 minutes
+    now = time.time()
+    
+    # Check cache
+    if cache_key_hash in cache and cache_key_hash in cache_times:
+        if now - cache_times[cache_key_hash] < ttl:
+            print(f"\033[92m[Cache HIT] /api/gemini/optimize-lineup | key={cache_key_hash[:8]}... | age={now - cache_times[cache_key_hash]:.1f}s\033[0m", file=sys.stderr)
+            return cache[cache_key_hash]
+        else:
+            # TTL expired
+            print(f"\033[93m[Cache EXPIRED] /api/gemini/optimize-lineup | key={cache_key_hash[:8]}...\033[0m", file=sys.stderr)
+            del cache[cache_key_hash]
+            del cache_times[cache_key_hash]
+    
+    print(f"\033[91m[Cache MISS] /api/gemini/optimize-lineup | key={cache_key_hash[:8]}... | params={cache_key[:100]}...\033[0m", file=sys.stderr)
+    
+    # Call original optimization function with full team data
+    result = optimize_lineup_cached(matchday, risk, xi_threshold, prefer_def_mod, module, json.dumps(team_players, sort_keys=True))
+    
+    # Store in cache (implement simple LRU by removing oldest if cache is too big)
+    max_cache_size = 100
+    if len(cache) >= max_cache_size:
+        oldest_key = min(cache_times.keys(), key=lambda k: cache_times[k])
+        del cache[oldest_key]
+        del cache_times[oldest_key]
+    
+    cache[cache_key_hash] = result
+    cache_times[cache_key_hash] = now
+    
+    return result
+
+
+@cache_api_lru(maxsize=2048, ttl=30*60)  # Cache for 30 minutes
 def optimize_lineup_cached(matchday, risk, xi_threshold, prefer_def_mod, module, players_json):
     """
     Cached function for lineup optimization.
@@ -728,7 +869,7 @@ def optimize_lineup_cached(matchday, risk, xi_threshold, prefer_def_mod, module,
     logger = logging.getLogger(__name__)
     
     try:
-        # Parse players data
+        # Parse the player data for actual optimization
         team_players = json.loads(players_json)
         
         # Debug: Check role distribution in team
@@ -873,7 +1014,7 @@ def optimize_lineup_cached(matchday, risk, xi_threshold, prefer_def_mod, module,
            - ATT: deve essere {MODULE_SLOTS.get(module, {}).get('ATT', 3)}
            - TOTALE: deve essere 11
         6. Se i conti non tornano, RICOMINCIA la selezione finché non rispetti {module}
-        7. Solo quando la formazione è corretta, procedi con il JSON finale
+        7. Solo quando la formazione è corretta, procedi con il JSON finale VALIDO
 
         LINGUA
         Rispondi in italiano.
@@ -1207,17 +1348,32 @@ def gemini_optimize_lineup():
         return jsonify_error("bad_request", f"Errore nella richiesta: {str(e)}")
     
     try:
-        # Convert team_players to JSON string for cache key stability
-        players_json = json.dumps(team_players, sort_keys=True)
+        # Create a stable cache key using only essential player identification
+        # and strategy parameters, excluding dynamic data that changes frequently
+        stable_players = []
+        for player in team_players:
+            stable_player = {
+                'id': player.get('id'),
+                'name': player.get('name'),
+                'role': player.get('role'),
+                'team': player.get('team')
+            }
+            stable_players.append(stable_player)
         
-        # Call the cached optimization function
-        cached_result = optimize_lineup_cached(
+        # Sort for consistent key generation
+        stable_players.sort(key=lambda x: x['id'])
+        stable_players_json = json.dumps(stable_players, sort_keys=True)
+        
+        # Call the cached optimization function 
+        # The cache key will be based on stable data, but the function will use full team_players
+        cached_result = optimize_lineup_with_stable_cache(
             matchday=matchday,
-            risk=risk_label,  # Pass the descriptive label instead of number
+            risk=risk_label,
             xi_threshold=xi_threshold,
             prefer_def_mod=prefer_def_mod,
             module=module,
-            players_json=players_json
+            stable_players_json=stable_players_json,
+            team_players=team_players  # Pass full data for actual optimization
         )
         
         return jsonify_success(cached_result)

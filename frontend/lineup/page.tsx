@@ -8,8 +8,9 @@ import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import FormationPitch from "./components/FormationPitch";
 import RoleRow from "./components/RoleRow";
+import SwapPlayerDialog from "./components/SwapPlayerDialog";
 import ImportTeamDialog, { ImportedPlayer, ImportMode } from "@/components/ImportTeamDialog";
-import { Wand2, ShieldCheck, Upload, Zap, ChevronDown } from "lucide-react";
+import { Wand2, ShieldCheck, Upload, Zap, ChevronDown, ArrowUpCircle } from "lucide-react";
 
 // Types and utilities
 import { Module, MODULE_SLOTS } from "./types";
@@ -86,7 +87,13 @@ export default function LineupCoachPage() {
     setCaptainId,
     setViceCaptainId,
     captainId,
-    viceCaptainId
+    viceCaptainId,
+    handleAddToXI,
+    handleSendToBench,
+    showSwapDialog,
+    setShowSwapDialog,
+    playerToAdd,
+    handleSwapPlayers
   } = useAIOptimization({
     players,
     setPlayers,
@@ -775,8 +782,8 @@ export default function LineupCoachPage() {
                 onViceCaptain={(id: string) => setViceCaptainId(id === viceCaptainId ? null : id)}
                 onLock={() => {}} // Disabled
                 onExclude={() => {}} // Disabled
-                onAddToXI={() => {}} // Disabled
-                onSendToBench={() => {}} // Disabled
+                onAddToXI={handleAddToXI}
+                onSendToBench={handleSendToBench}
                 locked={new Set<string>()}
                 excluded={new Set<string>()}
               />
@@ -804,10 +811,19 @@ export default function LineupCoachPage() {
                     <div className="text-sm font-medium text-slate-900 dark:text-white mb-1">{b.name}</div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{b.role} • {b.team}</div>
                     {b.opponent && (
-                      <div className="text-xs text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded px-2 py-1">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded px-2 py-1 mb-2">
                         {b.opponent}
                       </div>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleAddToXI(b.id)}
+                      className="w-full gap-1 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+                    >
+                      <ArrowUpCircle className="h-3 w-3" />
+                      Add to XI
+                    </Button>
                   </div>
                 ))}
                 {finalRec.bench.length === 0 && (
@@ -909,8 +925,8 @@ export default function LineupCoachPage() {
                                     risk: p.xiProb > 0.7 ? 'Safe' : p.xiProb > 0.4 ? 'Upside' : 'Rotation'
                                   }))}
                                   xiIds={finalRec.xiIds || new Set<string>()}
-                                  onAddToXI={() => {}} // Disabled - only AI optimization
-                                  onSendToBench={() => {}} // Disabled - only AI optimization
+                                  onAddToXI={handleAddToXI}
+                                  onSendToBench={handleSendToBench}
                                   onLock={() => {}} // Disabled
                                   onExclude={() => {}} // Disabled
                                   captainId={captainId}
@@ -941,6 +957,17 @@ export default function LineupCoachPage() {
             setPlayers(prev => (mode === "replace" ? mapped : mergePlayers(prev, mapped)));
             setImportOpen(false);
           }}
+        />
+
+        {/* Swap Player Dialog */}
+        <SwapPlayerDialog
+          open={showSwapDialog}
+          onClose={() => setShowSwapDialog(false)}
+          playerToAdd={playerToAdd}
+          xiPlayers={finalRec.xi}
+          onSwap={handleSwapPlayers}
+          captainId={captainId}
+          viceCaptainId={viceCaptainId}
         />
       </div>
     </div>

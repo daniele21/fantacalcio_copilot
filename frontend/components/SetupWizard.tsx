@@ -452,6 +452,17 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onConfirm, initialSett
               />
             </div>
           </CollapsibleSection>
+          <div className="flex flex-col items-center mt-6">
+            <button
+              type="button"
+              className="group flex items-center gap-2 px-5 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold text-lg shadow-lg hover:scale-105 hover:shadow-xl transition-all duration-200"
+              onClick={() => navigate('/lineup')}
+            >
+              <Zap className="w-5 h-5" />
+              Ottimizza Formazione
+            </button>
+            <span className="text-xs text-content-200 mt-2 text-center">Vai alla sezione di ottimizzazione della formazione con AI.</span>
+          </div>
           <div className="flex-shrink-0 h-32" />
         </form>
         <style>{`
